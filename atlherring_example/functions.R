@@ -1,7 +1,7 @@
 
 plotfxn<-function(afit=NULL,datdirect=NULL,run=NULL,confa=NULL,qplotnamesa=NULL,varplotnamesa=NULL,fstanamesa=NULL,catchmultnamesa=NULL,retroyrs=NULL){
   forpdf<-paste(run,".pdf",sep="")
-  pdf(paste(paste(datdirect,run,sep="\\"),forpdf,sep="\\")) #create pdf for graph storage
+  pdf(paste(getwd(),forpdf,sep="/")) #create pdf for graph storage
   
   #a bunch of pre-fab SAM plots that come with the fitting package
   par(mfrow=c(1,1))
