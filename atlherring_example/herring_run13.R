@@ -5,10 +5,10 @@ setwd("/Users/charlesperretti/Projects/state-space-tests/atlherring_example/")
 
 cn <- read.ices("Herrcn.dat") # catch abundace-at-age
 cw <- read.ices("Herrcw.dat") # catch mean weight-at-age
-dw <- cw # discards mean weight-at-age (using catch mean weight-at-age for now)
-lw <- cw # landings mean weight-at-age (using catch mean weight-at-age for now)
+#dw <- cw # discards mean weight-at-age (using catch mean weight-at-age for now)
+#lw <- cw # landings mean weight-at-age (using catch mean weight-at-age for now)
 pf <- read.ices("Herrpf.dat") # proportion of f before spawning
-lf <- pf; lf[,] <- 1 # MAYBE proportion of landings before spawning??? (set to 1 for now)
+#lf <- pf; lf[,] <- 1 # MAYBE proportion of landings before spawning??? (set to 1 for now)
 mo <- read.ices("Herrmo.dat") # maturity-at-age ogive
 nm <- read.ices("Herrnm.dat") # natural mortality-at-age
 pm <- read.ices("Herrpm.dat") # proportion of m before spawning
@@ -20,9 +20,9 @@ dat_atl <- setup.sam.data(surveys = surveys,
                           residual.fleet = cn,
                           prop.mature = mo,
                           stock.mean.weight = sw,
-                          dis.mean.weight = dw,
-                          land.mean.weight = lw,
-                          land.frac = lf,
+                          #dis.mean.weight = dw,
+                          #land.mean.weight = lw,
+                          #land.frac = lf,
                           prop.f = pf,
                           prop.m = pm,
                           natural.mortality = nm,
@@ -30,6 +30,7 @@ dat_atl <- setup.sam.data(surveys = surveys,
 
 
 # Load model configuration file
+#conf <- defcon(dat = dat_atl)
 conf <- loadConf(dat = dat_atl, file = "ModelConf.txt")
 
 par <- defpar(dat_atl, conf) # some default starting values

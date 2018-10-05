@@ -1,6 +1,5 @@
-#devtools::install_github("fishfollower/SAM/stockassessment")
+# This script should break R in sam.fit() because dw, lf and lw are not supplied.
 
-#setwd("/Users/charlesperretti/Projects/state-space-tests/nsherring_example/")
 filestoget <- c("cn.dat", "cw.dat", "dw.dat", "lf.dat", "lw.dat", 
                 "mo.dat", "nm.dat", "pf.dat", "pm.dat", "sw.dat", 
                 "survey.dat")
@@ -34,35 +33,7 @@ dat <- setup.sam.data(surveys=surveys,
 
 conf <- defcon(dat)
 
-# conf$fbarRange <- c(2,6)
-# conf$corFlag <- 1
-# conf$keyLogFpar <- 
-#   matrix(c(-1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,
-#            -1,    0,    1,    2,    3,    4,    5,    6,   -1,
-#            -1,    7,   -1,   -1,   -1,   -1,   -1,   -1,   -1,
-#            8,   -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1), 
-#          nrow=4, byrow=TRUE)
-
-
 par <- defpar(dat,conf)
-
-#par$logFpar <- rep(0,9)
 
 fit <- sam.fit(dat,conf,par) 
 
-ssbplot(fit)
-
-fbarplot(fit)
-
-recplot(fit)
-
-catchplot(fit)
-
-res <- residuals(fit)
-plot(res)
-
-resp <- procres(fit)
-plot(resp)
-
-retro <- retro(fit,year=10)
-plot(retro)
