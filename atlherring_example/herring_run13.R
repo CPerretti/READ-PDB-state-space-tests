@@ -38,17 +38,19 @@ fit <- sam.fit(dat_atl, conf, par) # fit the model
 
 modelTable <- modeltable(fit) # AIC and # of params
 
-ssbplot(fit)
-recplot(fit)
-tsbplot(fit)
+
+# Make plots
+plot(fit)
+
 catchplot(fit)
 
+#parplot(fit)
+
+res <- residuals(fit)
+corplot(res)
+stockassessment::srplot(fit)
+
+pdf(file = "parameter_plot.pdf")
 parplot(fit)
-
-obscov(fit)
-
-corplot(fit)
-
-#res <- residuals(fit)
-#plot(res)
+dev.off()
 
