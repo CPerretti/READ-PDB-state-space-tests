@@ -40,11 +40,11 @@ modelTable <- modeltable(fit) # AIC and # of params
 
 
 # Make plots
-plot(fit)
-
+ssbplot(fit)
+fbarplot(fit)
+recplot(fit)
 catchplot(fit)
 
-#parplot(fit)
 
 res <- residuals(fit)
 corplot(res)
@@ -53,4 +53,7 @@ stockassessment::srplot(fit)
 pdf(file = "parameter_plot.pdf")
 parplot(fit)
 dev.off()
+
+# Simulate from the fitted model and re-fit
+simdat <- simulate(fit, seed = 1, nsim = 1)[[1]]
 
