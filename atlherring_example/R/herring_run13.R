@@ -1,7 +1,8 @@
 library(stockassessment)
 library(dplyr)
 
-setwd("/Users/charlesperretti/Projects/state-space-tests/atlherring_example/")
+
+# CL:
 # I suggest not using setwd approach. 
 # Instead assume the files are downlaoded from github with that directory structure.
 # In RStudio, under the Session tab, select Set Working Directory, then To Source File Location.
@@ -9,18 +10,20 @@ setwd("/Users/charlesperretti/Projects/state-space-tests/atlherring_example/")
 # For example, if all files in same directory, can just read and write the files.
 # If R code in example/R directory and data in example/data, then read.ices("../data/Herrcn.dat").
 # This approach will allow all of us to download from github and run the programs without having to change setwd.
+# CP:
+# Done
 
-cn <- read.ices("Herrcn.dat") # catch abundace-at-age
-cw <- read.ices("Herrcw.dat") # catch mean weight-at-age
+cn <- read.ices("../data/Herrcn.dat") # catch abundace-at-age
+cw <- read.ices("../data/Herrcw.dat") # catch mean weight-at-age
 dw <- cw # discards mean weight-at-age (using catch mean weight-at-age for now)
 lw <- cw # landings mean weight-at-age (using catch mean weight-at-age for now)
-pf <- read.ices("Herrpf.dat") # proportion of f before spawning
+pf <- read.ices("../data/Herrpf.dat") # proportion of f before spawning
 lf <- pf; lf[,] <- 1 # MAYBE proportion of landings before spawning??? (set to 1 for now)
-mo <- read.ices("Herrmo.dat") # maturity-at-age ogive
-nm <- read.ices("Herrnm.dat") # natural mortality-at-age
-pm <- read.ices("Herrpm.dat") # proportion of m before spawning
-sw <- read.ices("Herrsw.dat") # stock weight-at-age (kg)
-surveys <- read.ices("Herrsurvey_BigSep_NoAcoust.dat") #surveys
+mo <- read.ices("../data/Herrmo.dat") # maturity-at-age ogive
+nm <- read.ices("../data/Herrnm.dat") # natural mortality-at-age
+pm <- read.ices("../data/Herrpm.dat") # proportion of m before spawning
+sw <- read.ices("../data/Herrsw.dat") # stock weight-at-age (kg)
+surveys <- read.ices("../data/Herrsurvey_BigSep_NoAcoust.dat") #surveys
 
 # setup the data as needed for SAM
 dat_atl <- setup.sam.data(surveys = surveys,
@@ -37,7 +40,7 @@ dat_atl <- setup.sam.data(surveys = surveys,
 
 
 # Load model configuration file
-conf <- loadConf(dat = dat_atl, file = "ModelConf.txt")
+conf <- loadConf(dat = dat_atl, file = "../ModelConf.txt")
 
 par <- defpar(dat_atl, conf) # some default starting values
 
@@ -116,7 +119,7 @@ df_true <-
 # Extract parameter estimates from the first replicate of the
 # simulated data
 df_replicate1 <-
-  summary(simfitslist[[1]]$sdrep) %>%
+  summary(simfitslist[[6]]$sdrep) %>%
   as.data.frame() %>%
   dplyr::mutate(variable = row.names(.))
 
