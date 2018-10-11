@@ -1,3 +1,3 @@
 # state-space-tests
 
-Repository for simulation testing state-space assessment methods.
+Repository for simulation testing state-space assessment models.
