@@ -42,9 +42,12 @@ dat_atl <- setup.sam.data(surveys = surveys,
 # Load model configuration file
 conf <- loadConf(dat = dat_atl, file = "../ModelConf.txt")
 
+
 par <- defpar(dat_atl, conf) # some default starting values
 
 fit <- sam.fit(dat_atl, conf, par) # fit the model
+
+save(list = "fit", file = "../output/fit.Rdata")
 
 modelTable <- modeltable(fit) # AIC and # of params
 
