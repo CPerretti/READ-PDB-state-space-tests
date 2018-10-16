@@ -5,7 +5,16 @@
 load("../atlherring_example/output/fit.Rdata")
 
 
-# Run simulation
+# Set up simulation parameters
+
+# Set F (need to replicate some elements to match ModelConf)
+f <- exp(fit$pl$logF[(fit$conf$keyLogFsta[1,] + 1),])
+# Set M
+m <- t(fit$data$natMor)
+# Set N process sd
+sdN <- exp(fit$pl$logSdLogN[(fit$conf$keyVarLogN + 1)])
+
+# Set up matrix to record N-at-age
 nA <- ncol(fit$data$propF) # number of age-classes
 nT <- fit$data$noYears # length of time series
 
@@ -16,65 +25,47 @@ N <- matrix(data = NA, # N container
 
 N[, 1] <-  exp(fit$pl$logN[,1]) # initial condition from fitted model
 
-# Set F (need to replicate some elements to match ModelConf)
-f <- exp(fit$pl$logF[(fit$conf$keyLogFsta[1,] + 1),])
-# Set M
-m <- t(fit$data$natMor)
-# Set N process sd
-sdN <- exp(fit$pl$logSdLogN[(fit$conf$keyVarLogN + 1)])
-
-# Calculate process error (for checking against original fit)
-errP <- matrix(data = NA,
+# Calculate the process errors that were estimated in the fit so we can 
+# exactly replicate the fit
+errPro <- matrix(data = NA,
                nrow = nA, 
                ncol = nT-1)
-errP[1, ] <- exp(fit$pl$logN[1, 2:nT]) / exp(fit$pl$logN[1, 1:(nT-1)])
-errP[-c(1, nA), ] <-  exp(fit$pl$logN[-c(1, nA), 2:nT]) / 
-                     (exp(fit$pl$logN[-c(nA-1, nA), 1:(nT-1)]) *
-                      exp(-f[-c(nA-1, nA), 1:(nT-1)]) * 
-                      exp(-m[-c(nA-1, nA), 1:(nT-1)]))
-errP[nA, ] <- exp(fit$pl$logN[nA, 2:nT]) / 
-              (exp(fit$pl$logN[nA-1, 1:(nT-1)]) *
-                 exp(-f[nA-1, 1:(nT-1)]) *  
-                 exp(-m[nA-1, 1:(nT-1)]) +
-                 exp(fit$pl$logN[nA, 1:(nT-1)]) *
-                 exp(-f[nA, 1:(nT-1)]) *  
-                 exp(-m[nA, 1:(nT-1)]))
+errPro[1, ] <- exp(fit$pl$logN[1, 2:nT]) / exp(fit$pl$logN[1, 1:(nT-1)])
+errPro[-c(1, nA), ] <-  exp(fit$pl$logN[-c(1, nA), 2:nT]) / 
+                       (exp(fit$pl$logN[-c(nA-1, nA), 1:(nT-1)]) *
+                        exp(-f[-c(nA-1, nA), 1:(nT-1)]) * 
+                        exp(-m[-c(nA-1, nA), 1:(nT-1)]))
+errPro[nA, ] <- exp(fit$pl$logN[nA, 2:nT]) / 
+                (exp(fit$pl$logN[nA-1, 1:(nT-1)]) *
+                   exp(-f[nA-1, 1:(nT-1)]) *  
+                   exp(-m[nA-1, 1:(nT-1)]) +
+                   exp(fit$pl$logN[nA, 1:(nT-1)]) *
+                   exp(-f[nA, 1:(nT-1)]) *  
+                   exp(-m[nA, 1:(nT-1)]))
 
-# simulate using process errors from fit to compare (should match exactly)
+#### Process model ####
+# Simulate using process errors from fit (should match exactly)
 for (i in 2:nT) {
-  #N[1, i] <- exp(fit$pl$logN[1,i])#N[1, i-1] * exp(rnorm(1, sd = sdN[1]))
-  N[1, i] <- N[1, i-1] * errP[1, i-1] #* exp(rnorm(1, sd = sdN[1]))
-  # N[-c(1, nA), i] <- #N[-c(nA-1, nA), i-1] *
-  #                     exp(fit$pl$logN[-c(nA-1, nA), i-1]) *
-  #                     exp(-f[-c(nA-1, nA), i-1]) * 
-  #                     exp(-m[-c(nA-1, nA), i-1]) #* exp(rnorm(nA-2, sd = sdN[-c(1, nA)]))
+  N[1, i] <- N[1, i-1] * errPro[1, i-1] #* exp(rnorm(1, sd = sdN[1]))
   N[-c(1, nA), i] <- N[-c(nA-1, nA), i-1] *
                      exp(-f[-c(nA-1, nA), i-1]) * 
                      exp(-m[-c(nA-1, nA), i-1]) * 
-                     errP[-c(1, nA), i-1]
+                     errPro[-c(1, nA), i-1]
                      #exp(rnorm(nA-2, sd = sdN[-c(1, nA)]))
-  # N[nA, i] <- #N[nA-1, i-1] *
-  #              exp(fit$pl$logN[nA-1, i-1]) *
-  #              exp(-f[nA-1, i-1]) *  
-  #              exp(-m[nA-1, i-1]) +
-  #              #N[nA, i-1] * 
-  #              exp(fit$pl$logN[nA, i-1]) *
-  #              exp(-f[nA, i-1]) *  
-  #              exp(-m[nA, i-1]) #* exp(rnorm(1, sd = sdN[nA]))
   N[nA, i] <- (N[nA-1, i-1] *
               exp(-f[nA-1, i-1]) *  
               exp(-m[nA-1, i-1]) +
               N[nA, i-1] * 
               exp(-f[nA, i-1]) *  
               exp(-m[nA, i-1])) *
-              errP[nA, i-1]
+              errPro[nA, i-1]
+              #exp(rnorm(1, sd = sdN[nA]))
 }
 
 
-
-# Plot abundance-at-age
-library(dplyr)
-df2plot <- # setup data for plot
+# Plot process N-at-age
+library(dplyr) # setup data for plot
+df2plotN <- 
   N %>%
   t() %>%
   as.data.frame() %>%
@@ -83,9 +74,53 @@ df2plot <- # setup data for plot
   tidyr::gather(variable, N, -year) %>%
   tidyr::separate(variable, c("source", "age"))
 
-library(ggplot2) # plot it
-ggplot(data = df2plot,
+library(ggplot2) # plot it (all ages should match exactly)
+ggplot(data = df2plotN,
        aes(x = year, y = N, color = source)) +
   geom_line() +
-  #geom_point() +
-  facet_wrap(~age, scales = "free")
+  facet_wrap(~age, scales = "free") +
+  ylab("Abundance (1000's)")
+
+
+#### Observation model ####
+# Catch model
+C <- matrix(data = NA, # Catch container
+            nrow = nA, 
+            ncol = nT, 
+            dimnames = list(paste0("simulated.", c(1:nA)), NULL))
+# Calculate catch
+C[,] <- f/(f + m) * (1 - exp(-(f + m))) * N[,] * # exp(errObs[]) *
+        t(fit$data$catchMeanWeight)
+
+# Set up data for plot
+fitCatch <- 
+  data.frame(variable = names(fit$sdrep$value),
+             value = fit$sdrep$value) %>%
+  dplyr::filter(variable == "logCatch") %>%
+  dplyr::rename(logCatch = value) %>%
+  dplyr::mutate(fit.total = exp(logCatch),
+                year = fit$data$years) %>%
+  dplyr::select(year, fit.total)
+  
+df2plotC <- 
+  C %>%
+  t() %>%
+  as.data.frame() %>%
+  dplyr::mutate(simulated.total = rowSums(.),
+                year = fit$data$years) %>%
+  dplyr::left_join(fitCatch) %>%
+  tidyr::gather(variable, Catch, -year) %>%
+  tidyr::separate(variable, c("source", "age"))
+
+# plot it (should match exactly in total subplot)
+ggplot(data = df2plotC,
+       aes(x = year, y = Catch, color = source)) +
+  geom_line() +
+  facet_wrap(~age, scales = "free") +
+  ylab("Catch (mt)")
+
+# Survey model
+# Need to use catchability estimates (fit$pl$logFpar) and 
+# survey timing (fit$data$sampleTimes[-1])
+
+
