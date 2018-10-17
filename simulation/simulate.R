@@ -21,7 +21,7 @@ nT <- fit$data$noYears # length of time series
 N <- matrix(data = NA, # N container
             nrow = nA, 
             ncol = nT, 
-            dimnames = list(paste0("simulated.", c(1:nA)), NULL)) 
+            dimnames = list(paste0("simulated.", c(1:nA)), fit$data$years)) 
 
 N[, 1] <-  exp(fit$pl$logN[,1]) # initial condition from fitted model
 
@@ -83,16 +83,57 @@ ggplot(data = df2plotN,
 
 
 #### Observation model ####
-# Catch model
+# Calculate catch index
+
 C <- matrix(data = NA, # Catch container
             nrow = nA, 
             ncol = nT, 
-            dimnames = list(paste0("simulated.", c(1:nA)), NULL))
-# Calculate catch
+            dimnames = list(paste0("simulated.", c(1:nA)), fit$data$years))
+
+
+  
+
 C[,] <- f/(f + m) * (1 - exp(-(f + m))) * N[,] * # exp(errObs[]) *
         t(fit$data$catchMeanWeight)
 
-# Set up data for plot
+# Calculate survey indices (under construction!)
+
+# Survey container (3-d: age x year x survey)
+S <- array(data = NA, 
+           dim = c(nA, nT, fit$data$noFleets),
+           dimnames = list(paste0("simulated.", c(1:nA)), 
+                           fit$data$years, 
+                           attr(fit$data,"fleetNames")))
+
+logSq <- matrix(data = NA, # Survey q-at-age matrix
+                nrow = nrow(fit$conf$keyLogFpar), 
+                ncol = ncol(fit$conf$keyLogFpar))
+logSq[which(fit$conf$keyLogFpar != -1)] <- # fill with fit values
+  fit$pl$logFpar[fit$conf$keyLogFpar[fit$conf$keyLogFpar != -1] + 1]
+Sq <- exp(logSq)
+
+surveyIndex <- # some fleets are fishermen not surveys
+  (1:fit$data$noFleets)[fit$data$fleetTypes == 2] 
+
+for (i in surveyIndex) {
+S[, , i] <- Sq[i,] * 
+            exp(-(f + m) * fit$data$sampleTimes[i]) * N[,] #* exp(errObs[]) 
+}
+
+
+# Extract survey fits and observations (under construction!)
+fleets <- unique(fit$data$aux[,"fleet"])
+idx <- fit$data$aux[,"fleet"] %in%fleets
+  
+fit$obj$report(c(fit$sdrep$par.fixed,fit$sdrep$par.random))$predObs[idx]
+
+
+x <- fit$obj$report()
+x2 <- fit$obj$report(c(fit$sdrep$par.fixed,fit$sdrep$par.random))
+
+
+#### Make plots for comparison of simulated vs fit ####
+# Set up Catch data to plot
 fitCatch <- 
   data.frame(variable = names(fit$sdrep$value),
              value = fit$sdrep$value) %>%
@@ -112,15 +153,12 @@ df2plotC <-
   tidyr::gather(variable, Catch, -year) %>%
   tidyr::separate(variable, c("source", "age"))
 
-# plot it (should match exactly in total subplot)
+# plot Catch data (should exactly match in total subplot)
 ggplot(data = df2plotC,
        aes(x = year, y = Catch, color = source)) +
   geom_line() +
   facet_wrap(~age, scales = "free") +
   ylab("Catch (mt)")
 
-# Survey model
-# Need to use catchability estimates (fit$pl$logFpar) and 
-# survey timing (fit$data$sampleTimes[-1])
 
 
