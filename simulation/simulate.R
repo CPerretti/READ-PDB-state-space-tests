@@ -1,9 +1,10 @@
-# See if we can replicate the simulate feature for a fitted model 
-# (start simple)
+# Replicate SAM model fit using the equations written here
 library(dplyr) 
-library(ggplot2) 
+library(ggplot2)
+library(tidyr)
+library(stockassessment)
 
-# Use atl herring model fit to set up simulation
+# Use atl herring fit to set up simulation
 load("../atlherring_example/output/fit.Rdata")
 
 
@@ -13,10 +14,10 @@ load("../atlherring_example/output/fit.Rdata")
 f <- exp(fit$pl$logF[(fit$conf$keyLogFsta[1,] + 1),])
 # Set M
 m <- t(fit$data$natMor)
-# Set N process sd
+# Set N process sd (not currently used)
 sdN <- exp(fit$pl$logSdLogN[(fit$conf$keyVarLogN + 1)])
 
-# calcuate total mortality
+# Calcuate total mortality
 z <- f + m
 
 # Set up matrix to record N-at-age
@@ -28,7 +29,7 @@ N <- matrix(data = NA, # N container
             ncol = nT, 
             dimnames = list(paste0("simulated.", c(1:nA)), fit$data$years)) 
 
-N[, 1] <-  exp(fit$pl$logN[,1]) # initial condition from fitted model
+N[, 1] <- exp(fit$pl$logN[,1]) # initial condition from fitted model
 
 # Calculate the process errors that were estimated in the fit so we can 
 # exactly replicate the fit
@@ -45,7 +46,8 @@ errPro[nA, ] <- exp(fit$pl$logN[nA, 2:nT]) /
                    exp(fit$pl$logN[nA, 1:(nT-1)]) *
                    exp(-z[nA, 1:(nT-1)]))
 
-#### Process model ####
+## Process model ##################################################
+# N fit
 # Simulate using process errors from fit (should match exactly)
 for (i in 2:nT) {
   N[1, i] <- N[1, i-1] * errPro[1, i-1] #* exp(rnorm(1, sd = sdN[1]))
@@ -62,49 +64,28 @@ for (i in 2:nT) {
 }
 
 
-# Plot process N-at-age
-# setup data for plot
-df2plotN <- 
-  N %>%
-  t() %>%
-  as.data.frame() %>%
-  cbind(data.frame(fit = fit$pl$logN %>% exp %>% t)) %>%
-  dplyr::mutate(year = fit$data$years) %>%
-  tidyr::gather(variable, N, -year) %>%
-  tidyr::separate(variable, c("source", "age"))
 
-# plot it (all ages should match exactly)
-ggplot(data = df2plotN,
-       aes(x = year, y = N, color = source)) +
-  geom_line() +
-  facet_wrap(~age, scales = "free") +
-  ylab("Abundance (1000's)")
-
-
-#### Observation model ####
-# Calculate catch index
-
+## Observation model ##############################################
+# Catch fit
 C <- matrix(data = NA, # Catch container
             nrow = nA, 
             ncol = nT, 
-            dimnames = list(paste0("simulated.", c(1:nA)), fit$data$years))
-
-
+            dimnames = list(paste0("simulated.", c(1:nA)), 
+                            fit$data$years))
   
-
+# Calculate catch index
 C[,] <- (f/z) * (1 - exp(-z)) * N[,] * # exp(errObs[]) *
         t(fit$data$catchMeanWeight)
 
-# Calculate survey indices (under construction!)
 
-# Survey container (3-d: age x year x survey)
-S <- array(data = NA, 
+# Survey fits
+S <- array(data = NA, # survey container (3-d: age x year x survey)
            dim = c(nA, nT, fit$data$noFleets),
            dimnames = list(paste0("simulated.", c(1:nA)), 
                            fit$data$years, 
                            attr(fit$data,"fleetNames")))
 
-logSq <- matrix(data = NA, # Survey q-at-age matrix
+logSq <- matrix(data = NA, # survey q-at-age matrix
                 nrow = nrow(fit$conf$keyLogFpar), 
                 ncol = ncol(fit$conf$keyLogFpar))
 logSq[which(fit$conf$keyLogFpar != -1)] <- # fill with fit values
@@ -120,21 +101,26 @@ S[, , i] <- Sq[i,] *
 }
 
 
-# Extract survey fits and observations (under construction!)
-#fleets <- unique(fit$data$aux[,"fleet"])
-#idx <- fit$data$aux[,"fleet"] %in%fleets
-idx <- as.numeric(rownames(fit$dat$aux[fit$dat$aux[,2] %in% surveyIndex,])) # is this what you were trying to do???
-  
-fit$obj$report(c(fit$sdrep$par.fixed,fit$sdrep$par.random))$predObs[idx]
+## Make plots for comparison of simulated vs fit ##################
+# Setup N-at-age to plot
+df2plotN <- 
+  N %>%
+  t() %>%
+  as.data.frame() %>%
+  cbind(data.frame(fit = fit$pl$logN %>% exp %>% t)) %>%
+  dplyr::mutate(year = fit$data$years) %>%
+  tidyr::gather(variable, N, -year) %>%
+  tidyr::separate(variable, c("source", "age"))
 
+# plot N-at-age (all ages should match exactly)
+ggplot(data = df2plotN,
+       aes(x = year, y = N, color = source)) +
+  geom_line() +
+  facet_wrap(~age, scales = "free") +
+  ylab("Abundance (1000's)")
 
-x <- fit$obj$report()
-x2 <- fit$obj$report(c(fit$sdrep$par.fixed,fit$sdrep$par.random))
-
-
-#### Make plots for comparison of simulated vs fit ####
-# Set up Catch data to plot
-fitCatch <- 
+# Setup Catch to plot
+df_fitCatch <- 
   data.frame(variable = names(fit$sdrep$value),
              value = fit$sdrep$value) %>%
   dplyr::filter(variable == "logCatch") %>%
@@ -149,16 +135,55 @@ df2plotC <-
   as.data.frame() %>%
   dplyr::mutate(simulated.total = rowSums(.),
                 year = fit$data$years) %>%
-  dplyr::left_join(fitCatch) %>%
+  dplyr::left_join(df_fitCatch) %>%
   tidyr::gather(variable, Catch, -year) %>%
   tidyr::separate(variable, c("source", "age"))
 
-# plot Catch data (should exactly match in total subplot)
+# Plot Catch (should exactly match in total subplot)
 ggplot(data = df2plotC,
        aes(x = year, y = Catch, color = source)) +
   geom_line() +
   facet_wrap(~age, scales = "free") +
   ylab("Catch (mt)")
+
+
+# Set up Survey data to plot
+df_simS <- # convert 3-d array to long data.frame
+  as.data.frame(S) %>%
+  t() %>%
+  as.data.frame() %>%
+  dplyr::mutate(year_fleet = row.names(.)) %>%
+  tidyr::separate(col = year_fleet, 
+                  into = c("year", "fleetNames"), 
+                  extra = "merge") %>%
+  tidyr::gather(variable, value, -year, -fleetNames) %>%
+  tidyr::separate(variable, c("source", "age")) %>%
+  dplyr::mutate(year = as.numeric(year),
+                age = as.numeric(age),
+                observed = NA)
+
+
+# Organize SAM survey fits
+fleets <- unique(fit$data$aux[,"fleet"])
+idx <- fit$data$aux[,"fleet"]%in%fleets 
+df_fitS <-
+  data.frame(year = fit$data$aux[idx,"year"], 
+             observed = exp(fit$data$logobs[idx]), 
+             value = exp(fit$obj$report(c(fit$sdrep$par.fixed,
+                                        fit$sdrep$par.random))$predObs[idx]), 
+             age = fit$data$aux[idx,"age"], 
+             fleetNames = attr(fit$data,"fleetNames")[fit$data$aux[idx,"fleet"]],
+             source = "fit")
+
+df2plotS <- # combine simulated Survey and fit Survey
+  bind_rows(df_simS, df_fitS)
+
+# Plot Survey (should match exactly)
+ggplot(data = df2plotS %>% dplyr::filter(age>1, fleetNames != "Residual catch"),
+       aes(x = year)) +
+  geom_point(aes(y = observed)) +
+  geom_line(aes(y = value, color = source)) +
+  facet_wrap(age~fleetNames, scales = "free_y", nrow = 7)
 
 
 
