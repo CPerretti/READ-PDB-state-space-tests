@@ -1,5 +1,7 @@
 # See if we can replicate the simulate feature for a fitted model 
 # (start simple)
+library(dplyr) 
+library(ggplot2) 
 
 # Use atl herring model fit to set up simulation
 load("../atlherring_example/output/fit.Rdata")
@@ -13,6 +15,9 @@ f <- exp(fit$pl$logF[(fit$conf$keyLogFsta[1,] + 1),])
 m <- t(fit$data$natMor)
 # Set N process sd
 sdN <- exp(fit$pl$logSdLogN[(fit$conf$keyVarLogN + 1)])
+
+# calcuate total mortality
+z <- f + m
 
 # Set up matrix to record N-at-age
 nA <- ncol(fit$data$propF) # number of age-classes
@@ -33,38 +38,32 @@ errPro <- matrix(data = NA,
 errPro[1, ] <- exp(fit$pl$logN[1, 2:nT]) / exp(fit$pl$logN[1, 1:(nT-1)])
 errPro[-c(1, nA), ] <-  exp(fit$pl$logN[-c(1, nA), 2:nT]) / 
                        (exp(fit$pl$logN[-c(nA-1, nA), 1:(nT-1)]) *
-                        exp(-f[-c(nA-1, nA), 1:(nT-1)]) * 
-                        exp(-m[-c(nA-1, nA), 1:(nT-1)]))
+                        exp(-z[-c(nA-1, nA), 1:(nT-1)]))
 errPro[nA, ] <- exp(fit$pl$logN[nA, 2:nT]) / 
                 (exp(fit$pl$logN[nA-1, 1:(nT-1)]) *
-                   exp(-f[nA-1, 1:(nT-1)]) *  
-                   exp(-m[nA-1, 1:(nT-1)]) +
+                   exp(-z[nA-1, 1:(nT-1)]) +
                    exp(fit$pl$logN[nA, 1:(nT-1)]) *
-                   exp(-f[nA, 1:(nT-1)]) *  
-                   exp(-m[nA, 1:(nT-1)]))
+                   exp(-z[nA, 1:(nT-1)]))
 
 #### Process model ####
 # Simulate using process errors from fit (should match exactly)
 for (i in 2:nT) {
   N[1, i] <- N[1, i-1] * errPro[1, i-1] #* exp(rnorm(1, sd = sdN[1]))
   N[-c(1, nA), i] <- N[-c(nA-1, nA), i-1] *
-                     exp(-f[-c(nA-1, nA), i-1]) * 
-                     exp(-m[-c(nA-1, nA), i-1]) * 
+                     exp(-z[-c(nA-1, nA), i-1]) * 
                      errPro[-c(1, nA), i-1]
                      #exp(rnorm(nA-2, sd = sdN[-c(1, nA)]))
   N[nA, i] <- (N[nA-1, i-1] *
-              exp(-f[nA-1, i-1]) *  
-              exp(-m[nA-1, i-1]) +
+              exp(-z[nA-1, i-1]) +
               N[nA, i-1] * 
-              exp(-f[nA, i-1]) *  
-              exp(-m[nA, i-1])) *
+              exp(-z[nA, i-1])) *
               errPro[nA, i-1]
               #exp(rnorm(1, sd = sdN[nA]))
 }
 
 
 # Plot process N-at-age
-library(dplyr) # setup data for plot
+# setup data for plot
 df2plotN <- 
   N %>%
   t() %>%
@@ -74,7 +73,7 @@ df2plotN <-
   tidyr::gather(variable, N, -year) %>%
   tidyr::separate(variable, c("source", "age"))
 
-library(ggplot2) # plot it (all ages should match exactly)
+# plot it (all ages should match exactly)
 ggplot(data = df2plotN,
        aes(x = year, y = N, color = source)) +
   geom_line() +
@@ -93,7 +92,7 @@ C <- matrix(data = NA, # Catch container
 
   
 
-C[,] <- f/(f + m) * (1 - exp(-(f + m))) * N[,] * # exp(errObs[]) *
+C[,] <- (f/z) * (1 - exp(-z)) * N[,] * # exp(errObs[]) *
         t(fit$data$catchMeanWeight)
 
 # Calculate survey indices (under construction!)
@@ -117,13 +116,14 @@ surveyIndex <- # some fleets are fishermen not surveys
 
 for (i in surveyIndex) {
 S[, , i] <- Sq[i,] * 
-            exp(-(f + m) * fit$data$sampleTimes[i]) * N[,] #* exp(errObs[]) 
+            exp(-z * fit$data$sampleTimes[i]) * N[,] #* exp(errObs[]) 
 }
 
 
 # Extract survey fits and observations (under construction!)
-fleets <- unique(fit$data$aux[,"fleet"])
-idx <- fit$data$aux[,"fleet"] %in%fleets
+#fleets <- unique(fit$data$aux[,"fleet"])
+#idx <- fit$data$aux[,"fleet"] %in%fleets
+idx <- as.numeric(rownames(fit$dat$aux[fit$dat$aux[,2] %in% surveyIndex,])) # is this what you were trying to do???
   
 fit$obj$report(c(fit$sdrep$par.fixed,fit$sdrep$par.random))$predObs[idx]
 
