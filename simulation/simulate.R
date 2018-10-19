@@ -1,11 +1,13 @@
 # Replicate SAM model fit using the equations written here
+
+# Required packages
 library(dplyr) 
 library(ggplot2)
 library(tidyr)
 library(stockassessment)
 
 # Use atl herring fit to set up simulation
-load("../atlherring_example/output/fit.Rdata")
+load("../atlherring_example/output/fit_simple.Rdata")
 
 
 # Set up simulation parameters
@@ -34,17 +36,20 @@ N[, 1] <- exp(fit$pl$logN[,1]) # initial condition from fitted model
 # Calculate the process errors that were estimated in the fit so we can 
 # exactly replicate the fit
 errPro <- matrix(data = NA,
-               nrow = nA, 
-               ncol = nT-1)
+                 nrow = nA, 
+                 ncol = nT-1)
+# Use this commented code to pull out exact process errors
 errPro[1, ] <- exp(fit$pl$logN[1, 2:nT]) / exp(fit$pl$logN[1, 1:(nT-1)])
-errPro[-c(1, nA), ] <-  exp(fit$pl$logN[-c(1, nA), 2:nT]) / 
+errPro[-c(1, nA), ] <-  exp(fit$pl$logN[-c(1, nA), 2:nT]) /
                        (exp(fit$pl$logN[-c(nA-1, nA), 1:(nT-1)]) *
                         exp(-z[-c(nA-1, nA), 1:(nT-1)]))
-errPro[nA, ] <- exp(fit$pl$logN[nA, 2:nT]) / 
+errPro[nA, ] <- exp(fit$pl$logN[nA, 2:nT]) /
                 (exp(fit$pl$logN[nA-1, 1:(nT-1)]) *
                    exp(-z[nA-1, 1:(nT-1)]) +
                    exp(fit$pl$logN[nA, 1:(nT-1)]) *
                    exp(-z[nA, 1:(nT-1)]))
+
+#errPro <-  
 
 ## Process model ##################################################
 # N fit
@@ -102,6 +107,7 @@ S[, , i] <- Sq[i,] *
 
 
 ## Make plots for comparison of simulated vs fit ##################
+## (1) N-at-age
 # Setup N-at-age to plot
 df2plotN <- 
   N %>%
@@ -112,13 +118,14 @@ df2plotN <-
   tidyr::gather(variable, N, -year) %>%
   tidyr::separate(variable, c("source", "age"))
 
-# plot N-at-age (all ages should match exactly)
+# Plot N-at-age (all ages should match exactly)
 ggplot(data = df2plotN,
        aes(x = year, y = N, color = source)) +
   geom_line() +
   facet_wrap(~age, scales = "free") +
   ylab("Abundance (1000's)")
 
+## (2) Catch
 # Setup Catch to plot
 df_fitCatch <- 
   data.frame(variable = names(fit$sdrep$value),
@@ -146,7 +153,7 @@ ggplot(data = df2plotC,
   facet_wrap(~age, scales = "free") +
   ylab("Catch (mt)")
 
-
+## (3) Survey
 # Set up Survey data to plot
 df_simS <- # convert 3-d array to long data.frame
   as.data.frame(S) %>%
@@ -186,4 +193,7 @@ ggplot(data = df2plotS %>% dplyr::filter(age>1, fleetNames != "Residual catch"),
   facet_wrap(age~fleetNames, scales = "free_y", nrow = 7)
 
 
+## Try to replicate a simulation from the simulate feature ####
+sim_out <- simulate(fit, seed=1, nsim=1)
+#sim_out[[1]]$
 
