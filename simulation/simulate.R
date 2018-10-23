@@ -7,7 +7,7 @@ library(tidyr)
 library(stockassessment)
 
 # Use atl herring fit to set up simulation
-load("../atlherring_example/output/fit_simple.Rdata")
+load("../atlherring_example/output/fit.Rdata")
 
 
 # Set up simulation parameters
@@ -51,21 +51,20 @@ errPro_exact[nA, ] <- fit$pl$logN[nA, 2:nT] -
 errPro <- matrix(data = NA,
                  nrow = nA, 
                  ncol = nT-1)
-sdN <- exp(fit$pl$logSdLogN[(fit$conf$keyVarLogN + 1)])
+sdLogN <- exp(fit$pl$logSdLogN[(fit$conf$keyVarLogN + 1)])
 for (i in 1:(nT-1)) { # Create process error (N-at-age)
-  errPro[, i] <-  rnorm(n = nA, sd = sdN)
+  errPro[, i] <-  rnorm(n = nA, sd = sdLogN)
 }
 
-hist(errPro_exact[1,])
-hist(errPro[1,])
-errPro[1, ] <- errPro_exact[1, ]
+#hist(errPro_exact[1,])
+#hist(errPro[1,])
+#errPro[1, ] <- errPro_exact[1, ]
 
 ## Process model ##################################################
 # N fit
 # Simulate N-at-age
-logN[1, 2:nT] <- fit$pl$logN[1,2:nT] + errPro[1,]
 for (i in 2:nT) {
-  #logN[1, i] <- logN[1, i-1] + errPro[1, i-1]
+  logN[1, i] <- logN[1, i-1] + errPro[1, i-1]
   logN[-c(1, nA), i] <- logN[-c(nA-1, nA), i-1] - 
                         z[-c(nA-1, nA), i-1] + 
                         errPro[-c(1, nA), i-1]
@@ -207,6 +206,26 @@ p <-
 #p
 
 ## Try to replicate a simulation from the simulate feature ####
-sim_out <- simulate(fit, seed=1, nsim=1)
-#sim_out[[1]]$
+# SAM simulate feature
+simOut <- stockassessment:::simulate.sam(fit, nsim = 10, full.data = FALSE)
+
+df_simOut <- data.frame() 
+for (i in 1:length(simOut)) {
+  df_simOut <-
+    rbind(df_simOut, data.frame(replicate = as.factor(i),
+                              year = fit$data$years,
+                              N = t(exp(simOut[[i]]$logN)),
+                              F = t(exp(simOut[[i]]$logF))))
+}
+df2plotSimOut <-
+  df_simOut %>%
+  tidyr::gather(variable, value, -year, -replicate) %>%
+  tidyr::separate(variable, into = c("variable", "age"))
+
+ggplot(df2plotSimOut %>% dplyr::filter(variable == "N"),
+       aes(x = year, y = value, color = replicate)) +
+  geom_line() + 
+  facet_wrap(~age)
+
+
 
