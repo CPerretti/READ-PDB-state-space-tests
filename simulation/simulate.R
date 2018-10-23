@@ -16,8 +16,6 @@ load("../atlherring_example/output/fit_simple.Rdata")
 f <- exp(fit$pl$logF[(fit$conf$keyLogFsta[1,] + 1),])
 # Set M
 m <- t(fit$data$natMor)
-# Set N process sd (not currently used)
-sdN <- exp(fit$pl$logSdLogN[(fit$conf$keyVarLogN + 1)])
 
 # Calcuate total mortality
 z <- f + m
@@ -26,69 +24,78 @@ z <- f + m
 nA <- ncol(fit$data$propF) # number of age-classes
 nT <- fit$data$noYears # length of time series
 
-N <- matrix(data = NA, # N container
-            nrow = nA, 
-            ncol = nT, 
-            dimnames = list(paste0("simulated.", c(1:nA)), fit$data$years)) 
+logN <- matrix(data = NA, # N container
+               nrow = nA, 
+               ncol = nT, 
+               dimnames = list(paste0("simulated.", c(1:nA)), fit$data$years)) 
 
-N[, 1] <- exp(fit$pl$logN[,1]) # initial condition from fitted model
+logN[, 1] <- fit$pl$logN[,1] # initial condition from fitted model
 
 # Calculate the process errors that were estimated in the fit so we can 
 # exactly replicate the fit
+errPro_exact <- matrix(data = NA,
+                       nrow = nA, 
+                       ncol = nT-1)
+
+errPro_exact[1, ] <- fit$pl$logN[1, 2:nT] - fit$pl$logN[1, 1:(nT-1)]
+errPro_exact[-c(1, nA), ] <-  fit$pl$logN[-c(1, nA), 2:nT] -
+                              (fit$pl$logN[-c(nA-1, nA), 1:(nT-1)] -
+                              z[-c(nA-1, nA), 1:(nT-1)])
+errPro_exact[nA, ] <- fit$pl$logN[nA, 2:nT] -
+                      log(exp(fit$pl$logN[nA-1, 1:(nT-1)]) *
+                      exp(-z[nA-1, 1:(nT-1)]) +
+                      exp(fit$pl$logN[nA, 1:(nT-1)]) *
+                      exp(-z[nA, 1:(nT-1)]))
+# Calculate a new relization of process errors with sd's from the fit
+# Set N process sd
 errPro <- matrix(data = NA,
                  nrow = nA, 
                  ncol = nT-1)
-# Use this commented code to pull out exact process errors
-errPro[1, ] <- exp(fit$pl$logN[1, 2:nT]) / exp(fit$pl$logN[1, 1:(nT-1)])
-errPro[-c(1, nA), ] <-  exp(fit$pl$logN[-c(1, nA), 2:nT]) /
-                       (exp(fit$pl$logN[-c(nA-1, nA), 1:(nT-1)]) *
-                        exp(-z[-c(nA-1, nA), 1:(nT-1)]))
-errPro[nA, ] <- exp(fit$pl$logN[nA, 2:nT]) /
-                (exp(fit$pl$logN[nA-1, 1:(nT-1)]) *
-                   exp(-z[nA-1, 1:(nT-1)]) +
-                   exp(fit$pl$logN[nA, 1:(nT-1)]) *
-                   exp(-z[nA, 1:(nT-1)]))
+sdN <- exp(fit$pl$logSdLogN[(fit$conf$keyVarLogN + 1)])
+for (i in 1:(nT-1)) { # Create process error (N-at-age)
+  errPro[, i] <-  rnorm(n = nA, sd = sdN)
+}
 
-#errPro <-  
+hist(errPro_exact[1,])
+hist(errPro[1,])
+errPro[1, ] <- errPro_exact[1, ]
 
 ## Process model ##################################################
 # N fit
-# Simulate using process errors from fit (should match exactly)
+# Simulate N-at-age
+logN[1, 2:nT] <- fit$pl$logN[1,2:nT] + errPro[1,]
 for (i in 2:nT) {
-  N[1, i] <- N[1, i-1] * errPro[1, i-1] #* exp(rnorm(1, sd = sdN[1]))
-  N[-c(1, nA), i] <- N[-c(nA-1, nA), i-1] *
-                     exp(-z[-c(nA-1, nA), i-1]) * 
-                     errPro[-c(1, nA), i-1]
-                     #exp(rnorm(nA-2, sd = sdN[-c(1, nA)]))
-  N[nA, i] <- (N[nA-1, i-1] *
-              exp(-z[nA-1, i-1]) +
-              N[nA, i-1] * 
-              exp(-z[nA, i-1])) *
-              errPro[nA, i-1]
-              #exp(rnorm(1, sd = sdN[nA]))
+  #logN[1, i] <- logN[1, i-1] + errPro[1, i-1]
+  logN[-c(1, nA), i] <- logN[-c(nA-1, nA), i-1] - 
+                        z[-c(nA-1, nA), i-1] + 
+                        errPro[-c(1, nA), i-1]
+  logN[nA, i] <- log(exp(logN[nA-1, i-1]) * exp(-z[nA-1, i-1]) +
+              exp(logN[nA, i-1]) * 
+              exp(-z[nA, i-1])) + errPro[nA, i-1]
 }
 
-
+N <- exp(logN)
 
 ## Observation model ##############################################
 # Catch fit
-C <- matrix(data = NA, # Catch container
-            nrow = nA, 
-            ncol = nT, 
-            dimnames = list(paste0("simulated.", c(1:nA)), 
-                            fit$data$years))
+logC <- matrix(data = NA, # Catch container
+               nrow = nA, 
+               ncol = nT, 
+               dimnames = list(paste0("simulated.", c(1:nA)), 
+                               fit$data$years))
   
 # Calculate catch index
-C[,] <- (f/z) * (1 - exp(-z)) * N[,] * # exp(errObs[]) *
-        t(fit$data$catchMeanWeight)
+logC[,] <- log(f / z * (1 - exp(-z)) * N[,] * 
+           t(fit$data$catchMeanWeight))
 
+C <- exp(logC)
 
 # Survey fits
-S <- array(data = NA, # survey container (3-d: age x year x survey)
-           dim = c(nA, nT, fit$data$noFleets),
-           dimnames = list(paste0("simulated.", c(1:nA)), 
-                           fit$data$years, 
-                           attr(fit$data,"fleetNames")))
+logS <- array(data = NA, # survey container (3-d: age x year x survey)
+              dim = c(nA, nT, fit$data$noFleets),
+              dimnames = list(paste0("simulated.", c(1:nA)), 
+                              fit$data$years, 
+                              attr(fit$data,"fleetNames")))
 
 logSq <- matrix(data = NA, # survey q-at-age matrix
                 nrow = nrow(fit$conf$keyLogFpar), 
@@ -101,9 +108,10 @@ surveyIndex <- # some fleets are fishermen not surveys
   (1:fit$data$noFleets)[fit$data$fleetTypes == 2] 
 
 for (i in surveyIndex) {
-S[, , i] <- Sq[i,] * 
-            exp(-z * fit$data$sampleTimes[i]) * N[,] #* exp(errObs[]) 
+logS[, , i] <- log(Sq[i,] * exp(-z * fit$data$sampleTimes[i]) * N[,])
 }
+
+S <- exp(logS)
 
 
 ## Make plots for comparison of simulated vs fit ##################
@@ -147,11 +155,14 @@ df2plotC <-
   tidyr::separate(variable, c("source", "age"))
 
 # Plot Catch (should exactly match in total subplot)
-ggplot(data = df2plotC,
+p <- 
+  ggplot(data = df2plotC,
        aes(x = year, y = Catch, color = source)) +
   geom_line() +
   facet_wrap(~age, scales = "free") +
   ylab("Catch (mt)")
+
+#p
 
 ## (3) Survey
 # Set up Survey data to plot
@@ -186,12 +197,14 @@ df2plotS <- # combine simulated Survey and fit Survey
   bind_rows(df_simS, df_fitS)
 
 # Plot Survey (should match exactly)
-ggplot(data = df2plotS %>% dplyr::filter(age>1, fleetNames != "Residual catch"),
+p <-
+  ggplot(data = df2plotS %>% dplyr::filter(age>1, fleetNames != "Residual catch"),
        aes(x = year)) +
   geom_point(aes(y = observed)) +
   geom_line(aes(y = value, color = source)) +
   facet_wrap(age~fleetNames, scales = "free_y", nrow = 7)
 
+#p
 
 ## Try to replicate a simulation from the simulate feature ####
 sim_out <- simulate(fit, seed=1, nsim=1)

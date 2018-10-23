@@ -52,7 +52,7 @@ $keyQpow
 
 $keyVarF
 # Coupling of process variance parameters for log(F)-process (nomally only first row is used)                                
-   0   1   1   1   2   2   3   3
+   0   1   1   1   1   1   1   1
   -1  -1  -1  -1  -1  -1  -1  -1
   -1  -1  -1  -1  -1  -1  -1  -1
   -1  -1  -1  -1  -1  -1  -1  -1
