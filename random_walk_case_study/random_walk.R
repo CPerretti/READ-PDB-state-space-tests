@@ -1,5 +1,4 @@
 # Why the process error problem?
-# Can we replicate it in the simplest state-space model?
 # Try a random walk.
 library(TMB)
 library(dplyr)
@@ -8,22 +7,9 @@ library(ggplot2)
 
 set.seed(321) # for reproducibility
 
-# Random walk
-nT <- 100
-true_states_i <- vector(mode = "numeric", length = nT)
-true_states_i[1] <- rnorm(n = 1) # intial condition
-for (i in 2:nT) {
-  true_states_i[i] <- true_states_i[i-1] + rnorm(n = 1) # step forward with process error
-}
-
-observations_i <- true_states_i + rnorm(n = nT) # add observation error
-
-# plot it 
-plot(true_states_i, xlab = "Year", ylab = "Value", type = "l")
-points(observations_i)
-
-# Plot many realizations of the original model to get a sense of 
+# Plot many realizations of a random walk to get a sense of
 # the variability (no obs error)
+nT <- 100
 nReps <- 1000
 true_states_i <- matrix(data = NA, nrow = nT, ncol = nReps)
 true_states_i[1,] <- rnorm(n = nReps) # intial condition
@@ -36,7 +22,6 @@ df2plot <-
   as.data.frame() %>%
   dplyr::mutate(year = 1:nT) %>%
   tidyr::gather(variable, value, -year)
-
 
 
 # Variance of a random walk scales as var * t where t is the length of the time series.
