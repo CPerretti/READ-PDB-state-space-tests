@@ -17,18 +17,19 @@ for (i in 2:100) {
   true_states_i[i,] <- true_states_i[i-1,] + rnorm(n = nReps) # step forward with process error
 }
 
-df2plot <-
-  true_states_i %>%
-  as.data.frame() %>%
-  dplyr::mutate(year = 1:nT) %>%
-  tidyr::gather(variable, value, -year)
-
 
 # Variance of a random walk scales as var * t where t is the length of the time series.
 # (Because the innovations are independent so their variance simply sums over time.)
 # If var = 1 then at year 50 the var of possible states = 50.
 # If var = 1 corresponds to the log scale, then on the natural scale at year
 # 50 var = exp(50). I.e. it blows up.
+
+# Let's take a look
+df2plot <-
+  true_states_i %>%
+  as.data.frame() %>%
+  dplyr::mutate(year = 1:nT) %>%
+  tidyr::gather(variable, value, -year)
 
 # Assume this is log-scale
 ggplot(df2plot, aes(x = year, y = value, color = variable)) +
