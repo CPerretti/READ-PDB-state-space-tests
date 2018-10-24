@@ -45,7 +45,7 @@ conf <- loadConf(dat = dat_atl, file = "../ModelConf_original.txt")
 
 par <- defpar(dat_atl, conf) # some default starting values
 
-fit <- sam.fit(dat_atl, conf, par) # fit the model
+fit <- sam.fit(dat_atl, conf, par, sim.condRE = FALSE) # fit the model
 
 save(list = "fit", file = "../output/fit.Rdata")
 

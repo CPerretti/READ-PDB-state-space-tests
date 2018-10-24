@@ -205,8 +205,10 @@ p <-
 
 #p
 
-## Try to replicate a simulation from the simulate feature ####
+
+## Compare my simulation to simulate.sam() ####
 # SAM simulate feature
+set.seed(123) # for reproduciblilty and to match with full.data = TRUE
 simOut <- stockassessment:::simulate.sam(fit, nsim = 10, full.data = FALSE)
 
 df_simOut <- data.frame() 
@@ -219,13 +221,21 @@ for (i in 1:length(simOut)) {
 }
 df2plotSimOut <-
   df_simOut %>%
+  cbind(data.frame(fit = fit$pl$logN %>% exp %>% t)) %>% # original fit
   tidyr::gather(variable, value, -year, -replicate) %>%
   tidyr::separate(variable, into = c("variable", "age"))
 
-ggplot(df2plotSimOut %>% dplyr::filter(variable == "N"),
+# plot simulate.sam replicates
+ggplot(df2plotSimOut %>% dplyr::filter(variable %in% c("N")),
        aes(x = year, y = value, color = replicate)) +
   geom_line() + 
-  facet_wrap(~age)
+  facet_wrap(~age, scales = "free") +
+  ylab("Abundance (1000's)")
 
 
+# Try to fit sam to one of the replicates
+# Need to resimulate with full.data = TRUE to get output that sam.fit() can use
+set.seed(123)
+simOut2fit <- stockassessment:::simulate.sam(fit, nsim = 10, full.data = TRUE)
+sam.fit(data = simOut2fit[[1]], conf = fit$conf, par = defpar(fit$data, fit$conf))
 
