@@ -1,18 +1,6 @@
 library(stockassessment)
 library(dplyr)
 
-
-# CL:
-# I suggest not using setwd approach. 
-# Instead assume the files are downlaoded from github with that directory structure.
-# In RStudio, under the Session tab, select Set Working Directory, then To Source File Location.
-# Use relative references from the source file location. 
-# For example, if all files in same directory, can just read and write the files.
-# If R code in example/R directory and data in example/data, then read.ices("../data/Herrcn.dat").
-# This approach will allow all of us to download from github and run the programs without having to change setwd.
-# CP:
-# Done
-
 cn <- read.ices("../data/Herrcn.dat") # catch abundace-at-age
 cw <- read.ices("../data/Herrcw.dat") # catch mean weight-at-age
 dw <- cw # discards mean weight-at-age (using catch mean weight-at-age for now)

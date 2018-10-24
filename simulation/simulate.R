@@ -208,7 +208,7 @@ p <-
 
 ## Compare my simulation to simulate.sam() ####
 # SAM simulate feature
-set.seed(123) # for reproduciblilty and to match with full.data = TRUE
+set.seed(123) # for reproduciblilty and to match with full.data = TRUE (below)
 simOut <- stockassessment:::simulate.sam(fit, nsim = 10, full.data = FALSE)
 
 df_simOut <- data.frame() 
