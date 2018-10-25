@@ -209,7 +209,7 @@ p <-
 ## Compare my simulation to simulate.sam() ####
 # SAM simulate feature
 set.seed(123) # for reproduciblilty and to match with full.data = TRUE (below)
-simOut <- stockassessment:::simulate.sam(fit, nsim = 10, full.data = FALSE)
+simOut <- stockassessment:::simulate.sam(fit, nsim = 1000, full.data = FALSE)
 
 df_simOut <- data.frame() 
 for (i in 1:length(simOut)) {
@@ -226,12 +226,54 @@ df2plotSimOut <-
   tidyr::separate(variable, into = c("variable", "age"))
 
 # plot simulate.sam replicates
-ggplot(df2plotSimOut %>% dplyr::filter(variable %in% c("N")),
-       aes(x = year, y = value, color = replicate)) +
+p <-
+  ggplot(df2plotSimOut %>% dplyr::filter(variable %in% c("N")),
+       aes(x = year, y = value, group = replicate)) +
   geom_line() + 
   facet_wrap(~age, scales = "free") +
   ylab("Abundance (1000's)")
+#p
 
+# Let's try to figure out whether these runs are realistic. Let's establish
+# a criteria for when a run is unrealistic. Here's one: If a simulation 
+# results in abundance being, say, 1 million times higher than the highest 
+# abundance from the  original fit then that would be a biolgically unreasonable 
+# simulation. So let's start by plotting the proportion of replicates 
+# where that happens:
+fitN <- exp(fit$pl$logN)
+colnames(fitN) <- fit$data$years
+rownames(fitN) <- paste(1:nA)
+df_meanNFit <-
+  fitN %>%
+  t() %>%
+  as.data.frame() %>%
+  dplyr::mutate(year = rownames(.),
+                variable = "N") %>%
+  tidyr::gather(age, value, -year, -variable) %>%
+  dplyr::group_by(age, variable) %>%
+  dplyr::summarise(meanNFit = mean(value))
+
+df2plot <-
+  df2plotSimOut %>%
+  dplyr::group_by(age, variable, replicate) %>%
+  dplyr::summarise(meanValue = mean(value)) %>%
+  dplyr::left_join(df_meanNFit) %>%
+  dplyr::group_by(age, variable) %>%
+  dplyr::summarise(`>1x` = mean(meanValue > 1*meanNFit), # proportion of runs above threshold
+                   `>10x` = mean(meanValue > 10*meanNFit),
+                   `>100x` = mean(meanValue > 100*meanNFit),
+                   `>1000x` = mean(meanValue > 1000*meanNFit)) %>%
+  tidyr::gather(threshold, value, -age, -variable) %>%
+  dplyr::mutate(threshold = as.factor(threshold), # reverse levels for plot
+                threshold = factor(threshold, levels = rev(levels(threshold))))
+
+ggplot(df2plot, aes(x = threshold, y = value)) +
+  geom_point() +
+  facet_wrap(~age) +
+  xlab("Increase in mean of simulation compared to mean of fit") +
+  ylab("Proportion of simulations") +
+  ggtitle("How biased are the simulations compared to the fit?") +
+  ylim(0,1)
 
 # Try to fit sam to one of the replicates
 # Need to resimulate with full.data = TRUE to get output that sam.fit() can use

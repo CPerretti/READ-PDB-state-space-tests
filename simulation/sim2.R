@@ -10,7 +10,7 @@ library(stockassessment)
 load("../atlherring_example/output/fit.Rdata")
 
 # use default configuration and parameter intitial guesses for this comparison
-conf <- defcon(fit$data)
+conf <- fit$conf#defcon(fit$data)
 par <- defpar(fit$data, conf)
 
 # fit data twice, once with sim.condRE = TRUE (default) and second time = FALSE
@@ -46,12 +46,14 @@ ggplot(df2plotSim %>% dplyr::filter(variable %in% c("NT")),
   facet_wrap(~age, scales = "free") +
   ylab("Abundance (1000's)") +
   ggtitle("sim.condRE = TRUE") # all 10 replicates identical
+
 ggplot(df2plotSim %>% dplyr::filter(variable %in% c("NF")),
        aes(x = year, y = value, color = replicate)) +
   geom_line() + 
   facet_wrap(~age, scales = "free") +
   ylab("Abundance (1000's)") +
   ggtitle("sim.condRE = FALSE") # all 10 replicates wildly different - some blow up
+
 ggplot(df2plotSim %>% dplyr::filter(replicate == 1, variable %in% c("fit", "NT")),
        aes(x = year, y = value, color = variable)) +
   geom_line() + 
