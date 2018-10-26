@@ -56,9 +56,6 @@ for (i in 1:(nT-1)) { # Create process error (N-at-age)
   errPro[, i] <-  rnorm(n = nA, sd = sdLogN)
 }
 
-#hist(errPro_exact[1,])
-#hist(errPro[1,])
-#errPro[1, ] <- errPro_exact[1, ]
 
 ## Process model ##################################################
 # N fit
@@ -76,13 +73,40 @@ for (i in 2:nT) {
 N <- exp(logN)
 
 ## Observation model ##############################################
+# Observation error (for catch and surveys)
+errObs <- array(data = NA, # error container (3-d: age x year x fleet)
+                dim = c(nA, nT, fit$data$noFleets),
+                dimnames = list(paste0("error.", c(1:nA)), 
+                                fit$data$years, 
+                                attr(fit$data,"fleetNames")))
+# Need to replicate some sd's to match config file
+index <- as.vector(t(fit$conf$keyVarObs + 1))
+index[index == 0] <- NA
+sdLogObs <- exp(fit$pl$logSdLogObs[index])
+
+# Make observation error (can only do uncorrelated error right now)
+  for (j in 1:nT) { # all surveys in one year
+    errObs[, j, ] <- rnorm(n = length(sdLogObs), sd = sdLogObs)
+  }
+
+# Check that sds are correctly assigned to each age x survey combo
+# sdInput <- c()
+# for (i in 1:fit$data$noFleets) {
+#   sdInput <- c(sdInput, apply(errObs[, , i], 1, sd))  
+# }
+# 
+# cbind(sdInput, sdLogObs)
+
+# <<<<<<<<<<<<<<<<<<NEXT APPLY OBSERVATION ERROR
+
 # Catch fit
 logC <- matrix(data = NA, # Catch container
                nrow = nA, 
                ncol = nT, 
                dimnames = list(paste0("simulated.", c(1:nA)), 
                                fit$data$years))
-  
+
+ 
 # Calculate catch index
 logC[,] <- log(f / z * (1 - exp(-z)) * N[,] * 
            t(fit$data$catchMeanWeight))
@@ -125,7 +149,7 @@ df2plotN <-
   tidyr::gather(variable, N, -year) %>%
   tidyr::separate(variable, c("source", "age"))
 
-# Plot N-at-age (all ages should match exactly)
+# Plot N-at-age (all ages should match exactly when using errPro_exact)
 ggplot(data = df2plotN,
        aes(x = year, y = N, color = source)) +
   geom_line() +
@@ -153,7 +177,7 @@ df2plotC <-
   tidyr::gather(variable, Catch, -year) %>%
   tidyr::separate(variable, c("source", "age"))
 
-# Plot Catch (should exactly match in total subplot)
+# Plot Catch (should exactly match in total subplot when using errPro_exact)
 p <- 
   ggplot(data = df2plotC,
        aes(x = year, y = Catch, color = source)) +
@@ -195,7 +219,7 @@ df_fitS <-
 df2plotS <- # combine simulated Survey and fit Survey
   bind_rows(df_simS, df_fitS)
 
-# Plot Survey (should match exactly)
+# Plot Survey (should match exactly when using errPro_exact)
 p <-
   ggplot(data = df2plotS %>% dplyr::filter(age>1, fleetNames != "Residual catch"),
        aes(x = year)) +
@@ -236,7 +260,7 @@ p <-
 
 
 # Fit sam to a simulation
-#fit2sim <- sam.fit(data = )
+#fit2sim <- sam.fit(data = , conf = fit$conf, par = defpar(fit$data, fit$conf))
 
 # Try to fit sam to one of the replicates
 # Need to resimulate with full.data = TRUE to get output that sam.fit() can use
