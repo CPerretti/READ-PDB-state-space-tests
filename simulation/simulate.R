@@ -255,6 +255,7 @@ df_meanNFit <-
 
 df2plot <-
   df2plotSimOut %>%
+  dplyr::filter(variable == "N") %>%
   dplyr::group_by(age, variable, replicate) %>%
   dplyr::summarise(meanValue = mean(value)) %>%
   dplyr::left_join(df_meanNFit) %>%
@@ -265,12 +266,50 @@ df2plot <-
                    `>1000x` = mean(meanValue > 1000*meanNFit)) %>%
   tidyr::gather(threshold, value, -age, -variable) %>%
   dplyr::mutate(threshold = as.factor(threshold), # reverse levels for plot
-                threshold = factor(threshold, levels = rev(levels(threshold))))
+                threshold = factor(threshold, levels = rev(levels(threshold)))) %>%
+  dplyr::mutate(metric = "Mean")
 
 ggplot(df2plot, aes(x = threshold, y = value)) +
   geom_point() +
   facet_wrap(~age) +
   xlab("Increase in mean of simulation compared to mean of fit") +
+  ylab("Proportion of simulations") +
+  ggtitle("How biased are the simulations compared to the fit?") +
+  ylim(0,1)
+
+# repeating exercise using median instead of mean
+df_medianNFit <-
+  fitN %>%
+  t() %>%
+  as.data.frame() %>%
+  dplyr::mutate(year = rownames(.),
+                variable = "N") %>%
+  tidyr::gather(age, value, -year, -variable) %>%
+  dplyr::group_by(age, variable) %>%
+  dplyr::summarise(medianNFit = median(value))
+
+df2plotmed <-
+  df2plotSimOut %>%
+  dplyr::filter(variable == "N") %>%
+  dplyr::group_by(age, variable, replicate) %>%
+  dplyr::summarise(medianValue = median(value)) %>%
+  dplyr::left_join(df_medianNFit) %>%
+  dplyr::group_by(age, variable) %>%
+  dplyr::summarise(`>1x` = mean(medianValue > 1*medianNFit), # proportion of runs above threshold
+                   `>10x` = mean(medianValue > 10*medianNFit),
+                   `>100x` = mean(medianValue > 100*medianNFit),
+                   `>1000x` = mean(medianValue > 1000*medianNFit)) %>%
+  tidyr::gather(threshold, value, -age, -variable) %>%
+  dplyr::mutate(threshold = as.factor(threshold), # reverse levels for plot
+                threshold = factor(threshold, levels = rev(levels(threshold)))) %>%
+  dplyr::mutate(metric = "Median")
+
+df2plotcomb <- rbind(df2plot, df2plotmed)
+
+ggplot(df2plotcomb, aes(x = threshold, y = value, color = metric)) +
+  geom_point() +
+  facet_wrap(~age) +
+  xlab("Increase in metric of simulation compared to metric of fit") +
   ylab("Proportion of simulations") +
   ggtitle("How biased are the simulations compared to the fit?") +
   ylim(0,1)
