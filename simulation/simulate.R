@@ -1,7 +1,8 @@
 # Replicate SAM model fit using the equations written here
 
 # Required packages
-library(dplyr) 
+library(plyr) # always load before dplyr
+library(dplyr)
 library(ggplot2)
 library(tidyr)
 library(stockassessment)
@@ -56,6 +57,7 @@ for (i in 1:(nT-1)) { # Create process error (N-at-age)
   errPro[, i] <-  rnorm(n = nA, sd = sdLogN)
 }
 
+errPro <- errPro_exact # Use if you want the fit N
 
 ## Process model ##################################################
 # N fit
@@ -85,7 +87,7 @@ index[index == 0] <- NA
 sdLogObs <- exp(fit$pl$logSdLogObs[index])
 
 # Make observation error (can only do uncorrelated error right now)
-  for (j in 1:nT) { # all surveys in one year
+  for (j in 1:nT) { # all surveys in a year
     errObs[, j, ] <- rnorm(n = length(sdLogObs), sd = sdLogObs)
   }
 
@@ -97,7 +99,6 @@ sdLogObs <- exp(fit$pl$logSdLogObs[index])
 # 
 # cbind(sdInput, sdLogObs)
 
-# <<<<<<<<<<<<<<<<<<NEXT APPLY OBSERVATION ERROR
 
 # Catch fit
 logC <- matrix(data = NA, # Catch container
@@ -109,11 +110,12 @@ logC <- matrix(data = NA, # Catch container
  
 # Calculate catch index
 logC[,] <- log(f / z * (1 - exp(-z)) * N[,] * 
-           t(fit$data$catchMeanWeight))
+           t(fit$data$catchMeanWeight)) + errObs[, , "Residual catch"]
 
 C <- exp(logC)
 
-# Survey fits
+# Survey fits (SIMULATIONS HAVE DATA IN ALL YEARS RIGHT NOW i.e. SummerNMFS has
+# data from 1965-2017)
 logS <- array(data = NA, # survey container (3-d: age x year x survey)
               dim = c(nA, nT, fit$data$noFleets),
               dimnames = list(paste0("simulated.", c(1:nA)), 
@@ -129,15 +131,15 @@ Sq <- exp(logSq)
 
 surveyIndex <- # some fleets are fishermen not surveys
   (1:fit$data$noFleets)[fit$data$fleetTypes == 2] 
-
 for (i in surveyIndex) {
-logS[, , i] <- log(Sq[i,] * exp(-z * fit$data$sampleTimes[i]) * N[,])
+logS[, , i] <- log(Sq[i,] * exp(-z * fit$data$sampleTimes[i]) * N[,]) +
+                errObs[, , i]
 }
 
 S <- exp(logS)
 
 
-## Make plots for comparison of simulated vs fit ##################
+## Make plots for comparison of simulated vs original fit ##################
 ## (1) N-at-age
 # Setup N-at-age to plot
 df2plotN <- 
@@ -185,7 +187,7 @@ p <-
   facet_wrap(~age, scales = "free") +
   ylab("Catch (mt)")
 
-#p
+p
 
 ## (3) Survey
 # Set up Survey data to plot
@@ -227,7 +229,7 @@ p <-
   geom_line(aes(y = value, color = source)) +
   facet_wrap(age~fleetNames, scales = "free_y", nrow = 7)
 
-#p
+p
 
 
 ## Compare my simulation to simulate.sam() ####
@@ -259,12 +261,26 @@ p <-
 #p
 
 
-# Fit sam to a simulation
-#fit2sim <- sam.fit(data = , conf = fit$conf, par = defpar(fit$data, fit$conf))
+# Fit sam to a simulation (UNDER CONSTRUCTION!)
+# Convert survey data to SAM input format
+surveys2 <-
+  lapply(X = plyr::alply(S[, , surveyIndex], 3, .dims = TRUE), t) %>%
+  lapply(function(x) {colnames(x) <- sub(colnames(x), # Change colnames
+                                        pattern = "simulated.", 
+                                        replacement = ""); x}) %>%
+  lapply(function(x) x[,-which(colSums(x, na.rm = TRUE) == 0)]) # Remove ages not in survey
 
-# Try to fit sam to one of the replicates
+for(i in 1:length(surveys2)) { # set survey times to match real data
+  attr(surveys2[[i]], "time", fit$data$sampleTimes[surveyIndex[i]] + c(-0.25, 0.25))
+}
+
+# << PROBABLY NEED TO USE read.ices() HERE TO SET UP DATA PROPERLY
+#fit2sim <- sam.fit(data = fit$data, conf = fit$conf, par = defpar(fit$data, fit$conf))
+
+
+# Try to fit sam to one of the simulate.sam replicates
 # Need to resimulate with full.data = TRUE to get output that sam.fit() can use
-set.seed(123)
-simOut2fit <- stockassessment:::simulate.sam(fit, nsim = 10, full.data = TRUE)
-sam.fit(data = simOut2fit[[1]], conf = fit$conf, par = defpar(fit$data, fit$conf))
+# set.seed(123)
+# simOut2fit <- stockassessment:::simulate.sam(fit, nsim = 10, full.data = TRUE)
+# sam.fit(data = simOut2fit[[1]], conf = fit$conf, par = defpar(fit$data, fit$conf))
 
