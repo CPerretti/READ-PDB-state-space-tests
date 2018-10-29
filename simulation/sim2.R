@@ -17,6 +17,14 @@ par <- defpar(fit$data, conf)
 fitT <- sam.fit(fit$data, conf, par, sim.condRE = TRUE)
 fitF <- sam.fit(fit$data, conf, par, sim.condRE = FALSE)
 
+# how do fitT and fitF differ?
+fitTss <- unlist(fitT)
+fitFss <- unlist(fitF)
+base::setdiff(fitTss, fitFss) # no differences
+
+fitT$obj$env # env is slightly different - is this meaningful???
+fitF$obj$env
+
 # check get same parameter estimates
 fitT$pl$logN - fitF$pl$logN
 
@@ -61,3 +69,4 @@ ggplot(df2plotSim %>% dplyr::filter(replicate == 1, variable %in% c("fit", "NT")
   ylab("Abundance (1000's)") +
   ggtitle("fit vs NT") # fit and NT are slightly different - why? had expected these to be identical
 
+# want to be able to fix logSdLogN and logSdLogFsta at different values to see if can get random walk to behave better in simulated data sets
