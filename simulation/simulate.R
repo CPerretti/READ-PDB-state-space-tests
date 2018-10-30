@@ -268,7 +268,8 @@ surveys <-
   lapply(function(x) {colnames(x) <- sub(colnames(x), # Change colnames
                                         pattern = "simulated.", 
                                         replacement = ""); x}) %>%
-  lapply(function(x) x[,-which(colSums(x, na.rm = TRUE) == 0)]) # Remove ages not in survey
+  # Remove ages not in survey
+  lapply(function(x) x[, which(colSums(x, na.rm = TRUE) != 0)]) 
 
 for(i in 1:length(surveys)) { # set survey times to match real data
   attr(surveys[[i]], "time", fit$data$sampleTimes[surveyIndex[i]] + c(-0.25, 0.25))
@@ -277,20 +278,20 @@ for(i in 1:length(surveys)) { # set survey times to match real data
 # Export the simulated surveys to a text file, then import it
 # using read.ices().
 # First set file header
-write.table(rbind("US Atlantic Herring Survey Data", 100 + length(surveys2)), 
+write.table(rbind("US Atlantic Herring Survey Data", 100 + length(surveys)), 
             file = "surveys.dat", sep = " ", 
             row.names = FALSE, col.names = FALSE, quote = FALSE)
 # Then append surveys
-for (i in 1:length(surveys2)) { # loop over surveys
-  min_year <- min(as.numeric(rownames(surveys2[[i]])))
-  max_year <- max(as.numeric(rownames(surveys2[[i]])))
+for (i in 1:length(surveys)) { # loop over surveys
+  min_year <- min(as.numeric(rownames(surveys[[i]])))
+  max_year <- max(as.numeric(rownames(surveys[[i]])))
   header_survey <-
-    rbind(names(surveys2)[i], 
+    rbind(names(surveys)[i], 
           paste(min_year, max_year),
           paste(1, 1, fit$data$sampleTimes[surveyIndex[i]] - 0.25, 
                       fit$data$sampleTimes[surveyIndex[i]] + 0.25),
-          paste(min(colnames(surveys2[[i]])), max(colnames(surveys2[[1]]))))
-  a_survey <- cbind(1, as.data.frame(surveys2[[i]]))
+          paste(min(colnames(surveys[[i]])), max(colnames(surveys[[1]]))))
+  a_survey <- cbind(1, as.data.frame(surveys[[i]]))
   
   write.table(header_survey, file = "surveys.dat", sep = " ", 
               row.names = FALSE, col.names = FALSE, quote = FALSE,
@@ -302,6 +303,15 @@ for (i in 1:length(surveys2)) { # loop over surveys
 }
 
 surveys <- read.ices("surveys.dat")
+
+# Do the same for catch
+catch <- t(C) 
+colnames(catch) <- sub(colnames(catch), 
+                       pattern = "simulated.", 
+                       replacement = "")
+catch <- catch[, which(colSums(catch, na.rm = TRUE) != 0)]
+
+
 #fit2sim <- sam.fit(data = fit$data, conf = fit$conf, 
 #                   par = defpar(fit$data, fit$conf))
 
