@@ -310,7 +310,7 @@ colnames(catch) <- sub(colnames(catch),
                        pattern = "simulated.", 
                        replacement = "")
 catch <- catch[, which(colSums(catch, na.rm = TRUE) != 0)]
-
+#<< CONTINUE
 
 #fit2sim <- sam.fit(data = fit$data, conf = fit$conf, 
 #                   par = defpar(fit$data, fit$conf))
