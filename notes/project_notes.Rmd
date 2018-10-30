@@ -1,7 +1,7 @@
 ---
 title: "State-space assessment project notes"
-output: html_notebook
-date: 10/02/2018
+date: "10/02/2018"
+output: html_document
 ---
 
 ###10/2
@@ -33,4 +33,3 @@ https://github.com/perretti/state-space-tests/blob/master/random_walk_case_study
 Estimates on the natural scale are skewed toward higher values due to the log-transformation.
 
 Plan is to run some self-tests next.
-
