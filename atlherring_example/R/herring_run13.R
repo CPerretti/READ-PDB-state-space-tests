@@ -11,7 +11,7 @@ mo <- read.ices("../data/Herrmo.dat") # maturity-at-age ogive
 nm <- read.ices("../data/Herrnm.dat") # natural mortality-at-age
 pm <- read.ices("../data/Herrpm.dat") # proportion of m before spawning
 sw <- read.ices("../data/Herrsw.dat") # stock weight-at-age (kg)
-surveys_real <- read.ices("../data/Herrsurvey_BigSep_NoAcoust.dat") #surveys
+surveys <- read.ices("../data/Herrsurvey_BigSep_NoAcoust.dat") #surveys
 
 # setup the data as needed for SAM
 dat_atl <- setup.sam.data(surveys = surveys,
@@ -29,7 +29,6 @@ dat_atl <- setup.sam.data(surveys = surveys,
 
 # Load model configuration file
 conf <- loadConf(dat = dat_atl, file = "../ModelConf_original.txt")
-
 
 par <- defpar(dat_atl, conf) # some default starting values
 
