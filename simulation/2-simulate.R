@@ -56,10 +56,10 @@ errPro <- matrix(data = NA,
                  ncol = nT-1)
 sdLogN <- exp(fit$pl$logSdLogN[(fit$conf$keyVarLogN + 1)])
 for (i in 1:(nT-1)) { # Create process error (N-at-age)
-  errPro[, i] <-  rnorm(n = nA, sd = 0.5*sdLogN)
+  errPro[, i] <-  rnorm(n = nA, sd = sdLogN)
 }
 
-errPro <- errPro_exact # Use if you want the fit N
+#errPro <- errPro_exact # Use if you want the fit N
 
 ## Simulate process model #################################
 # N fit
@@ -102,22 +102,22 @@ sdLogObs <- exp(fit$pl$logSdLogObs[index])
 # cbind(sdInput, sdLogObs)
 
 
-# Catch fit
-logC <- matrix(data = NA, # Catch container
-               nrow = nA, 
-               ncol = nT, 
-               dimnames = list(paste0("simulated.", c(1:nA)), 
-                               fit$data$years))
+# Simulate Catch
 
- 
-# Calculate catch index
-logC[,] <- log(f / z * (1 - exp(-z)) * N[,] * 
-           t(fit$data$catchMeanWeight)) + errObs[, , "Residual catch"]
+# Calculate catch on N-scale (1000s)
+logCtru_N <- log(f / z * (1 - exp(-z)) * N)
+logCobs_N <- logCtru_N + errObs[, , "Residual catch"]
 
-C <- exp(logC)
+Ctru_N <- exp(logCtru_N)
+Cobs_N <- exp(logCobs_N)
 
-# Survey fits (SIMULATIONS HAVE DATA IN ALL YEARS RIGHT NOW)
-logS <- array(data = NA, # survey container (3-d: age x year x survey)
+# Convert to MT (1000s * kg = mt)
+Ctru_mt <- Ctru_N * t(fit$data$catchMeanWeight)
+Cobs_mt <- Cobs_N * t(fit$data$catchMeanWeight)
+
+
+# Simulate Survey (SIMULATIONS HAVE DATA IN ALL YEARS RIGHT NOW)
+logS_N <- array(data = NA, # survey container (3-d: age x year x survey)
               dim = c(nA, nT, fit$data$noFleets),
               dimnames = list(paste0("simulated.", c(1:nA)), 
                               fit$data$years, 
@@ -126,29 +126,29 @@ logS <- array(data = NA, # survey container (3-d: age x year x survey)
 logSq <- matrix(data = NA, # survey q-at-age matrix
                 nrow = nrow(fit$conf$keyLogFpar), 
                 ncol = ncol(fit$conf$keyLogFpar))
-logSq[which(fit$conf$keyLogFpar != -1)] <- # fill with fit values
+logSq[which(fit$conf$keyLogFpar != -1)] <- # fill with herring fit values
   fit$pl$logFpar[fit$conf$keyLogFpar[fit$conf$keyLogFpar != -1] + 1]
 Sq <- exp(logSq)
 
 surveyIndex <- # some fleets are fishermen not surveys
   (1:fit$data$noFleets)[fit$data$fleetTypes == 2] 
 for (i in surveyIndex) {
-logS[, , i] <- log(Sq[i,] * exp(-z * fit$data$sampleTimes[i]) * N[,]) +
+logS_N[, , i] <- log(Sq[i,] * exp(-z * fit$data$sampleTimes[i]) * N[,]) +
                 errObs[, , i]
 }
 
-S <- exp(logS)
+S_N <- exp(logS_N)
 
 
 ## Make plots for comparison of simulated vs original fit ##################
 # (1) N-at-age
 plotN(N, fit)
 
-# (2) Catch
-plotC(C, fit)
+# (2) Catch (mt)
+plotC(Cobs_mt, Ctru_mt, fit)
 
-# (3) Survey
-plotS(S, fit)
+# (3) Survey #<<<< CHANGE THIS PLOT SO IT HAS TRUE AND OBSERVED AND CHECK UNITS>>>>>>
+plotS(S_N, fit)
 
 ## Plot some simulations from simulate.sam()
 #plotSimSAM(fit, nsim = 10, seed = NULL)
@@ -157,7 +157,7 @@ plotS(S, fit)
 ## Fit sam to a simulation ################################
 
 # Prep simulation data for read.ices()
-prepSimData(S, fit, C) 
+prepSimData(S_N, fit, Cobs_N) 
 
 # Read in data
 cn <- read.ices("./sim_data/catch.dat") # catch abundace-at-age
@@ -198,13 +198,11 @@ fitSim <- sam.fit(dat, conf, par, sim.condRE = FALSE) # fit the model
 plotN(N, fitSim)
 
 # (2) Catch
-plotC(C, fitSim)
-catchplot(fitSim) # WHY DOES IT THINK OBSERVED IS SO LOW? <<<<<<<
-
-exp(fitSim$data$logobs)
+plotC(Cobs_mt, Ctru_mt, fitSim)
+catchplot(fitSim)
 
 # (3) Survey
-plotS(S, fitSim)
+plotS(S_N, fitSim)
 
 
 

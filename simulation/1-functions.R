@@ -22,33 +22,51 @@ plotN <- function(N, fit) {
 
 
 ## Plot C-at-age simulated vs fit #######################
-plotC <- function(C, fit) {
+plotC <- function(Cobs_mt, Ctru_mt, fit) {
   # Setup Catch to plot
-  df_fitCatch <- 
+  df_Cfit_mt <- 
     data.frame(variable = names(fit$sdrep$value),
                value = fit$sdrep$value) %>%
     dplyr::filter(variable == "logCatch") %>%
     dplyr::rename(logCatch = value) %>%
-    dplyr::mutate(fit.total = exp(logCatch),
-                  year = fit$data$years) %>%
-    dplyr::select(year, fit.total)
+    dplyr::mutate(Catch_mt = exp(logCatch),
+                  year = fit$data$years,
+                  age = "total",
+                  source = "fit") %>%
+    dplyr::select(year, age, Catch_mt, source)
   
-  df2plotC <- 
-    C %>%
+  # Pull out simulated observations
+  df_Cobs_mt <- 
+    Cobs_mt %>%
     t() %>%
     as.data.frame() %>%
-    dplyr::mutate(simulated.total = rowSums(.),
+    dplyr::mutate(total = rowSums(.),
                   year = fit$data$years) %>%
-    dplyr::left_join(df_fitCatch) %>%
-    tidyr::gather(variable, Catch, -year) %>%
-    tidyr::separate(variable, c("source", "age"))
+    tidyr::gather(age, Catch_mt, -year) %>%
+    dplyr::mutate(source = "observed")
+  
+  # Pull out simulated truth
+  df_Ctru_mt <- 
+    Ctru_mt %>%
+    t() %>%
+    as.data.frame() %>%
+    dplyr::mutate(total = rowSums(.),
+                  year = fit$data$years) %>%
+    tidyr::gather(age, Catch_mt, -year) %>%
+    dplyr::mutate(source = "true")  
+  
+  # Pull out simulated true
+  df2plot <- 
+    bind_rows(df_Cfit_mt, 
+              df_Cobs_mt,
+              df_Ctru_mt)
   
   # Plot Catch (should exactly match in total subplot when using errPro_exact)
-  ggplot(data = df2plotC,
-           aes(x = year, y = Catch, color = source)) +
+  ggplot(data = df2plot,
+           aes(x = year, y = Catch_mt, color = source)) +
     geom_line() +
     facet_wrap(~age, scales = "free") +
-    ylab("Catch (mt)")
+    ylab("Catch (MT)")
 
 }
 
@@ -123,7 +141,7 @@ plotSimSAM <- function(fit, nsim = 1, seed = NULL) {
 
 
 ## Prep simulation data to be fit by SAM ##################
-prepSimData <- function(S, fit, C) {
+prepSimData <- function(S, fit, Cobs_N) {
   # Convert survey data to SAM input format
   surveys <-
     lapply(X = plyr::alply(S[, , surveyIndex], 3, .dims = TRUE), t) %>%
@@ -167,7 +185,7 @@ prepSimData <- function(S, fit, C) {
   
   
   # Next, manipulate catch so it also can be read in by read.ices()
-  catch <- t(C) 
+  catch <- t(Cobs_N) 
   colnames(catch) <- sub(colnames(catch), 
                          pattern = "simulated.", 
                          replacement = "")
