@@ -32,49 +32,49 @@ conf <- loadConf(dat = dat_atl, file = "../ModelConf_original.txt")
 
 par <- defpar(dat_atl, conf) # some default starting values
 
-fit <- sam.fit(dat_atl, conf, par, sim.condRE = FALSE) # fit the model
+fitHer <- sam.fit(dat_atl, conf, par, sim.condRE = FALSE) # fit the model
 
-save(list = "fit", file = "../output/fit.Rdata")
+save(list = "fitHer", file = "../output/fitHer.Rdata")
 
-modelTable <- modeltable(fit) # AIC and # of params
+modelTable <- modeltable(fitHer) # AIC and # of params
 
 
 # Make plots
-ssbplot(fit)
-fbarplot(fit)
-recplot(fit)
-catchplot(fit)
+ssbplot(fitHer)
+fbarplot(fitHer)
+recplot(fitHer)
+catchplot(fitHer)
 
 
-res <- residuals(fit)
+res <- residuals(fitHer)
 corplot(res)
-stockassessment::srplot(fit)
+stockassessment::srplot(fitHer)
 
 pdf(file = "parameter_plot.pdf")
-parplot(fit)
+parplot(fitHer)
 dev.off()
 
 
 #### Simulate from the fitted model and re-fit ####
-simdat <- simulate(fit, seed = 1, nsim = 1)[[1]]
+simdat <- simulate(fitHer, seed = 1, nsim = 1)[[1]]
 
 simfit <- sam.fit(simdat, conf, par)
 
-ssbplot(fit)
+ssbplot(fitHer)
 ssbplot(simfit, add = TRUE, col = "blue")
 
-fbarplot(fit, partial = FALSE)
+fbarplot(fitHer, partial = FALSE)
 fbarplot(simfit, partial = FALSE, add = TRUE, col = "blue")
 
-recplot(fit)
+recplot(fitHer)
 recplot(simfit, add = TRUE, col = "blue")
 
-catchplot(fit)
+catchplot(fitHer)
 catchplot(simfit, add = TRUE, col = "blue")
 
 
 # Run lots of simulations and fits
-simlist <- simulate(fit, seed=1, nsim=10)
+simlist <- simulate(fitHer, seed=1, nsim=10)
 library(parallel)
 no_cores <- detectCores() - 1 #how many cores can we use
 if( no_cores>2 ) no_cores <- 2 # Cran check does not allow us to use more than two 
@@ -85,23 +85,23 @@ clusterEvalQ(cl, {library(stockassessment)}) #load the package to each node
 simfitslist <- parLapply(cl, simlist, function(x){sam.fit(x, conf, par)}) #do sam.fit to element
 stopCluster(cl) #shut it down
 
-ssbplot(fit)#the original data
+ssbplot(fitHer)#the original data
 trash <- lapply(simfitslist, function(x){ssbplot(x, ci=FALSE, add=TRUE)})
 
-fbarplot(fit, partial = FALSE)
+fbarplot(fitHer, partial = FALSE)
 trash <- lapply(simfitslist, function(x){fbarplot(x, ci=FALSE, partial = FALSE, add=TRUE)})
 
-recplot(fit)
+recplot(fitHer)
 trash <- lapply(simfitslist, function(x){recplot(x, ci=FALSE, add=TRUE)})
 
-catchplot(fit)
+catchplot(fitHer)
 trash <- lapply(simfitslist, function(x){catchplot(x, ci=FALSE, add=TRUE)})
 
 # Extract parameter estimates from the true model
 # remove estiamtes of missing values since they are not 
 # in the simulated dataset and we want the two to match up
 df_true <- 
-  summary(fit$sdrep) %>%
+  summary(fitHer$sdrep) %>%
   as.data.frame() %>%
   dplyr::mutate(variable = row.names(.)) %>%
   dplyr::filter(!grepl('missing', variable))
