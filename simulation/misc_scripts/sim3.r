@@ -6,14 +6,14 @@ library(ggplot2)
 library(stockassessment)
 
 # Use atl herring fit to set up simulation
-load("../../atlherring_example/output/fit.Rdata")
+load("../atlherring_example/output/fitHer.Rdata")
 
 # use herring configuration and default parameter intitial guesses 
-conf <- fit$conf
-par <- defpar(fit$data, conf)
+conf <- fitHer$conf
+par <- defpar(fitHer$data, conf)
 
 # fit data with sim.condRE = FALSE so that simulations will use process error
-fitF <- sam.fit(fit$data, conf, par, sim.condRE = FALSE)
+fitF <- sam.fit(fitHer$data, conf, par, sim.condRE = FALSE)
 
 # simulate data with estimated process error to show huge variability in N and F at age 5
 simdatF <- stockassessment:::simulate.sam(fitF, nsim = 10, full.data = FALSE)
@@ -24,7 +24,7 @@ for (i in 1:length(simdatF)) {
   df_sim <-
     rbind(df_sim, data.frame(replicate = as.factor(i),
                              case = "Base",
-                             year = fit$data$years,
+                             year = fitHer$data$years,
                              N5 = exp(simdatF[[i]]$logN[5,]),
                              F5 = exp(simdatF[[i]]$logF[5,])))
 }
@@ -42,7 +42,7 @@ for (i in 1:length(simdatF)) {
   df_sim <-
     rbind(df_sim, data.frame(replicate = as.factor(i),
                              case = "Modified",
-                             year = fit$data$years,
+                             year = fitHer$data$years,
                              N5 = exp(simdatF[[i]]$logN[5,]),
                              F5 = exp(simdatF[[i]]$logF[5,])))
 }
@@ -76,7 +76,7 @@ for (i in 1:length(simdatF)) {
   df_sim <-
     rbind(df_sim, data.frame(replicate = as.factor(i),
                              case = "Mod2",
-                             year = fit$data$years,
+                             year = fitHer$data$years,
                              N5 = exp(simdatF[[i]]$logN[5,]),
                              F5 = exp(simdatF[[i]]$logF[5,])))
 }
