@@ -15,7 +15,7 @@ source("1-functions.R")
 load("../atlherring_example/output/fitHer.Rdata")
 
 # How many simulation replicates to do
-nRep <- 100
+nRep <- 2
 
 # Generate simulation replicates
 simOut <- list()
@@ -25,7 +25,7 @@ for (i in 1:nRep) {
 
 
 
-## Plo true vs observed vs *herring* fit #################
+## Plot true vs observed vs *herring* fit #################
 
 ## (1) N-at-age (1000s)
 # plotN(N = simOut$N, 
@@ -80,22 +80,26 @@ for (i in 1:nRep) {
 
 
 ## Plot fit vs true parameter values #######################
-fitSimAll <- data.frame()
-for (i in 1:nRep) {
-  fitSimAll <-
-    rbind(fitSimAll,
-        data.frame(variable = paste("sdLogN", 1:length(fitHer$pl[[4]]), sep = "."),
-                     #paste(names(fitHer$pl)[[4]], 1:length(fitHer$pl[[4]]), sep = "."),
-                   tru = 0.33 * exp(fitHer$pl[[4]]),
-                   est = exp(fitSim[[i]]$pl[[4]]),
-                   sd  = exp(fitSim[[i]]$plsd[[4]]),
-                   replicate = i),
-        data.frame(variable = paste(names(fitHer$pl)[[5]], 1:length(fitHer$pl[[5]]), sep = "."),
-                   tru = fitHer$pl[[5]],
-                   est = fitSim[[i]]$pl[[5]],
-                   sd  = fitSim[[i]]$plsd[[5]],
-                   replicate = i))
+
+#<<<< MAKE THIS INTO ONE LONG DATA FRAME<<<
+params2plot <- which(lengths(fitSim[[1]]$pl) != 0)# Only include non-empty params
+nParams <- length(params2plot)
+parsOut <- list()
+for (h in 1:nParams) {
+  pInd <- params2plot[h]
+  parsOut[[h]] <- data.frame()
+  for (i in 1:nRep) {
+    parsOut[[h]] <-
+      rbind(parsOut[[h]],
+            data.frame(variable = paste(names(params2plot[h]), 
+                                        1:length(fitSim[[1]]$pl[[pInd]]), sep = "."),
+                       tru = simOut[[i]]$trueParams$pl[[pInd]],
+                       est = fitSim[[i]]$pl[[pInd]],
+                       sd  = fitSim[[i]]$plsd[[pInd]],
+                       replicate = i))
+  }  
 }
+
 
 df2plot <-
   fitSimAll %>%

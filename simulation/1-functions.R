@@ -41,9 +41,13 @@ sim <- function(fit) {
   errPro <- matrix(data = NA,
                    nrow = nA, 
                    ncol = nT-1)
+  # Lower process error (!)
+  fit$pl$logSdLogN[(fit$conf$keyVarLogN + 1)] <-
+    fit$pl$logSdLogN[(fit$conf$keyVarLogN + 1)] %>%
+    exp %>% "*"(0.33) %>% log # NOTICE THE 0.33 factor reduction
   sdLogN <- exp(fit$pl$logSdLogN[(fit$conf$keyVarLogN + 1)])
   for (i in 1:(nT-1)) { # Create process error (N-at-age)
-    errPro[, i] <-  rnorm(n = nA, sd = 0.33 * sdLogN) #notice sd is adjusted
+    errPro[, i] <-  rnorm(n = nA, sd = sdLogN)
   }
   
   #errPro <- errPro_exact # Use if you want the herring 13 fit N
@@ -129,7 +133,8 @@ sim <- function(fit) {
   Stru_N <- exp(logStru_N)
   Sobs_N <- exp(logSobs_N)
   
-  return(list(N = N, 
+  return(list(trueParams = list(sdrep = fit$sdrep, pl = fit$pl),
+              N = N, 
               Cobs_mt = Cobs_mt, Cobs_N = Cobs_N, 
               Ctru_mt = Ctru_mt, Ctru_N = Ctru_N, 
               Sobs_N = Sobs_N, Stru_N = Stru_N))
