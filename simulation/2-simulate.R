@@ -108,7 +108,7 @@ ggplot(df2plot, aes(y = variable)) +
   geom_point( aes(x = tru), color = "red", size  = 3) +
   geom_point( aes(x = est_mean), color = "blue", size = 3) +
   geom_errorbarh(aes(xmin = est_mean - 1.96*est_se,
-                     xmax = est_mean + 1.96*est_se), height = 0.1, color = "blue") +
+                     xmax = est_mean + 1.96*est_se), color = "blue") +
   theme_bw() +
   ylab("") +
   xlab("Value") +
