@@ -81,28 +81,25 @@ for (i in 1:nRep) {
 
 ## Plot fit vs true parameter values #######################
 
-#<<<< MAKE THIS INTO ONE LONG DATA FRAME<<<
-params2plot <- which(lengths(fitSim[[1]]$pl) != 0)# Only include non-empty params
-nParams <- length(params2plot)
-parsOut <- list()
-for (h in 1:nParams) {
-  pInd <- params2plot[h]
-  parsOut[[h]] <- data.frame()
+# Plot fixed effects
+parsFixed <- which(names(fitSim[[1]]$pl) %in% names(fitSim[[1]]$obj$par))
+df_parsOut <- data.frame()
+for (h in parsFixed) {
   for (i in 1:nRep) {
-    parsOut[[h]] <-
-      rbind(parsOut[[h]],
-            data.frame(variable = paste(names(params2plot[h]), 
-                                        1:length(fitSim[[1]]$pl[[pInd]]), sep = "."),
-                       tru = simOut[[i]]$trueParams$pl[[pInd]],
-                       est = fitSim[[i]]$pl[[pInd]],
-                       sd  = fitSim[[i]]$plsd[[pInd]],
+    df_parsOut <-
+      rbind(df_parsOut,
+            data.frame(variable = paste(names(fitSim[[1]]$pl)[h], 
+                                        1:length(fitSim[[1]]$pl[[h]]), sep = "."),
+                       tru = simOut[[i]]$trueParams$pl[[h]],
+                       est = fitSim[[i]]$pl[[h]],
+                       sd  = fitSim[[i]]$plsd[[h]],
                        replicate = i))
   }  
 }
 
 
 df2plot <-
-  fitSimAll %>%
+  df_parsOut %>%
   dplyr::group_by(variable) %>%
   dplyr::summarise(tru = unique(tru),
                    est_mean = mean(est),
