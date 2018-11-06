@@ -65,8 +65,13 @@ ggplot(df_sim, aes(x=year, y=F5, color=case)) +
 
 # modify fitF to reduce process error proportionally
 mod2fitF <- fitF
-mod2fitF$pl$logSdLogN <- fitF$pl$logSdLogN / 100
-mod2fitF$pl$logSdLogFsta <- fitF$pl$logSdLogFsta / 100
+
+# CP: logSd is negative so dividing by 100 increases the sd
+# CP: mod2fitF$pl$logSdLogN <- fitF$pl$logSdLogN / 100 
+# CP: mod2fitF$pl$logSdLogFsta <- fitF$pl$logSdLogFsta / 100
+# CP: instead of dividing subtract some amount
+mod2fitF$pl$logSdLogN <- fitF$pl$logSdLogN - 3 
+mod2fitF$pl$logSdLogFsta <- fitF$pl$logSdLogFsta - 3
 
 # simulate data with reduced process error
 simdatF <- stockassessment:::simulate.sam(mod2fitF, nsim = 10, full.data = FALSE)
@@ -94,4 +99,4 @@ ggplot(df_sim, aes(x=year, y=F5, color=case)) +
   ggtitle("F age 5") +
   theme_bw()
 
-# nope still getting too much process error in Mod2 results
+# nope still getting too much process error in Mod2 results (cp: works with new code)
