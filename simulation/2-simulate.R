@@ -116,6 +116,30 @@ ggplot(df2plot, aes(y = variable)) +
   theme(axis.title = element_text(size = 16),
         axis.text = element_text(size = 14))
 
+# Plot percent error for N and F
+indNF <- which(names(fitSim[[1]]$pl) %in% c("logN", "logF"))
+err_logNF <- data.frame()
+for (h in indNF) {
+  for (i in 1:nRep) {
+    err_logNF <-
+      rbind(err_logNF,
+            fitSim[[i]]$pl[[h]] %>%
+              t() %>%
+              as.data.frame() %>%
+              cbind(data.frame(tru = simOut[[i]]$trueParams$pl[[h]] %>% t)) %>%
+              dplyr::mutate(year = fitSim[[i]]$data$years) %>%
+              tidyr::gather(variable, N, -year) %>%
+              dplyr::mutate(variable = gsub(x = variable, pattern = "V", replacement = "fit.")) %>%
+              tidyr::separate(variable, c("source", "age")) %>%
+              tidyr::spread(source, N) %>%
+              dplyr::mutate(pcErr = (fit - tru) / tru * 100,
+                            replicate = i,
+                            variable = names(fitSim[[i]]$pl[h])))
+  }
+}
+
+
+
 # Fit sam to a simulate.sam replicate
 # Need to resimulate with full.data = TRUE to get output that sam.fit() can use
 # set.seed(123)
