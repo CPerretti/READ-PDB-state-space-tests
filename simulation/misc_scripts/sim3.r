@@ -18,6 +18,22 @@ fitF <- sam.fit(fitHer$data, conf, par, sim.condRE = FALSE)
 # simulate data with estimated process error to show huge variability in N and F at age 5
 simdatF <- stockassessment:::simulate.sam(fitF, nsim = 10, full.data = FALSE)
 
+# check for diffs in N at age in first year
+df_N <- data.frame() 
+for (i in 1:length(simdatF)) {
+  df_N <-
+    rbind(df_N, data.frame(replicate = as.factor(i),
+                           case = "Base",
+                           age = 1:dim(simdatF[[i]]$logN)[1],  
+                           Nyr1 = exp(simdatF[[i]]$logN[, 1]),
+                           Nyr30 = exp(simdatF[[i]]$logN[, 30])))
+}
+df_tab <- df_N %>%
+  group_by(age) %>%
+  summarize(MeanNyr1 = mean(Nyr1), sdNyr1 = sd(Nyr1),
+            MeanNyr30 = mean(Nyr30), sdNyr30 = sd(Nyr30))
+df_tab # df_N has same values for all replicated of Nyr1 (thus sdNyr1 = 0), not true for Nyr30
+
 # make dataframe of base case
 df_sim <- data.frame() 
 for (i in 1:length(simdatF)) {
