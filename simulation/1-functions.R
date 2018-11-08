@@ -133,8 +133,12 @@ sim <- function(fit) {
   Stru_N <- exp(logStru_N)
   Sobs_N <- exp(logSobs_N)
   
-  return(list(trueParams = list(sdrep = fit$sdrep, pl = fit$pl),
-              N = N, 
+  
+  trueParams <- list(sdrep = fit$sdrep, pl = fit$pl)
+  trueParams$pl$logN <- log(N)
+  trueParams$pl$logF <- log(f)
+  return(list(trueParams = trueParams,
+              N = N,
               Cobs_mt = Cobs_mt, Cobs_N = Cobs_N, 
               Ctru_mt = Ctru_mt, Ctru_N = Ctru_N, 
               Sobs_N = Sobs_N, Stru_N = Stru_N))

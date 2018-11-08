@@ -116,7 +116,7 @@ ggplot(df2plot, aes(y = variable)) +
   theme(axis.title = element_text(size = 16),
         axis.text = element_text(size = 14))
 
-# Plot percent error for N and F
+# Plot percent error for N and F (CHECK TO MAKE SURE F IS SPECIFIED TO AGE CORRECTLY<<)
 indNF <- which(names(fitSim[[1]]$pl) %in% c("logN", "logF"))
 err_logNF <- data.frame()
 for (h in indNF) {
@@ -125,19 +125,69 @@ for (h in indNF) {
       rbind(err_logNF,
             fitSim[[i]]$pl[[h]] %>%
               t() %>%
+              exp %>%
               as.data.frame() %>%
-              cbind(data.frame(tru = simOut[[i]]$trueParams$pl[[h]] %>% t)) %>%
-              dplyr::mutate(year = fitSim[[i]]$data$years) %>%
+              cbind(data.frame(simOut[[i]]$trueParams$pl[[h]] %>% t %>% exp)) %>%
+              dplyr::mutate(year = as.numeric(fitSim[[i]]$data$years)) %>%
               tidyr::gather(variable, N, -year) %>%
               dplyr::mutate(variable = gsub(x = variable, pattern = "V", replacement = "fit.")) %>%
               tidyr::separate(variable, c("source", "age")) %>%
               tidyr::spread(source, N) %>%
-              dplyr::mutate(pcErr = (fit - tru) / tru * 100,
+              dplyr::mutate(age = as.numeric(age),
+                            error = (fit - true),
                             replicate = i,
-                            variable = names(fitSim[[i]]$pl[h])))
+                            variable = names(fitSim[[i]]$pl[h]) %>% sub(x = ., "log", "")))
   }
 }
 
+# Calculate median error
+err_logNFannual <-
+  err_logNF %>%
+  dplyr::group_by(variable, age, year) %>%
+  dplyr::summarise(median_error = median(error))
+
+err_logNFoverall <-
+  err_logNF %>%
+  dplyr::group_by(variable, age) %>%
+  dplyr::summarise(median_error = median(error))
+
+# Plot the median error over all years
+ggplot(err_logNFoverall %>% 
+         dplyr::filter(variable == "N"),
+       aes(x = age, y = median_error)) +
+  geom_line() +
+  theme_bw() +
+  ylab("Median error (1000's)") +
+  xlab("Age") +
+  ggtitle("N estimation error") +
+  theme(axis.title = element_text(size = 16),
+        axis.text = element_text(size = 14)) #+
+  #facet_wrap(~variable, scales = "free_y")
+
+# Plot median error in each year for each age
+ggplot(err_logNFannual %>% 
+         dplyr::filter(variable == "N") %>%
+         dplyr::mutate(as.numeric(year)),
+       aes(x = year, y = median_error)) +
+  geom_line() +
+  theme_bw() +
+  ylab("Median error (1000s)") +
+  xlab("Year") +
+  theme(axis.title = element_text(size = 16),
+        axis.text = element_text(size = 14)) +
+  facet_wrap(~age) +
+  ggtitle("N estimation error vs year")
+
+# Plot example age-1 fit vs tru time series
+ggplot(err_logNF %>% 
+         dplyr::filter(variable == "N",
+                       age == 1,
+                       replicate %in% 1:10) %>%
+         tidyr::gather(source, value, 
+                       -year, -age, -replicate, -variable),
+       aes(x = year, y = value, color = source)) +
+  geom_line() +
+  facet_wrap(~replicate)
 
 
 # Fit sam to a simulate.sam replicate
