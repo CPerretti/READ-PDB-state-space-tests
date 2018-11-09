@@ -17,7 +17,7 @@ sim <- function(fit) {
   logN <- matrix(data = NA, # N container
                  nrow = nA, 
                  ncol = nT, 
-                 dimnames = list(paste0("true.", c(1:nA)), fit$data$years)) 
+                 dimnames = list(paste0("tru.", c(1:nA)), fit$data$years)) 
   
   logN[, 1] <- fit$pl$logN[,1] # initial condition from fitted model
   
@@ -136,6 +136,7 @@ sim <- function(fit) {
   
   trueParams <- list(sdrep = fit$sdrep, pl = fit$pl)
   trueParams$pl$logN <- log(N)
+  dimnames(f) <- list(paste0("tru.", c(1:nA)), fit$data$years)
   trueParams$pl$logF <- log(f)
   return(list(trueParams = trueParams,
               N = N,
@@ -236,7 +237,7 @@ plotC <- function(Cobs_mt, Ctru_mt, fit) {
     dplyr::mutate(total = rowSums(.),
                   year = fit$data$years) %>%
     tidyr::gather(age, Catch_mt, -year) %>%
-    dplyr::mutate(source = "true")  
+    dplyr::mutate(source = "tru")  
   
   # Pull out simulated true
   df2plot <- 
@@ -281,7 +282,7 @@ plotS <- function(Sobs_N, Stru_N, fit) {
     tidyr::gather(age, value, -year, -fleetNames) %>%
     dplyr::mutate(year = as.numeric(year),
                   age = as.numeric(age),
-                  source = "true")
+                  source = "tru")
   
   
   # Organize SAM survey fits

@@ -15,7 +15,7 @@ source("1-functions.R")
 load("../atlherring_example/output/fitHer.Rdata")
 
 # How many simulation replicates to do
-nRep <- 2
+nRep <- 10
 
 # Generate simulation replicates
 simOut <- list()
@@ -116,27 +116,37 @@ ggplot(df2plot, aes(y = variable)) +
   theme(axis.title = element_text(size = 16),
         axis.text = element_text(size = 14))
 
-# Plot percent error for N and F (CHECK TO MAKE SURE F IS SPECIFIED TO AGE CORRECTLY<<)
+# Plot error for N and F (CHECK TO MAKE SURE F IS SPECIFIED TO AGE CORRECTLY<< (it's not yet))
 indNF <- which(names(fitSim[[1]]$pl) %in% c("logN", "logF"))
 err_logNF <- data.frame()
 for (h in indNF) {
   for (i in 1:nRep) {
+    rownames(fitSim[[i]]$pl[[h]]) <- paste0("fit.", 1:nrow(fitSim[[i]]$pl[[h]]))
+    Sd <- exp(fitSim[[i]]$plsd[[h]])
+    rownames(Sd) <- paste0("Sd.", 1:nrow(fitSim[[i]]$pl[[h]]))
     err_logNF <-
       rbind(err_logNF,
             fitSim[[i]]$pl[[h]] %>%
               t() %>%
               exp %>%
               as.data.frame() %>%
+              cbind(Sd %>%
+                    t() %>%
+                    as.data.frame()) %>%
               cbind(data.frame(simOut[[i]]$trueParams$pl[[h]] %>% t %>% exp)) %>%
               dplyr::mutate(year = as.numeric(fitSim[[i]]$data$years)) %>%
               tidyr::gather(variable, N, -year) %>%
-              dplyr::mutate(variable = gsub(x = variable, pattern = "V", replacement = "fit.")) %>%
+              dplyr::mutate(variable = gsub(x = variable, pattern = "X", replacement = "tru.")) %>%
               tidyr::separate(variable, c("source", "age")) %>%
               tidyr::spread(source, N) %>%
               dplyr::mutate(age = as.numeric(age),
-                            error = (fit - true),
+                            error = (fit - tru),
+                            decile = ceiling(10 * pnorm(q    = log(tru), 
+                                                        mean = log(fit), 
+                                                        sd   = log(Sd))),
                             replicate = i,
-                            variable = names(fitSim[[i]]$pl[h]) %>% sub(x = ., "log", "")))
+                            variable = ifelse(names(fitSim[[i]]$pl[h]) == "logN", "N",
+                                              if(names(fitSim[[i]]$pl[h]) == "logF") "F")))
   }
 }
 
@@ -153,7 +163,7 @@ err_logNFoverall <-
 
 # Plot the median error over all years
 ggplot(err_logNFoverall %>% 
-         dplyr::filter(variable == "N"),
+         dplyr::filter(variable == "F"),
        aes(x = age, y = median_error)) +
   geom_line() +
   theme_bw() +
@@ -166,7 +176,7 @@ ggplot(err_logNFoverall %>%
 
 # Plot median error in each year for each age
 ggplot(err_logNFannual %>% 
-         dplyr::filter(variable == "N") %>%
+         dplyr::filter(variable == "F") %>%
          dplyr::mutate(as.numeric(year)),
        aes(x = year, y = median_error)) +
   geom_line() +
@@ -176,11 +186,11 @@ ggplot(err_logNFannual %>%
   theme(axis.title = element_text(size = 16),
         axis.text = element_text(size = 14)) +
   facet_wrap(~age) +
-  ggtitle("N estimation error vs year")
+  ggtitle("Estimation error vs year")
 
-# Plot example age-1 fit vs tru time series
+# Plot a few example age-1 fit vs tru time series
 ggplot(err_logNF %>% 
-         dplyr::filter(variable == "N",
+         dplyr::filter(variable == "F",
                        age == 1,
                        replicate %in% 1:10) %>%
          tidyr::gather(source, value, 
@@ -189,6 +199,14 @@ ggplot(err_logNF %>%
   geom_line() +
   facet_wrap(~replicate)
 
+# Plot decile coverage for each age and variable
+ggplot(err_logNF,
+         aes(x = decile)) +
+  geom_histogram(binwidth=1, colour="white") +
+  theme_bw() +
+  facet_grid(variable~age)
+         
+         
 
 # Fit sam to a simulate.sam replicate
 # Need to resimulate with full.data = TRUE to get output that sam.fit() can use
