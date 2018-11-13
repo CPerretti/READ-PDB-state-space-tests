@@ -1,5 +1,9 @@
 # Replicate SAM model fit using the equations written here
 
+# To do:
+# (1) Clean plot functions so it just takes simOut[[i]]
+# (2) Duplicate F's in output to match the config key
+
 # Required packages
 library(plyr) # always load before dplyr
 library(dplyr)
@@ -15,7 +19,7 @@ source("1-functions.R")
 load("../atlherring_example/output/fitHer.Rdata")
 
 # How many simulation replicates to do
-nRep <- 10
+nRep <- 100
 
 # Generate simulation replicates
 simOut <- list()
@@ -25,21 +29,25 @@ for (i in 1:nRep) {
 
 
 
-## Plot true vs observed vs *herring* fit #################
+## Plot an example true vs observed vs *herring* fit ########
 
 ## (1) N-at-age (1000s)
-# plotN(N = simOut$N, 
-#       fit = fitHer)
+plotN(N = simOut[[1]]$N,
+      fit = fitHer)
 
-## (2) Catch (mt)
-# plotC(Cobs_mt = simOut$Cobs_mt, 
-#       Ctru_mt = simOut$Ctru_mt, 
-#       fit = fitHer)
+## (2) F-at-age
+plotF(simOut = simOut[[1]],
+      fit = fitHer)
 
-## (3) Survey (1000s)
-# plotS(Sobs_N = simOut$Sobs_N, 
-#       Stru_N = simOut$Stru_N, 
-#       fit = fitHer)
+## (3) Catch (mt)
+plotC(Cobs_mt = simOut[[1]]$Cobs_mt,
+      Ctru_mt = simOut[[1]]$Ctru_mt,
+      fit = fitHer)
+
+## (4) Survey (1000s)
+plotS(Sobs_N = simOut[[1]]$Sobs_N,
+      Stru_N = simOut[[1]]$Stru_N,
+      fit = fitHer)
 
 ## Plot some simulations from simulate.sam()
 #plotSimSAM(fitHer, nsim = 10, seed = NULL)
@@ -67,6 +75,10 @@ for (i in 1:nRep) {
 # (1) N-at-age (1000s)
 # plotN(N = simOut$N, 
 #       fit = fitSim)
+
+# (2) F-at-age
+# plotF(simOut = simOut[[1]],
+#       fit = fitHer)
 
 # (2) Catch (mt)
 # plotC(Cobs_mt = simOut$Cobs_mt, 
@@ -189,7 +201,8 @@ ggplot(err_logNFannual %>%
   ggtitle("Estimation error vs year")
 
 # Plot a few example age-1 fit vs tru time series
-ggplot(err_logNF %>% 
+ggplot(err_logNF %>%
+         dplyr::select(-Sd, -decile) %>%
          dplyr::filter(variable == "F",
                        age == 1,
                        replicate %in% 1:10) %>%
@@ -203,6 +216,7 @@ ggplot(err_logNF %>%
 ggplot(err_logNF,
          aes(x = decile)) +
   geom_histogram(binwidth=1, colour="white") +
+  geom_hline(yintercept = ncol(fitSim[[1]]$pl$logN) * nRep / 10, color = "dark grey") +
   theme_bw() +
   facet_grid(variable~age)
          

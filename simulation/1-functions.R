@@ -2,8 +2,36 @@
 
 ## Simulation model #######################################
 sim <- function(fit) {
+  nA <- ncol(fit$data$propF) # number of age-classes
+  nT <- fit$data$noYears # length of time series
+  
   # Set F (need to replicate some elements to match ModelConf)
-  f <- exp(fit$pl$logF[(fit$conf$keyLogFsta[1,] + 1),])
+  #f <- exp(fit$pl$logF[(fit$conf$keyLogFsta[1,] + 1),])
+  # Calculate a new relization of f errors with sd's from the fit
+  errF <- matrix(data = NA,
+                 nrow = nA, 
+                 ncol = nT - 1)
+  
+  # Set F sd  (notice the 0.1 factor reduction on the natural scale)
+  fit$pl$logSdLogFsta <- (0.1 * exp(fit$pl$logSdLogFsta)) %>% log
+  sdLogF <- exp(fit$pl$logSdLogFsta)
+  for (i in 1:(nT-1)) { # Create F error
+    errF[, i] <- rnorm(n = nA,
+                       sd = sdLogF[fit$conf$keyVarF[1, ] + 1])[fit$conf$keyLogFsta[1, ] + 1]
+  }
+  
+  # Simulate F
+  logF <- matrix(data = NA, # F container
+                 nrow = nA, 
+                 ncol = nT, 
+                 dimnames = list(paste0("tru.", c(1:nA)), fit$data$years)) 
+  
+  logF[, 1] <- fit$pl$logF[, 1][fit$conf$keyLogFsta[1, ] + 1] # initial F from fitted model
+  
+  for (i in 2:nT) logF[, i] <- logF[, i - 1] + errF[, i - 1]
+  
+  f <- exp(logF)
+  
   # Set M
   m <- t(fit$data$natMor)
   
@@ -11,10 +39,7 @@ sim <- function(fit) {
   z <- f + m
   
   # Set up matrix to record N-at-age
-  nA <- ncol(fit$data$propF) # number of age-classes
-  nT <- fit$data$noYears # length of time series
-  
-  logN <- matrix(data = NA, # N container
+  logN <- matrix(data = NA,
                  nrow = nA, 
                  ncol = nT, 
                  dimnames = list(paste0("tru.", c(1:nA)), fit$data$years)) 
@@ -44,7 +69,7 @@ sim <- function(fit) {
   # Lower process error (!)
   fit$pl$logSdLogN[(fit$conf$keyVarLogN + 1)] <-
     fit$pl$logSdLogN[(fit$conf$keyVarLogN + 1)] %>%
-    exp %>% "*"(0.33) %>% log # NOTICE THE 0.33 factor reduction
+    exp %>% "*"(0.33) %>% log # NOTICE THE 0.033 factor reduction on the natural scale
   sdLogN <- exp(fit$pl$logSdLogN[(fit$conf$keyVarLogN + 1)])
   for (i in 1:(nT-1)) { # Create process error (N-at-age)
     errPro[, i] <-  rnorm(n = nA, sd = sdLogN)
@@ -97,6 +122,7 @@ sim <- function(fit) {
   
   # Calculate catch on N-scale (1000s)
   logCtru_N <- log(f / z * (1 - exp(-z)) * N)
+  rownames(logCtru_N) <- 1:nA
   logCobs_N <- logCtru_N + errObs[, , "Residual catch"]
   
   Ctru_N <- exp(logCtru_N)
@@ -183,6 +209,28 @@ setupModel <- function() {
   
   return(list(dat = dat, conf = conf, par = par))
 }
+## Plot F-at-age simulated vs fit #######################
+plotF <- function(simOut, fit) {
+  # Setup F-at-age to plot
+  df2plotF <-
+    simOut$trueParams$pl$logF %>%
+    exp %>%
+    t() %>%
+    as.data.frame() %>%
+    cbind(data.frame(fit = fit$pl$logF[fit$conf$keyLogFsta[1, ] + 1, ] %>% exp %>% t)) %>%
+    dplyr::mutate(year = fit$data$years) %>%
+    tidyr::gather(variable, f, -year) %>%
+    tidyr::separate(variable, c("source", "age"))
+  
+  # Plot N-at-age (all ages should match exactly when using errPro_exact)
+  ggplot(data = df2plotF,
+         aes(x = year, y = f, color = source)) +
+    geom_line() +
+    facet_wrap(~age, scales = "free") +
+    ylab("F") +
+    ggtitle("F-at-age")
+}
+
 ## Plot N-at-age simulated vs fit #######################
 plotN <- function(N, fit) {
   # Setup N-at-age to plot
@@ -203,7 +251,6 @@ plotN <- function(N, fit) {
     ylab("Abundance (1000's)") +
     ggtitle("Population abundance-at-age")
 }
-
 
 ## Plot C-at-age simulated vs fit #######################
 plotC <- function(Cobs_mt, Ctru_mt, fit) {
