@@ -19,7 +19,7 @@ source("1-functions.R")
 load("../atlherring_example/output/fitHer.Rdata")
 
 # How many simulation replicates to do
-nRep <- 100
+nRep <- 10#0
 
 # Generate simulation replicates
 simOut <- list()
@@ -66,34 +66,34 @@ for (i in 1:nRep) {
   
   # Fit sam
   fitSim[[i]] <- sam.fit(setupOut$dat, setupOut$conf, 
-                    setupOut$par, sim.condRE = FALSE)
+                         setupOut$par, sim.condRE = FALSE)
 }
 
 
 
 ## Plot true vs observed vs fit to observed ################
 # (1) N-at-age (1000s)
-# plotN(N = simOut$N, 
-#       fit = fitSim)
+plotN(N = simOut[[1]]$N,
+      fit = fitSim[[1]])
 
 # (2) F-at-age
-# plotF(simOut = simOut[[1]],
-#       fit = fitHer)
+ plotF(simOut = simOut[[1]],
+       fit = fitSim[[1]])
 
-# (2) Catch (mt)
-# plotC(Cobs_mt = simOut$Cobs_mt, 
-#       Ctru_mt = simOut$Ctru_mt, 
-#       fit = fitSim)
+# (3) Catch (mt)
+ plotC(Cobs_mt = simOut[[1]]$Cobs_mt,
+       Ctru_mt = simOut[[1]]$Ctru_mt,
+       fit = fitSim[[1]])
 
-# (3) Survey (1000s)
-# plotS(Sobs_N = simOut$Sobs_N, 
-#       Stru_N = simOut$Stru_N, 
-#       fit = fitSim)
+# (4) Survey (1000s)
+ plotS(Sobs_N = simOut[[1]]$Sobs_N,
+       Stru_N = simOut[[1]]$Stru_N,
+       fit = fitSim[[1]])
 
 
 ## Plot fit vs true parameter values #######################
 
-# Plot fixed effects
+# Plot fixed effects (move to a function)
 parsFixed <- which(names(fitSim[[1]]$pl) %in% names(fitSim[[1]]$obj$par))
 df_parsOut <- data.frame()
 for (h in parsFixed) {
@@ -128,7 +128,7 @@ ggplot(df2plot, aes(y = variable)) +
   theme(axis.title = element_text(size = 16),
         axis.text = element_text(size = 14))
 
-# Plot error for N and F (CHECK TO MAKE SURE F IS SPECIFIED TO AGE CORRECTLY<< (it's not yet))
+# Plot error for N and F (move to a function)
 indNF <- which(names(fitSim[[1]]$pl) %in% c("logN", "logF"))
 err_logNF <- data.frame()
 for (h in indNF) {
@@ -168,60 +168,58 @@ err_logNFannual <-
   dplyr::group_by(variable, age, year) %>%
   dplyr::summarise(median_error = median(error))
 
-err_logNFoverall <-
-  err_logNF %>%
-  dplyr::group_by(variable, age) %>%
-  dplyr::summarise(median_error = median(error))
-
-# Plot the median error over all years
-ggplot(err_logNFoverall %>% 
-         dplyr::filter(variable == "F"),
-       aes(x = age, y = median_error)) +
+# Plot median error in each year for each age
+ggplot(err_logNFannual %>% 
+         dplyr::filter(variable == "N") %>%
+         dplyr::mutate(as.numeric(year)),
+       aes(x = year, y = median_error)) +
   geom_line() +
   theme_bw() +
-  ylab("Median error (1000's)") +
-  xlab("Age") +
-  ggtitle("N estimation error") +
+  ylab("N error (1000's)") +
+  xlab("Year") +
   theme(axis.title = element_text(size = 16),
-        axis.text = element_text(size = 14)) #+
-  #facet_wrap(~variable, scales = "free_y")
+        axis.text = element_text(size = 14)) +
+  facet_wrap(~age) +
+  ggtitle("N estimation error-at-age")
 
-# Plot median error in each year for each age
 ggplot(err_logNFannual %>% 
          dplyr::filter(variable == "F") %>%
          dplyr::mutate(as.numeric(year)),
        aes(x = year, y = median_error)) +
   geom_line() +
   theme_bw() +
-  ylab("Median error (1000s)") +
+  ylab("F error") +
   xlab("Year") +
   theme(axis.title = element_text(size = 16),
         axis.text = element_text(size = 14)) +
   facet_wrap(~age) +
-  ggtitle("Estimation error vs year")
+  ggtitle("F estimation error-at-age")
 
-# Plot a few example age-1 fit vs tru time series
+# Plot a few example fit vs tru time series
 ggplot(err_logNF %>%
          dplyr::select(-Sd, -decile) %>%
          dplyr::filter(variable == "F",
-                       age == 1,
+                       age == 4,
                        replicate %in% 1:10) %>%
          tidyr::gather(source, value, 
                        -year, -age, -replicate, -variable),
        aes(x = year, y = value, color = source)) +
   geom_line() +
-  facet_wrap(~replicate)
+  facet_wrap(~replicate) + 
+  ggtitle("Age-4 F estimation error examples")
 
 # Plot decile coverage for each age and variable
 ggplot(err_logNF,
          aes(x = decile)) +
   geom_histogram(binwidth=1, colour="white") +
-  geom_hline(yintercept = ncol(fitSim[[1]]$pl$logN) * nRep / 10, color = "dark grey") +
+  geom_hline(yintercept = ncol(fitSim[[1]]$pl$logN) * nRep / 10, 
+             color = "dark grey") +
   theme_bw() +
-  facet_grid(variable~age)
+  facet_grid(variable~age) +
+  ggtitle("Confidence interval coverage for each age")
+  
          
-         
-
+        
 # Fit sam to a simulate.sam replicate
 # Need to resimulate with full.data = TRUE to get output that sam.fit() can use
 # set.seed(123)

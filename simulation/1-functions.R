@@ -12,8 +12,10 @@ sim <- function(fit) {
                  nrow = nA, 
                  ncol = nT - 1)
   
-  # Set F sd  (notice the 0.1 factor reduction on the natural scale)
-  fit$pl$logSdLogFsta <- (0.1 * exp(fit$pl$logSdLogFsta)) %>% log
+  # Set F sd  (notice the reduction of sd the natural scale)
+  fit$pl$logSdLogFsta <- 
+    (c(0.1, rep(0.33, length(fit$pl$logSdLogFsta)-1)) * exp(fit$pl$logSdLogFsta)) %>% 
+    log
   sdLogF <- exp(fit$pl$logSdLogFsta)
   for (i in 1:(nT-1)) { # Create F error
     errF[, i] <- rnorm(n = nA,
@@ -48,19 +50,19 @@ sim <- function(fit) {
   
   # Calculate the process errors that were estimated in the fit so we can 
   # exactly replicate the fit
-  errPro_exact <- matrix(data = NA,
-                         nrow = nA, 
-                         ncol = nT-1)
-  
-  errPro_exact[1, ] <- fit$pl$logN[1, 2:nT] - fit$pl$logN[1, 1:(nT-1)]
-  errPro_exact[-c(1, nA), ] <-  fit$pl$logN[-c(1, nA), 2:nT] -
-    (fit$pl$logN[-c(nA-1, nA), 1:(nT-1)] -
-       z[-c(nA-1, nA), 1:(nT-1)])
-  errPro_exact[nA, ] <- fit$pl$logN[nA, 2:nT] -
-    log(exp(fit$pl$logN[nA-1, 1:(nT-1)]) *
-          exp(-z[nA-1, 1:(nT-1)]) +
-          exp(fit$pl$logN[nA, 1:(nT-1)]) *
-          exp(-z[nA, 1:(nT-1)]))
+  # errPro_exact <- matrix(data = NA,
+  #                        nrow = nA, 
+  #                        ncol = nT-1)
+  # 
+  # errPro_exact[1, ] <- fit$pl$logN[1, 2:nT] - fit$pl$logN[1, 1:(nT-1)]
+  # errPro_exact[-c(1, nA), ] <-  fit$pl$logN[-c(1, nA), 2:nT] -
+  #   (fit$pl$logN[-c(nA-1, nA), 1:(nT-1)] -
+  #      z[-c(nA-1, nA), 1:(nT-1)])
+  # errPro_exact[nA, ] <- fit$pl$logN[nA, 2:nT] -
+  #   log(exp(fit$pl$logN[nA-1, 1:(nT-1)]) *
+  #         exp(-z[nA-1, 1:(nT-1)]) +
+  #         exp(fit$pl$logN[nA, 1:(nT-1)]) *
+  #         exp(-z[nA, 1:(nT-1)]))
   # Calculate a new relization of process errors with sd's from the fit
   # Set N process sd
   errPro <- matrix(data = NA,
