@@ -19,7 +19,7 @@ source("1-functions.R")
 load("../atlherring_example/output/fitHer.Rdata")
 
 # How many simulation replicates to do
-nRep <- 10#0
+nRep <- 100
 
 # Generate simulation replicates
 simOut <- list()
@@ -175,7 +175,7 @@ ggplot(err_logNFannual %>%
        aes(x = year, y = median_error)) +
   geom_line() +
   theme_bw() +
-  ylab("N error (1000's)") +
+  ylab("Median error (1000's)") +
   xlab("Year") +
   theme(axis.title = element_text(size = 16),
         axis.text = element_text(size = 14)) +
@@ -188,7 +188,7 @@ ggplot(err_logNFannual %>%
        aes(x = year, y = median_error)) +
   geom_line() +
   theme_bw() +
-  ylab("F error") +
+  ylab("Median error") +
   xlab("Year") +
   theme(axis.title = element_text(size = 16),
         axis.text = element_text(size = 14)) +
