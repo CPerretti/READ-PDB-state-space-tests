@@ -222,7 +222,8 @@ plotF <- function(simOut, fit) {
     cbind(data.frame(fit = fit$pl$logF[fit$conf$keyLogFsta[1, ] + 1, ] %>% exp %>% t)) %>%
     dplyr::mutate(year = fit$data$years) %>%
     tidyr::gather(variable, f, -year) %>%
-    tidyr::separate(variable, c("source", "age"))
+    tidyr::separate(variable, c("source", "age")) %>%
+    dplyr::mutate(age = paste0("age-", age))
   
   # Plot N-at-age (all ages should match exactly when using errPro_exact)
   ggplot(data = df2plotF,
@@ -230,11 +231,16 @@ plotF <- function(simOut, fit) {
     geom_line() +
     facet_wrap(~age, scales = "free") +
     ylab("F") +
-    ggtitle("F-at-age")
+    ggtitle("F-at-age") +
+    theme_bw() +
+    theme(legend.title = element_blank(),
+          legend.text = element_text(size = 12))
 }
 
 ## Plot N-at-age simulated vs fit #######################
-plotN <- function(N, fit) {
+plotN <- function(simOut, fit) {
+  N <- simOut$N
+  
   # Setup N-at-age to plot
   df2plotN <- 
     N %>%
@@ -243,7 +249,8 @@ plotN <- function(N, fit) {
     cbind(data.frame(fit = fit$pl$logN %>% exp %>% t)) %>%
     dplyr::mutate(year = fit$data$years) %>%
     tidyr::gather(variable, N, -year) %>%
-    tidyr::separate(variable, c("source", "age"))
+    tidyr::separate(variable, c("source", "age")) %>%
+    dplyr::mutate(age = paste0("age-", age))
   
   # Plot N-at-age (all ages should match exactly when using errPro_exact)
   ggplot(data = df2plotN,
@@ -251,11 +258,17 @@ plotN <- function(N, fit) {
     geom_line() +
     facet_wrap(~age, scales = "free") +
     ylab("Abundance (1000's)") +
-    ggtitle("Population abundance-at-age")
+    ggtitle("Population abundance-at-age") +
+    theme_bw() +
+    theme(legend.title = element_blank(),
+          legend.text = element_text(size = 12))
 }
 
 ## Plot C-at-age simulated vs fit #######################
-plotC <- function(Cobs_mt, Ctru_mt, fit) {
+plotC <- function(simOut, fit) {
+  Cobs_mt <- simOut$Cobs_mt
+  Ctru_mt <- simOut$Ctru_mt
+  
   # Setup Catch to plot
   df_Cfit_mt <- 
     data.frame(variable = names(fit$sdrep$value),
@@ -292,7 +305,8 @@ plotC <- function(Cobs_mt, Ctru_mt, fit) {
   df2plot <- 
     bind_rows(df_Cfit_mt, 
               df_Cobs_mt,
-              df_Ctru_mt)
+              df_Ctru_mt) %>%
+    dplyr::mutate(age = paste0("age-", age))
   
   # Plot Catch (should exactly match in total subplot when using errPro_exact)
   ggplot(data = df2plot,
@@ -300,12 +314,18 @@ plotC <- function(Cobs_mt, Ctru_mt, fit) {
     geom_line() +
     facet_wrap(~age, scales = "free") +
     ylab("Catch (MT)") +
-    ggtitle("Fishery catch-at-age")
+    ggtitle("Fishery catch-at-age") +
+    theme_bw() +
+    theme(legend.title = element_blank(),
+          legend.text = element_text(size = 12))
 
 }
 
 ## Plot survey data vs original fit #######################
-plotS <- function(Sobs_N, Stru_N, fit) {
+plotS <- function(simOut, fit) {
+  Sobs_N <- simOut$Sobs_N
+  Stru_N <- simOut$Stru_N
+  
   # Set up Survey data to plot
   df_Sobs <- # convert 3-d array to long data.frame
     as.data.frame(Sobs_N) %>%
@@ -349,7 +369,8 @@ plotS <- function(Sobs_N, Stru_N, fit) {
   df2plot <- # combine simulated Survey and fit Survey
     dplyr::bind_rows(df_Sobs, 
                      df_Stru, 
-                     df_Sfit)
+                     df_Sfit) %>%
+    dplyr::mutate(age = paste0("age-", age))
   
   # Plot Survey (should match exactly when using errPro_exact)
   ggplot(data = df2plot %>% 
@@ -359,7 +380,10 @@ plotS <- function(Sobs_N, Stru_N, fit) {
     geom_line() +
     facet_wrap(age ~ fleetNames, scales = "free", ncol = 5) +
     ggtitle("Survey catch-at-age") +
-    ylab("Survey catch (1000s)")
+    ylab("Survey catch (1000s)") +
+    theme_bw() +
+    theme(legend.title = element_blank(),
+          legend.text = element_text(size = 12))
 }
 
 ## Plot simulate.sam() replicates ##########################
@@ -460,3 +484,150 @@ prepSimData <- function(Sobs_N, fit, Cobs_N) {
               append = TRUE)
 }
 
+
+## Plot parameters fit vs true ############################
+plotPars <- function(fitSim, simOut) {
+  parsFixed <- which(names(fitSim[[1]]$pl) %in% names(fitSim[[1]]$obj$par))
+  df_parsOut <- data.frame()
+  for (h in parsFixed) {
+    for (i in 1:nRep) {
+      df_parsOut <-
+        rbind(df_parsOut,
+              data.frame(variable = paste(names(fitSim[[1]]$pl)[h], 
+                                          1:length(fitSim[[1]]$pl[[h]]), sep = "."),
+                         tru = simOut[[i]]$trueParams$pl[[h]],
+                         est = fitSim[[i]]$pl[[h]],
+                         sd  = fitSim[[i]]$plsd[[h]],
+                         replicate = i))
+    }  
+  }
+  
+  
+  df2plot <-
+    df_parsOut %>%
+    dplyr::group_by(variable) %>%
+    dplyr::summarise(tru = unique(tru),
+                     est_mean = mean(est),
+                     est_se = sd(est)/sqrt(nRep))
+  
+  ggplot(df2plot, aes(y = variable)) +
+    geom_point( aes(x = tru), color = "red", size  = 3) +
+    geom_point( aes(x = est_mean), color = "blue", size = 3) +
+    geom_errorbarh(aes(xmin = est_mean - 1.96*est_se,
+                       xmax = est_mean + 1.96*est_se), color = "blue") +
+    theme_bw() +
+    ylab("") +
+    xlab("Value") +
+    theme(axis.title = element_text(size = 16),
+          axis.text = element_text(size = 14))
+}
+
+## Calculate timeseries error #############################
+calcTsError <- function(fitSim, simOut) {
+  indNF <- which(names(fitSim[[1]]$pl) %in% c("logN", "logF"))
+  err_logNF <- data.frame()
+  for (h in indNF) {
+    for (i in 1:nRep) {
+      rownames(fitSim[[i]]$pl[[h]]) <- paste0("fit.", 1:nrow(fitSim[[i]]$pl[[h]]))
+      Sd <- exp(fitSim[[i]]$plsd[[h]])
+      rownames(Sd) <- paste0("Sd.", 1:nrow(fitSim[[i]]$pl[[h]]))
+      err_logNF <-
+        rbind(err_logNF,
+              fitSim[[i]]$pl[[h]] %>%
+                t() %>%
+                exp %>%
+                as.data.frame() %>%
+                cbind(Sd %>%
+                        t() %>%
+                        as.data.frame()) %>%
+                cbind(data.frame(simOut[[i]]$trueParams$pl[[h]] %>% t %>% exp)) %>%
+                dplyr::mutate(year = as.numeric(fitSim[[i]]$data$years)) %>%
+                tidyr::gather(variable, N, -year) %>%
+                dplyr::mutate(variable = gsub(x = variable, 
+                                              pattern = "X", 
+                                              replacement = "tru.")) %>%
+                tidyr::separate(variable, c("source", "age")) %>%
+                tidyr::spread(source, N) %>%
+                dplyr::mutate(age = as.numeric(age),
+                              error = (fit - tru),
+                              decile = ceiling(10 * pnorm(q    = log(tru), 
+                                                          mean = log(fit), 
+                                                          sd   = log(Sd))),
+                              replicate = i,
+                              variable = ifelse(names(fitSim[[i]]$pl[h]) == "logN", "N",
+                                                if(names(fitSim[[i]]$pl[h]) == "logF") "F")))
+    }
+  }
+  return(err_logNF)
+}
+
+## Plot timeseries fit vs true ############################
+plotTsError <- function(err_logNF) {
+
+  
+  # Calculate median error
+  err_logNFannual <-
+    err_logNF %>%
+    dplyr::group_by(variable, age, year) %>%
+    dplyr::summarise(median_error = median(error))
+  
+  # Plot median error for N and F in each year for each age
+  p <-
+    ggplot(err_logNFannual %>% 
+             dplyr::filter(variable == "N") %>%
+             dplyr::mutate(as.numeric(year)),
+           aes(x = year, y = median_error)) +
+      geom_line() +
+      geom_hline(yintercept = 0) +
+      theme_bw() +
+      ylab("Median error (fit - true)") +
+      xlab("Year") +
+      theme(axis.title = element_text(size = 16),
+            axis.text = element_text(size = 14)) +
+      facet_wrap(~age) +
+      ggtitle("N estimation error-at-age")
+  print(p)
+  
+  p <-
+    ggplot(err_logNFannual %>% 
+             dplyr::filter(variable == "F") %>%
+             dplyr::mutate(as.numeric(year)),
+           aes(x = year, y = median_error)) +
+      geom_line() +
+      geom_hline(yintercept = 0) +
+      theme_bw() +
+      ylab("Median error (fit - true)") +
+      xlab("Year") +
+      theme(axis.title = element_text(size = 16),
+            axis.text = element_text(size = 14)) +
+      facet_wrap(~age) +
+      ggtitle("F estimation error-at-age")
+  print(p)
+  
+  # Plot a few example fit vs tru time series
+  p <-
+    ggplot(err_logNF %>%
+             dplyr::select(-Sd, -decile) %>%
+             dplyr::filter(variable == "F",
+                           age == 4,
+                           replicate %in% 1:10) %>%
+             tidyr::gather(source, value, 
+                           -year, -age, -replicate, -variable),
+           aes(x = year, y = value, color = source)) +
+      geom_line() +
+      facet_wrap(~replicate) + 
+      ggtitle("Age-4 F estimation error examples")
+  print(p)
+  
+  # Plot decile coverage for each age and variable
+  p <- 
+    ggplot(err_logNF,
+           aes(x = decile)) +
+      geom_histogram(binwidth=1, colour="white") +
+      geom_hline(yintercept = ncol(fitSim[[1]]$pl$logN) * nRep / 10, 
+                 color = "dark grey") +
+      theme_bw() +
+      facet_grid(variable~age) +
+      ggtitle("Confidence interval coverage for each age")
+  print(p)
+}
