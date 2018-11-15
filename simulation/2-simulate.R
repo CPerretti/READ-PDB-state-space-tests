@@ -174,8 +174,9 @@ ggplot(err_logNFannual %>%
          dplyr::mutate(as.numeric(year)),
        aes(x = year, y = median_error)) +
   geom_line() +
+  geom_hline(yintercept = 0) +
   theme_bw() +
-  ylab("Median error (1000's)") +
+  ylab("Median error (fit - true)") +
   xlab("Year") +
   theme(axis.title = element_text(size = 16),
         axis.text = element_text(size = 14)) +
@@ -187,8 +188,9 @@ ggplot(err_logNFannual %>%
          dplyr::mutate(as.numeric(year)),
        aes(x = year, y = median_error)) +
   geom_line() +
+  geom_hline(yintercept = 0) +
   theme_bw() +
-  ylab("Median error") +
+  ylab("Median error (fit - true)") +
   xlab("Year") +
   theme(axis.title = element_text(size = 16),
         axis.text = element_text(size = 14)) +
