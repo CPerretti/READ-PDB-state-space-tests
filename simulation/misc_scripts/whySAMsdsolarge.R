@@ -30,6 +30,7 @@ errPro[nA, ] <- exp(fitHer$pl$logN[nA, 2:nT]) /
 
 errProLogN <- log(errPro)
 #errProLogN
+sd(errProLogN[2:8,]) # sd of log process errors across ages 2-8 - still doesn't match SAM sd
 
 # compute standard deviations of process errors at age and compare to SAM estimates
 derivedsdLogN <-apply(errProLogN, 1, sd)
