@@ -39,3 +39,18 @@ sddf <- data.frame(age = 1:nA,
                    SAMsdLogN = sdLogN)
 sddf
 # why are SAM estimates larger than actual variability among ages?
+
+# distribution of process errors
+pe <- errProLogN %>%
+  data.frame(.) %>%
+  mutate(age = rownames(.)) %>%
+  gather(key = year, value = procerr, 1:52)
+
+ggplot(filter(pe, age != 1), aes(x=procerr)) +
+  geom_density() +
+  theme_bw()
+
+ggplot(filter(pe, age != 1), aes(x=age, y=procerr)) +
+  geom_boxplot() +
+  geom_jitter(width=0.2, color="blue", alpha=0.2) +
+  theme_bw()
