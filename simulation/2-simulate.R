@@ -7,6 +7,7 @@
 # (x) Moke the plots below into functions
 # To do:
 # ( ) Try parallelizing
+# ( ) Add error handling to fitting routine
 
 # Required packages
 library(plyr) # always load before dplyr
@@ -23,7 +24,7 @@ source("1-functions.R")
 load("../atlherring_example/output/fitHer.Rdata")
 
 # How many simulation replicates to do
-nRep <- 10#0
+nRep <- 100
 
 # Generate simulation replicates
 simOut <- list()
@@ -36,19 +37,19 @@ for (i in 1:nRep) {
 ## Plot an example true vs observed vs *herring* fit ########
 
 ## (1) N-at-age (1000s)
-plotN(simOut = simOut[[1]],
+plotN(simOut = simOut[[2]],
       fit = fitHer)
 
 ## (2) F-at-age
-plotF(simOut = simOut[[1]],
+plotF(simOut = simOut[[2]],
       fit = fitHer)
 
 ## (3) Catch (mt)
-plotC(simOut = simOut[[1]],
+plotC(simOut = simOut[[2]],
       fit = fitHer)
 
 ## (4) Survey (1000s)
-plotS(simOut = simOut[[1]],
+plotS(simOut = simOut[[2]],
       fit = fitHer)
 
 ## Plot some simulations from simulate.sam()
@@ -67,8 +68,9 @@ for (i in 1:nRep) {
   setupOut <- setupModel()
   
   # Fit sam
-  fitSim[[i]] <- sam.fit(setupOut$dat, setupOut$conf, 
-                         setupOut$par, sim.condRE = FALSE)
+  fitSim[[i]] <- sam.fitCP(setupOut$dat, setupOut$conf, 
+                         setupOut$par, sim.condRE = FALSE,
+                         tracepar = TRUE)
 }
 
 
