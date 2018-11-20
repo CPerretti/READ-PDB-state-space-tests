@@ -6,7 +6,7 @@ library(tidyr)
 library(stockassessment)
 
 # Use atl herring fit to set up simulation
-load("../atlherring_example/output/fitHer.Rdata")
+load("../../atlherring_example/output/fitHer.Rdata")
 
 # get process errors
 f <- exp(fitHer$pl$logF[(fitHer$conf$keyLogFsta[1,] + 1),])
@@ -15,21 +15,19 @@ z <- f + m
 sdLogN <- exp(fitHer$pl$logSdLogN[(fitHer$conf$keyVarLogN + 1)])
 nA <- ncol(fitHer$data$propF) # number of age-classes
 nT <- fitHer$data$noYears # length of time series
-errPro <- matrix(data = NA,
-                 nrow = nA, 
-                 ncol = nT-1)
-errPro[1, ] <- exp(fitHer$pl$logN[1, 2:nT]) / exp(fitHer$pl$logN[1, 1:(nT-1)])
-errPro[-c(1, nA), ] <-  exp(fitHer$pl$logN[-c(1, nA), 2:nT]) / 
-  (exp(fitHer$pl$logN[-c(nA-1, nA), 1:(nT-1)]) *
-     exp(-z[-c(nA-1, nA), 1:(nT-1)]))
-errPro[nA, ] <- exp(fitHer$pl$logN[nA, 2:nT]) / 
-  (exp(fitHer$pl$logN[nA-1, 1:(nT-1)]) *
+errProLogN <- matrix(data = NA,
+                     nrow = nA, 
+                     ncol = nT-1)
+errProLogN[1, ] <- fitHer$pl$logN[1, 2:nT] - fitHer$pl$logN[1, 1:(nT-1)]
+errProLogN[-c(1, nA), ] <-  fitHer$pl$logN[-c(1, nA), 2:nT] -
+  fitHer$pl$logN[-c(nA-1, nA), 1:(nT-1)] + z[-c(nA-1, nA), 1:(nT-1)]
+errProLogN[nA, ] <- fitHer$pl$logN[nA, 2:nT] -  
+  log(exp(fitHer$pl$logN[nA-1, 1:(nT-1)]) *
      exp(-z[nA-1, 1:(nT-1)]) +
      exp(fitHer$pl$logN[nA, 1:(nT-1)]) *
      exp(-z[nA, 1:(nT-1)]))
 
-errProLogN <- log(errPro)
-#errProLogN
+
 sd(errProLogN[2:8,]) # sd of log process errors across ages 2-8 - still doesn't match SAM sd
 
 # compute standard deviations of process errors at age and compare to SAM estimates
