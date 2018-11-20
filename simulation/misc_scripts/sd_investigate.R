@@ -1,14 +1,14 @@
 # Why do sd estimates from process model not equal emprical estimates
 set.seed(1) # for reproducibility
 
-nT <- 100 # length of time series
+nT <- 100#0 # length of time series
 true_states_i <- vector(mode = "numeric", length = nT)
 true_states_i[1] <- rnorm(n = 1) # intial condition
 for (i in 2:nT) {
   true_states_i[i] <- true_states_i[i-1] + rnorm(n = 1) # step forward with process error
 }
 
-observations_i <- true_states_i + rnorm(n = length(true_states_i)) # add observation error
+observations_i <- true_states_i + rnorm(n = length(true_states_i), sd = 1) # add observation error
 
 # plot it 
 plot(true_states_i, xlab = "Year", ylab = "Value", type = "l")
@@ -88,7 +88,7 @@ df2plot <-
              est = Report_sd$value["sigma_pro"],
              sd  = Report_sd$sd[1]) %>%
   rbind(data.frame(variable = "Observation error sd",
-                   tru = 1,
+                   tru = .1,
                    sim = sd(true_states_i - observations_i), #simulated
                    der = derived_sigma_obs,
                    est = Report_sd$value["sigma_obs"],
@@ -106,8 +106,8 @@ ggplot(df2plot, aes(y = variable)) +
   ylab("") +
   xlab("Value") +
   theme(axis.title = element_text(size = 16),
-        axis.text = element_text(size = 14)) +
-  xlim(c(0,2))
+        axis.text = element_text(size = 14))# +
+  #xlim(c(0,2))
 
 # Do you get a better likelihood if you use the derived sd?
 nll_derived <- Obj$fn(c(log(derived_sigma_pro), log(derived_sigma_obs)))
