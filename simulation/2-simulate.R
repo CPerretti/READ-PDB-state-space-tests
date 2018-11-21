@@ -15,6 +15,7 @@ library(dplyr)
 library(ggplot2)
 library(tidyr)
 library(stockassessment)
+library(parallel)
 
 # Load user-defined functions
 source("1-functions.R")
@@ -24,7 +25,7 @@ source("1-functions.R")
 load("../atlherring_example/output/fitHer.Rdata")
 
 # How many simulation replicates to do
-nRep <- 10#0
+nRep <- 100
 
 # Generate simulation replicates
 simOut <- list()
@@ -57,7 +58,7 @@ plotS(simOut = simOut[[1]],
 
 
 ## Fit sam to a simulation ################################
-fitSim <- list()
+setupOut <- list()
 for (i in 1:nRep) {
   # Prep simulation data for read.ices()
   prepSimData(Sobs_N = simOut[[i]]$Sobs_N, 
@@ -65,14 +66,15 @@ for (i in 1:nRep) {
               Cobs_N = simOut[[i]]$Cobs_N) 
   
   # Read in data, set initial params and configuration
-  setupOut <- setupModel()
-  
-  # Fit sam
-  fitSim[[i]] <- sam.fit(setupOut$dat, setupOut$conf, 
-                         setupOut$par, sim.condRE = FALSE,
-                         tracepar = TRUE)
+  setupOut[[i]] <- setupModel()
 }
 
+
+# Fit model to replicates in parallel
+cl <- makeCluster(detectCores() - 1) #setup nodes for parallel
+clusterEvalQ(cl, {library(stockassessment)}) #load stockassessment to each node
+fitSim <- parLapply(cl, setupOut, function(x){sam.fit(x$dat, x$conf, x$par)})
+stopCluster(cl) #shut down nodes
 
 
 ## Plot example true vs observed vs fit to observed ########
@@ -95,7 +97,7 @@ plotS(simOut = simOut[[1]],
 
 ## Plot fit vs true parameter values #######################
 
-# Plot parmeters true vs fit
+# Plot parameters true vs fit
 plotPars(fitSim, simOut)
 
 # Plot error for N and F
@@ -112,7 +114,7 @@ df2plot <-
   dplyr::left_join(err_logNF_med)
 
 ggplot(df2plot, aes(x = error)) +
-  geom_histogram() +
+  #geom_histogram() +
   geom_vline(aes(xintercept = error_mean), color = "blue") +
   geom_vline(aes(xintercept = error_mean - 1.96 * error_se), 
              color = "blue", linetype = "dashed") +
