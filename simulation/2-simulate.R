@@ -24,7 +24,7 @@ source("1-functions.R")
 load("../atlherring_example/output/fitHer.Rdata")
 
 # How many simulation replicates to do
-nRep <- 100
+nRep <- 10#0
 
 # Generate simulation replicates
 simOut <- list()
@@ -37,19 +37,19 @@ for (i in 1:nRep) {
 ## Plot an example true vs observed vs *herring* fit ########
 
 ## (1) N-at-age (1000s)
-plotN(simOut = simOut[[2]],
+plotN(simOut = simOut[[1]],
       fit = fitHer)
 
 ## (2) F-at-age
-plotF(simOut = simOut[[2]],
+plotF(simOut = simOut[[1]],
       fit = fitHer)
 
 ## (3) Catch (mt)
-plotC(simOut = simOut[[2]],
+plotC(simOut = simOut[[1]],
       fit = fitHer)
 
 ## (4) Survey (1000s)
-plotS(simOut = simOut[[2]],
+plotS(simOut = simOut[[1]],
       fit = fitHer)
 
 ## Plot some simulations from simulate.sam()
@@ -68,7 +68,7 @@ for (i in 1:nRep) {
   setupOut <- setupModel()
   
   # Fit sam
-  fitSim[[i]] <- sam.fitCP(setupOut$dat, setupOut$conf, 
+  fitSim[[i]] <- sam.fit(setupOut$dat, setupOut$conf, 
                          setupOut$par, sim.condRE = FALSE,
                          tracepar = TRUE)
 }
@@ -101,6 +101,24 @@ plotPars(fitSim, simOut)
 # Plot error for N and F
 err_logNF <- calcTsError(fitSim, simOut)
 plotTsError(err_logNF)
+
+err_logNF_med <-
+  err_logNF %>%
+  dplyr::group_by(variable, age) %>%
+  dplyr::summarise(error_mean = mean(error),
+                   error_se   = sd(error) / sqrt(nRep))
+df2plot <-
+  err_logNF %>%
+  dplyr::left_join(err_logNF_med)
+
+ggplot(df2plot, aes(x = error)) +
+  geom_histogram() +
+  geom_vline(aes(xintercept = error_mean), color = "blue") +
+  geom_vline(aes(xintercept = error_mean - 1.96 * error_se), 
+             color = "blue", linetype = "dashed") +
+  geom_vline(aes(xintercept = error_mean + 1.96 * error_se), 
+             color = "blue", linetype = "dashed") +
+  facet_wrap(variable~age, scales = "free")
   
          
         
