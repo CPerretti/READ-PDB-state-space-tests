@@ -1,13 +1,10 @@
 ## Perform SAM simulation tests
 
 # Debt:
-# (x) Clean plot functions so it just takes simOut[[i]]
-# (x) Fix second plot iteration
 # ( ) Duplicate F's in output to match the config key
-# (x) Moke the plots below into functions
+# ( ) In simulate code, move exp locations to places that make sense
 # To do:
-# ( ) Try parallelizing
-# ( ) Add error handling to fitting routine
+# ( ) Reconfigure to fit with full process error
 
 # Required packages
 library(plyr) # always load before dplyr
@@ -25,7 +22,8 @@ source("1-functions.R")
 load("../atlherring_example/output/fitHer.Rdata")
 
 # How many simulation replicates to do
-nRep <- 100
+set.seed(321) # for reproducibility
+nRep <- 10#00
 
 # Generate simulation replicates
 simOut <- list()
@@ -40,6 +38,8 @@ for (i in 1:nRep) {
 ## (1) N-at-age (1000s)
 plotN(simOut = simOut[[1]],
       fit = fitHer)
+
+plot(1:length(simOut[[1]]$logN[8,]), simOut[[1]]$logN[8,], type = "l")
 
 ## (2) F-at-age
 plotF(simOut = simOut[[1]],
@@ -61,14 +61,18 @@ plotS(simOut = simOut[[1]],
 setupOut <- list()
 for (i in 1:nRep) {
   # Prep simulation data for read.ices()
-  prepSimData(Sobs_N = simOut[[i]]$Sobs_N, 
+  prepSimData(logSobs_N = simOut[[i]]$logSobs_N, 
               fit = fitHer, 
-              Cobs_N = simOut[[i]]$Cobs_N) 
+              logCobs_N = simOut[[i]]$logCobs_N) 
   
   # Read in data, set initial params and configuration
   setupOut[[i]] <- setupModel()
 }
 
+
+# test
+# fitSim <- list()
+# fitSim[[1]] <- sam.fit(setupOut[[1]]$dat, setupOut[[1]]$conf, setupOut[[1]]$par)
 
 # Fit model to replicates in parallel
 cl <- makeCluster(detectCores() - 1) #setup nodes for parallel
@@ -104,17 +108,17 @@ plotPars(fitSim, simOut)
 err_logNF <- calcTsError(fitSim, simOut)
 plotTsError(err_logNF)
 
-err_logNF_med <-
+err_logNF_mean <-
   err_logNF %>%
   dplyr::group_by(variable, age) %>%
   dplyr::summarise(error_mean = mean(error),
                    error_se   = sd(error) / sqrt(nRep))
 df2plot <-
   err_logNF %>%
-  dplyr::left_join(err_logNF_med)
+  dplyr::left_join(err_logNF_mean)
 
 ggplot(df2plot, aes(x = error)) +
-  #geom_histogram() +
+  geom_vline(aes(xintercept = 0), color = "black") +
   geom_vline(aes(xintercept = error_mean), color = "blue") +
   geom_vline(aes(xintercept = error_mean - 1.96 * error_se), 
              color = "blue", linetype = "dashed") +

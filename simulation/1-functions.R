@@ -15,6 +15,7 @@ sim <- function(fit) {
   # Set F sd  (notice the reduction of sd the natural scale)
   fit$pl$logSdLogFsta <- 
     (c(0.1, rep(0.33, length(fit$pl$logSdLogFsta)-1)) * exp(fit$pl$logSdLogFsta)) %>% 
+    #(c(1, rep(1, length(fit$pl$logSdLogFsta)-1)) * exp(fit$pl$logSdLogFsta)) %>% 
     log
   sdLogF <- exp(fit$pl$logSdLogFsta)
   for (i in 1:(nT-1)) { # Create F error
@@ -71,7 +72,8 @@ sim <- function(fit) {
   # Lower process error (!)
   fit$pl$logSdLogN[(fit$conf$keyVarLogN + 1)] <-
     fit$pl$logSdLogN[(fit$conf$keyVarLogN + 1)] %>%
-    exp %>% "*"(0.33) %>% log # NOTICE THE 0.033 factor reduction on the natural scale
+    #exp %>% "*"(0.33) %>% log # NOTICE THE 0.033 factor reduction on the natural scale
+    exp %>% "*"(1) %>% log
   sdLogN <- exp(fit$pl$logSdLogN[(fit$conf$keyVarLogN + 1)])
   for (i in 1:(nT-1)) { # Create process error (N-at-age)
     errPro[, i] <-  rnorm(n = nA, sd = sdLogN)
@@ -167,11 +169,88 @@ sim <- function(fit) {
   dimnames(f) <- list(paste0("tru.", c(1:nA)), fit$data$years)
   trueParams$pl$logF <- log(f)
   return(list(trueParams = trueParams,
-              N = N,
-              Cobs_mt = Cobs_mt, Cobs_N = Cobs_N, 
-              Ctru_mt = Ctru_mt, Ctru_N = Ctru_N, 
-              Sobs_N = Sobs_N, Stru_N = Stru_N))
+              N = N, 
+              logN = logN,
+              logCobs_N = logCobs_N,
+              logCtru_N = logCtru_N, 
+              logStru_N = logStru_N, 
+              logSobs_N = logSobs_N,
+              Cobs_mt = Cobs_mt, 
+              Cobs_N = Cobs_N, 
+              Ctru_mt = Ctru_mt, 
+              Ctru_N = Ctru_N, 
+              Sobs_N = Sobs_N, 
+              Stru_N = Stru_N))
   
+}
+
+## Prep simulation data to be fit by SAM ##################
+prepSimData <- function(logSobs_N, fit, logCobs_N) {
+  # Convert survey data to SAM input format
+  surveyIndex <- # some fleets are fishermen not surveys
+    (1:fit$data$noFleets)[fit$data$fleetTypes == 2] 
+  surveys <-
+    lapply(X = plyr::alply(logSobs_N[, , surveyIndex], 3, .dims = TRUE), t) %>%
+    lapply(function(x) {colnames(x) <- sub(colnames(x), # Change colnames
+                                           pattern = "simulated.", 
+                                           replacement = ""); x}) %>%
+    # Remove ages not in survey
+    lapply(function(x) x[, which(colSums(x, na.rm = TRUE) != 0)]) 
+  
+  for(i in 1:length(surveys)) { # set survey times to match real data
+    attr(surveys[[i]], "time", fit$data$sampleTimes[surveyIndex[i]] + c(-0.25, 0.25))
+  }
+  
+  # Export the simulated surveys to a text file, then import it
+  # using read.ices().
+  
+  # First set survey file header
+  write.table(rbind("US Atlantic Herring Survey Data", 100 + length(surveys)), 
+              file = "./sim_data/surveys.dat", sep = " ", 
+              row.names = FALSE, col.names = FALSE, quote = FALSE)
+  # Then append surveys
+  for (i in 1:length(surveys)) { # loop over surveys
+    header_survey <-
+      rbind(names(surveys)[i], 
+            paste(min(as.numeric(rownames(surveys[[i]]))), 
+                  max(as.numeric(rownames(surveys[[i]])))),
+            paste(1, 1, fit$data$sampleTimes[surveyIndex[i]] - 0.25, 
+                  fit$data$sampleTimes[surveyIndex[i]] + 0.25),
+            paste(min(colnames(surveys[[i]])), max(colnames(surveys[[i]]))))
+    a_survey <- cbind(1, as.data.frame(surveys[[i]]))
+    
+    # Save it to file so it can be read in
+    write.table(header_survey, file = "./sim_data/surveys.dat", sep = " ", 
+                row.names = FALSE, col.names = FALSE, quote = FALSE,
+                append = TRUE)
+    
+    write.table(a_survey, file = "./sim_data/surveys.dat", sep = " ", 
+                row.names = FALSE, col.names = FALSE, quote = FALSE,
+                append = TRUE)
+  }
+  
+  
+  # Next, manipulate catch so it also can be read in by read.ices()
+  catch <- t(logCobs_N) 
+  colnames(catch) <- sub(colnames(catch), 
+                         pattern = "simulated.", 
+                         replacement = "")
+  catch <- catch[, which(colSums(catch, na.rm = TRUE) != 0)]
+  header_catch <-
+    rbind("US Atlantic Herring Total Catch Numbers at age (000s; combines all gear types)", 
+          paste(1, 2),
+          paste(min(as.numeric(rownames(catch))),
+                max(as.numeric(rownames(catch)))),
+          paste(min(colnames(catch)), max(colnames(catch))),
+          "1")
+  
+  # Save it to file so it can be read in
+  write.table(header_catch, file = "./sim_data/catch.dat", sep = " ", 
+              row.names = FALSE, col.names = FALSE, quote = FALSE)
+  
+  write.table(catch, file = "./sim_data/catch.dat", sep = " ", 
+              row.names = FALSE, col.names = FALSE, quote = FALSE,
+              append = TRUE)
 }
 
 # Setup data and params for sam model #####################
@@ -192,17 +271,17 @@ setupModel <- function() {
   #surveys <- read.ices("../atlherring_example/data/Herrsurvey_BigSep_NoAcoust.dat") #surveys
   
   # setup the data as needed for SAM
-  dat <- setup.sam.data(surveys = surveys,
-                        residual.fleet = cn,
-                        prop.mature = mo,
-                        stock.mean.weight = sw,
-                        dis.mean.weight = dw,
-                        land.mean.weight = lw,
-                        land.frac = lf,
-                        prop.f = pf,
-                        prop.m = pm,
-                        natural.mortality = nm,
-                        catch.mean.weight = cw)
+  dat <- cp_setup.sam.data(surveys = surveys,
+                           residual.fleet = cn,
+                           prop.mature = mo,
+                           stock.mean.weight = sw,
+                           dis.mean.weight = dw,
+                           land.mean.weight = lw,
+                           land.frac = lf,
+                           prop.f = pf,
+                           prop.m = pm,
+                           natural.mortality = nm,
+                           catch.mean.weight = cw)
   
   # Load model configuration file
   conf <- loadConf(dat = dat, file = "../atlherring_example/ModelConf_original.txt")
@@ -211,6 +290,7 @@ setupModel <- function() {
   
   return(list(dat = dat, conf = conf, par = par))
 }
+
 ## Plot F-at-age simulated vs fit #######################
 plotF <- function(simOut, fit) {
   # Setup F-at-age to plot
@@ -415,76 +495,6 @@ plotSimSAM <- function(fit, nsim = 1, seed = NULL) {
 }
 
 
-## Prep simulation data to be fit by SAM ##################
-prepSimData <- function(Sobs_N, fit, Cobs_N) {
-  # Convert survey data to SAM input format
-  surveyIndex <- # some fleets are fishermen not surveys
-    (1:fit$data$noFleets)[fit$data$fleetTypes == 2] 
-  surveys <-
-    lapply(X = plyr::alply(Sobs_N[, , surveyIndex], 3, .dims = TRUE), t) %>%
-    lapply(function(x) {colnames(x) <- sub(colnames(x), # Change colnames
-                                           pattern = "simulated.", 
-                                           replacement = ""); x}) %>%
-    # Remove ages not in survey
-    lapply(function(x) x[, which(colSums(x, na.rm = TRUE) != 0)]) 
-  
-  for(i in 1:length(surveys)) { # set survey times to match real data
-    attr(surveys[[i]], "time", fit$data$sampleTimes[surveyIndex[i]] + c(-0.25, 0.25))
-  }
-  
-  # Export the simulated surveys to a text file, then import it
-  # using read.ices().
-  
-  # First set survey file header
-  write.table(rbind("US Atlantic Herring Survey Data", 100 + length(surveys)), 
-              file = "./sim_data/surveys.dat", sep = " ", 
-              row.names = FALSE, col.names = FALSE, quote = FALSE)
-  # Then append surveys
-  for (i in 1:length(surveys)) { # loop over surveys
-    header_survey <-
-      rbind(names(surveys)[i], 
-            paste(min(as.numeric(rownames(surveys[[i]]))), 
-                  max(as.numeric(rownames(surveys[[i]])))),
-            paste(1, 1, fit$data$sampleTimes[surveyIndex[i]] - 0.25, 
-                  fit$data$sampleTimes[surveyIndex[i]] + 0.25),
-            paste(min(colnames(surveys[[i]])), max(colnames(surveys[[i]]))))
-    a_survey <- cbind(1, as.data.frame(surveys[[i]]))
-    
-    # Save it to file so it can be read in
-    write.table(header_survey, file = "./sim_data/surveys.dat", sep = " ", 
-                row.names = FALSE, col.names = FALSE, quote = FALSE,
-                append = TRUE)
-    
-    write.table(a_survey, file = "./sim_data/surveys.dat", sep = " ", 
-                row.names = FALSE, col.names = FALSE, quote = FALSE,
-                append = TRUE)
-  }
-  
-  
-  # Next, manipulate catch so it also can be read in by read.ices()
-  catch <- t(Cobs_N) 
-  colnames(catch) <- sub(colnames(catch), 
-                         pattern = "simulated.", 
-                         replacement = "")
-  catch <- catch[, which(colSums(catch, na.rm = TRUE) != 0)]
-  header_catch <-
-    rbind("US Atlantic Herring Total Catch Numbers at age (000s; combines all gear types)", 
-          paste(1, 2),
-          paste(min(as.numeric(rownames(catch))),
-                max(as.numeric(rownames(catch)))),
-          paste(min(colnames(catch)), max(colnames(catch))),
-          "1")
-  
-  # Save it to file so it can be read in
-  write.table(header_catch, file = "./sim_data/catch.dat", sep = " ", 
-              row.names = FALSE, col.names = FALSE, quote = FALSE)
-  
-  write.table(catch, file = "./sim_data/catch.dat", sep = " ", 
-              row.names = FALSE, col.names = FALSE, quote = FALSE,
-              append = TRUE)
-}
-
-
 ## Plot parameters fit vs true ############################
 plotPars <- function(fitSim, simOut) {
   parsFixed <- which(names(fitSim[[1]]$pl) %in% names(fitSim[[1]]$obj$par))
@@ -631,4 +641,202 @@ plotTsError <- function(err_logNF) {
       ggtitle("Confidence interval coverage for each age")
   print(p)
 }
+
+
+## Customized setup.sam.data ##############################
+# to avoid logging data when it is alread logged
+cp_setup.sam.data <- function (fleets = NULL, surveys = NULL, residual.fleet = NULL, 
+                               prop.mature = NULL, stock.mean.weight = NULL, catch.mean.weight = NULL, 
+                               dis.mean.weight = NULL, land.mean.weight = NULL, natural.mortality = NULL, 
+                               prop.f = NULL, prop.m = NULL, land.frac = NULL, recapture = NULL) 
+{
+  fleet.idx <- 0
+  type <- NULL
+  time <- NULL
+  name <- NULL
+  corList <- list()
+  idxCor <- matrix(NA, nrow = length(fleets) + length(surveys) + 
+                     1, ncol = nrow(natural.mortality))
+  colnames(idxCor) <- rownames(natural.mortality)
+  dat <- data.frame(year = NA, fleet = NA, age = NA, aux = NA)
+  weight <- NULL
+  doone <- function(m) {
+    year <- rownames(m)[row(m)]
+    fleet.idx <<- fleet.idx + 1
+    fleet <- rep(fleet.idx, length(year))
+    age <- as.integer(colnames(m)[col(m)])
+    aux <- as.vector(m)
+    dat <<- rbind(dat, data.frame(year, fleet, age, aux))
+    if ("weight" %in% names(attributes(m))) {
+      weight <<- c(weight, as.vector(attr(m, "weight")))
+    }
+    else {
+      if ("cov" %in% names(attributes(m))) {
+        weight <<- c(weight, unlist(lapply(attr(m, "cov"), 
+                                           diag)))
+      }
+      else {
+        if ("cov-weight" %in% names(attributes(m))) {
+          weight <<- c(weight, 1/unlist(lapply(attr(m, 
+                                                    "cov-weight"), diag)))
+        }
+        else {
+          weight <<- c(weight, rep(NA, length(year)))
+        }
+      }
+    }
+    if ("cov" %in% names(attributes(m))) {
+      attr(m, "cor") <- lapply(attr(m, "cov"), cov2cor)
+    }
+    if ("cov-weight" %in% names(attributes(m))) {
+      attr(m, "cor") <- lapply(attr(m, "cov-weight"), 
+                               cov2cor)
+    }
+    if ("cor" %in% names(attributes(m))) {
+      thisCorList <- attr(m, "cor")
+      whichCorOK <- which(unlist(lapply(thisCorList, function(x) !any(is.na(x)))))
+      thisCorList <- thisCorList[whichCorOK]
+      corList <<- c(corList, thisCorList)
+      nextIdx <- if (all(is.na(idxCor))) {
+        0
+      }
+      else {
+        max(idxCor, na.rm = TRUE)
+      }
+      idxCor[fleet.idx, colnames(idxCor) %in% rownames(m)][whichCorOK] <<- nextIdx:(nextIdx + 
+                                                                                      length(thisCorList) - 1)
+    }
+  }
+  if (!is.null(residual.fleet)) {
+    doone(residual.fleet)
+    type <- c(type, 0)
+    time <- c(time, 0)
+    name <- c(name, "Residual catch")
+  }
+  if (!is.null(fleets)) {
+    if (is.data.frame(fleets) | is.matrix(fleets)) {
+      doone(fleets)
+      type <- c(type, 1)
+      time <- c(time, 0)
+      name <- c(name, "Comm fleet")
+    }
+    else {
+      dummy <- lapply(fleets, doone)
+      type <- c(type, rep(1, length(fleets)))
+      time <- c(time, rep(0, length(fleets)))
+      name <- c(name, strtrim(gsub("\\s", "", names(dummy)), 
+                              50))
+    }
+  }
+  if (!is.null(surveys)) {
+    if (is.data.frame(surveys) | is.matrix(surveys)) {
+      doone(surveys)
+      thistype <- ifelse(min(as.integer(colnames(surveys))) < 
+                           (-0.5), 3, 2)
+      type <- c(type, thistype)
+      time <- c(time, mean(attr(surveys, "time")))
+      name <- c(name, "Survey fleet")
+    }
+    else {
+      dummy <- lapply(surveys, doone)
+      type <- c(type, unlist(lapply(surveys, function(x) ifelse(min(as.integer(colnames(x))) < 
+                                                                  (-0.5), 3, 2))))
+      time <- c(time, unlist(lapply(surveys, function(x) mean(attr(x, 
+                                                                   "time")))))
+      name <- c(name, strtrim(gsub("\\s", "", names(dummy)), 
+                              50))
+    }
+  }
+  if (is.null(land.frac)) {
+    land.frac <- matrix(1, nrow = nrow(residual.fleet), 
+                        ncol = ncol(residual.fleet))
+  }
+  if (is.null(dis.mean.weight)) {
+    dis.mean.weight <- catch.mean.weight
+  }
+  if (is.null(land.mean.weight)) {
+    land.mean.weight <- catch.mean.weight
+  }
+  if (is.null(prop.f)) {
+    prop.f <- matrix(0, nrow = nrow(residual.fleet), ncol = ncol(residual.fleet))
+  }
+  if (is.null(prop.m)) {
+    prop.m <- matrix(0, nrow = nrow(residual.fleet), ncol = ncol(residual.fleet))
+  }
+  dat$aux[which(dat$aux <= 0)] <- NA
+  dat <- dat[!is.na(dat$year), ]
+  if (!is.null(recapture)) {
+    tag <- data.frame(year = recapture$ReleaseY)
+    fleet.idx <- fleet.idx + 1
+    tag$fleet <- fleet.idx
+    tag$age <- recapture$ReleaseY - recapture$Yearclass
+    tag$aux <- exp(recapture$r)
+    tag <- cbind(tag, recapture[, c("RecaptureY", "Yearclass", 
+                                    "Nscan", "R", "Type")])
+    dat[names(tag)[!names(tag) %in% names(dat)]] <- NA
+    dat <- rbind(dat, tag)
+    weight <- c(weight, rep(NA, nrow(tag)))
+    type <- c(type, 5)
+    time <- c(time, 0)
+    name <- c(name, "Recaptures")
+  }
+  dat <- dat[complete.cases(dat[, 1:3]), ]
+  o <- order(as.numeric(dat$year), as.numeric(dat$fleet), 
+             as.numeric(dat$age))
+  attr(dat, "type") <- type
+  names(time) <- NULL
+  attr(dat, "time") <- time
+  names(name) <- NULL
+  attr(dat, "name") <- name
+  dat <- dat[o, ]
+  weight <- weight[o]
+  newyear <- min(as.numeric(dat$year)):max(as.numeric(dat$year))
+  newfleet <- min(as.numeric(dat$fleet)):max(as.numeric(dat$fleet))
+  mmfun <- function(f, y, ff) {
+    idx <- which(dat$year == y & dat$fleet == f)
+    ifelse(length(idx) == 0, NA, ff(idx) - 1)
+  }
+  idx1 <- outer(newfleet, newyear, Vectorize(mmfun, c("f", 
+                                                      "y")), ff = min)
+  idx2 <- outer(newfleet, newyear, Vectorize(mmfun, c("f", 
+                                                      "y")), ff = max)
+  attr(dat, "idx1") <- idx1
+  attr(dat, "idx2") <- idx2
+  attr(dat, "minAgePerFleet") <- tapply(as.integer(dat[, "age"]), 
+                                        INDEX = dat[, "fleet"], FUN = min)
+  attr(dat, "maxAgePerFleet") <- tapply(as.integer(dat[, "age"]), 
+                                        INDEX = dat[, "fleet"], FUN = max)
+  attr(dat, "year") <- newyear
+  attr(dat, "nyear") <- max(as.numeric(dat$year)) - min(as.numeric(dat$year)) + 
+    1
+  cutY <- function(x) x[rownames(x) %in% newyear, ]
+  attr(dat, "prop.mature") <- cutY(prop.mature)
+  attr(dat, "stock.mean.weight") <- cutY(stock.mean.weight)
+  attr(dat, "catch.mean.weight") <- cutY(catch.mean.weight)
+  attr(dat, "dis.mean.weight") <- cutY(dis.mean.weight)
+  attr(dat, "land.mean.weight") <- cutY(land.mean.weight)
+  attr(dat, "natural.mortality") <- cutY(natural.mortality)
+  attr(dat, "prop.f") <- cutY(prop.f)
+  attr(dat, "prop.m") <- cutY(prop.m)
+  attr(dat, "land.frac") <- cutY(land.frac)
+  ret <- list(noFleets = length(attr(dat, "type")), fleetTypes = as.integer(attr(dat, 
+                                                                                 "type")), sampleTimes = attr(dat, "time"), noYears = attr(dat, 
+                                                                                                                                           "nyear"), years = attr(dat, "year"), minAgePerFleet = attr(dat, 
+                                                                                                                                                                                                      "minAgePerFleet"), maxAgePerFleet = attr(dat, "maxAgePerFleet"), 
+              nobs = nrow(dat), idx1 = attr(dat, "idx1"), 
+              idx2 = attr(dat,"idx2"), idxCor = idxCor, 
+              aux = data.matrix(dat[,-4]), 
+              logobs = dat[, 4], #log(dat[, 4]), CHANGED TO ACCOMODATE LOGGED OBSERVATIONS
+              weight = as.numeric(weight), 
+              propMat = attr(dat, "prop.mature"), stockMeanWeight = attr(dat, 
+                                                                         "stock.mean.weight"), catchMeanWeight = attr(dat, 
+                                                                                                                      "catch.mean.weight"), natMor = attr(dat, "natural.mortality"), 
+              landFrac = attr(dat, "land.frac"), disMeanWeight = attr(dat, 
+                                                                      "dis.mean.weight"), landMeanWeight = attr(dat, "land.mean.weight"), 
+              propF = attr(dat, "prop.f"), propM = attr(dat, "prop.m"), 
+              corList = corList)
+  attr(ret, "fleetNames") <- attr(dat, "name")
+  return(ret)
+}
+
 
