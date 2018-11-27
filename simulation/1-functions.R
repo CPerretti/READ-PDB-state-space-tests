@@ -14,8 +14,8 @@ sim <- function(fit) {
   
   # Set F sd  (notice the reduction of sd the natural scale)
   fit$pl$logSdLogFsta <- 
-    (c(0.1, rep(0.33, length(fit$pl$logSdLogFsta)-1)) * exp(fit$pl$logSdLogFsta)) %>% 
-    #(c(1, rep(1, length(fit$pl$logSdLogFsta)-1)) * exp(fit$pl$logSdLogFsta)) %>% 
+    #(c(0.1, rep(0.33, length(fit$pl$logSdLogFsta)-1)) * exp(fit$pl$logSdLogFsta)) %>% 
+    (c(1, rep(1, length(fit$pl$logSdLogFsta)-1)) * exp(fit$pl$logSdLogFsta)) %>% 
     log
   sdLogF <- exp(fit$pl$logSdLogFsta)
   for (i in 1:(nT-1)) { # Create F error
@@ -500,7 +500,7 @@ plotPars <- function(fitSim, simOut) {
   parsFixed <- which(names(fitSim[[1]]$pl) %in% names(fitSim[[1]]$obj$par))
   df_parsOut <- data.frame()
   for (h in parsFixed) {
-    for (i in 1:nRep) {
+    for (i in 1:nRepAccept) {
       df_parsOut <-
         rbind(df_parsOut,
               data.frame(variable = paste(names(fitSim[[1]]$pl)[h], 
@@ -518,7 +518,7 @@ plotPars <- function(fitSim, simOut) {
     dplyr::group_by(variable) %>%
     dplyr::summarise(tru = unique(tru),
                      est_mean = mean(est),
-                     est_se = sd(est)/sqrt(nRep))
+                     est_se = sd(est)/sqrt(nRepAccept))
   
   ggplot(df2plot, aes(y = variable)) +
     geom_point( aes(x = tru), color = "red", size  = 3) +
@@ -537,7 +537,7 @@ calcTsError <- function(fitSim, simOut) {
   indNF <- which(names(fitSim[[1]]$pl) %in% c("logN", "logF"))
   err_logNF <- data.frame()
   for (h in indNF) {
-    for (i in 1:nRep) {
+    for (i in 1:nRepAccept) {
       rownames(fitSim[[i]]$pl[[h]]) <- paste0("fit.", 1:nrow(fitSim[[i]]$pl[[h]]))
       Sd <- exp(fitSim[[i]]$plsd[[h]])
       rownames(Sd) <- paste0("Sd.", 1:nrow(fitSim[[i]]$pl[[h]]))
@@ -634,7 +634,7 @@ plotTsError <- function(err_logNF) {
     ggplot(err_logNF,
            aes(x = decile)) +
       geom_histogram(binwidth=1, colour="white") +
-      geom_hline(yintercept = ncol(fitSim[[1]]$pl$logN) * nRep / 10, 
+      geom_hline(yintercept = ncol(fitSim[[1]]$pl$logN) * nRepAccept / 10, 
                  color = "dark grey") +
       theme_bw() +
       facet_grid(variable~age) +

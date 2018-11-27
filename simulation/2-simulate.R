@@ -1,10 +1,12 @@
 ## Perform SAM simulation tests
 
 # Debt:
-# ( ) Duplicate F's in output to match the config key
-# ( ) In simulate code, move exp locations to places that make sense
+# - Duplicate F's in output to match the config key
+# - In simulate code, move exp locations to places that make sense
 # To do:
-# ( ) Reconfigure to fit with full process error
+# - Reject non-converged fits
+# - Change nRep to nRepAccept
+
 
 # Required packages
 library(plyr) # always load before dplyr
@@ -23,7 +25,7 @@ load("../atlherring_example/output/fitHer.Rdata")
 
 # How many simulation replicates to do
 set.seed(321) # for reproducibility
-nRep <- 10#00
+nRep <- 6#500
 
 # Generate simulation replicates
 simOut <- list()
@@ -72,14 +74,25 @@ for (i in 1:nRep) {
 
 # test
 # fitSim <- list()
-# fitSim[[1]] <- sam.fit(setupOut[[1]]$dat, setupOut[[1]]$conf, setupOut[[1]]$par)
+# fitSim[[1]] <- sam.fit(setupOut[[1]]$dat, 
+#                        setupOut[[1]]$conf, setupOut[[1]]$par)
 
 # Fit model to replicates in parallel
 cl <- makeCluster(detectCores() - 1) #setup nodes for parallel
 clusterEvalQ(cl, {library(stockassessment)}) #load stockassessment to each node
-fitSim <- parLapply(cl, setupOut, function(x){sam.fit(x$dat, x$conf, x$par)})
+fitSim <- parLapply(cl, setupOut, 
+                    function(x){try(sam.fit(x$dat, x$conf, x$par))})
 stopCluster(cl) #shut down nodes
 
+## Error handling #####
+# Pull out TMB fails
+x <- sapply(fitSim, class)
+fitSim <- fitSim[!(x == "try-error")]
+
+# Pull out non-convergences
+x <- unlist(sapply(fitSim, function (x) x[[6]][3]))
+fitSim <- fitSim[x != 1]
+nRepAccept <- length(fitSim)
 
 ## Plot example true vs observed vs fit to observed ########
 ## (1) N-at-age (1000s)
@@ -112,7 +125,7 @@ err_logNF_mean <-
   err_logNF %>%
   dplyr::group_by(variable, age) %>%
   dplyr::summarise(error_mean = mean(error),
-                   error_se   = sd(error) / sqrt(nRep))
+                   error_se   = sd(error) / sqrt(nRepAccept))
 df2plot <-
   err_logNF %>%
   dplyr::left_join(err_logNF_mean)
