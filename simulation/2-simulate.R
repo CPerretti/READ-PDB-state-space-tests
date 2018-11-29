@@ -4,7 +4,7 @@
 # - Duplicate F's in output to match the config key
 # - In simulate code, move exp locations to places that make sense
 # To do:
-
+# Calculate time series error on the natural scale
 
 
 # Required packages
@@ -124,19 +124,24 @@ err_logNF_mean <-
   err_logNF %>%
   dplyr::group_by(variable, age) %>%
   dplyr::summarise(error_mean = mean(error),
-                   error_se   = sd(error) / sqrt(nRepAccept))
+                   error_se   = sd(error) / sqrt(nRepAccept),
+                   pc_error_mean = mean(100 * error / tru))
 df2plot <-
   err_logNF %>%
   dplyr::left_join(err_logNF_mean)
 
-ggplot(df2plot, aes(x = error)) +
-  geom_vline(aes(xintercept = 0), color = "black") +
-  geom_vline(aes(xintercept = error_mean), color = "blue") +
-  geom_vline(aes(xintercept = error_mean - 1.96 * error_se), 
-             color = "blue", linetype = "dashed") +
-  geom_vline(aes(xintercept = error_mean + 1.96 * error_se), 
-             color = "blue", linetype = "dashed") +
-  facet_wrap(variable~age, scales = "free")
+ggplot(err_logNF_mean, aes(x = age)) +
+  geom_hline(aes(yintercept = 0), color = "black") +
+  geom_point(aes(y = error_mean), color = "blue") +
+  geom_errorbar(aes(ymin = error_mean - 1.96 * error_se,
+                    ymax = error_mean + 1.96 * error_se),
+                width = 0.2,
+                color = "blue") +
+  facet_wrap(~variable, scales = "free", nrow = 2) +
+  ylab("Mean error (fit - true)") +
+  xlab("Age") +
+  ggtitle("Mean error over all replicates")
+  
   
 
 # Save output
