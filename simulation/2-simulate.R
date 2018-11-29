@@ -4,8 +4,7 @@
 # - Duplicate F's in output to match the config key
 # - In simulate code, move exp locations to places that make sense
 # To do:
-# - Reject non-converged fits
-# - Change nRep to nRepAccept
+
 
 
 # Required packages
@@ -25,7 +24,7 @@ load("../atlherring_example/output/fitHer.Rdata")
 
 # How many simulation replicates to do
 set.seed(321) # for reproducibility
-nRep <- 6#500
+nRep <- 100
 
 # Generate simulation replicates
 simOut <- list()
@@ -85,40 +84,40 @@ fitSim <- parLapply(cl, setupOut,
 stopCluster(cl) #shut down nodes
 
 ## Error handling #####
-# Pull out TMB fails
-x <- sapply(fitSim, class)
-fitSim <- fitSim[!(x == "try-error")]
-
-# Pull out non-convergences
-x <- unlist(sapply(fitSim, function (x) x[[6]][3]))
-fitSim <- fitSim[x != 1]
-nRepAccept <- length(fitSim)
+# Exclude TMB fails
+fitSimAccept <- fitSim[!(sapply(fitSim, class) == "try-error")]
+simOutAccept <- simOut[!(sapply(fitSim, class) == "try-error")]
+# Exclude non-convergences
+x <- unlist(sapply(fitSimAccept, function (x) x[[6]][3]))
+fitSimAccept <- fitSimAccept[x != 1]
+simOutAccept <- simOutAccept[x != 1]  
+nRepAccept <- length(fitSimAccept)
 
 ## Plot example true vs observed vs fit to observed ########
 ## (1) N-at-age (1000s)
-plotN(simOut = simOut[[1]],
-      fit = fitSim[[1]])
+plotN(simOut = simOutAccept[[1]],
+      fit = fitSimAccept[[1]])
 
 ## (2) F-at-age
-plotF(simOut = simOut[[1]],
-      fit = fitSim[[1]])
+plotF(simOut = simOutAccept[[1]],
+      fit = fitSimAccept[[1]])
 
 ## (3) Catch (mt)
-plotC(simOut = simOut[[1]],
-      fit = fitSim[[1]])
+plotC(simOut = simOutAccept[[1]],
+      fit = fitSimAccept[[1]])
 
 ## (4) Survey (1000s)
-plotS(simOut = simOut[[1]],
-      fit = fitSim[[1]])
+plotS(simOut = simOutAccept[[1]],
+      fit = fitSimAccept[[1]])
 
 
 ## Plot fit vs true parameter values #######################
 
 # Plot parameters true vs fit
-plotPars(fitSim, simOut)
+plotPars(fitSimAccept, simOutAccept)
 
 # Plot error for N and F
-err_logNF <- calcTsError(fitSim, simOut)
+err_logNF <- calcTsError(fitSimAccept, simOutAccept)
 plotTsError(err_logNF)
 
 err_logNF_mean <-
@@ -139,7 +138,13 @@ ggplot(df2plot, aes(x = error)) +
              color = "blue", linetype = "dashed") +
   facet_wrap(variable~age, scales = "free")
   
-         
+
+# Save output
+suffix <- paste0(Sys.time(), ".Rdata")
+save(list = "fitSim", file = paste0("./output/fitSim", suffix))
+save(list = "fitSimAccept", file = paste0("./output/fitSimAccept", suffix))
+save(list = "simOut", file = paste0("./output/simOut", suffix))
+save(list = "simOutAccept", file = paste0("./output/simOutAccept", suffix))
         
 # Fit sam to a simulate.sam replicate
 # Need to resimulate with full.data = TRUE to get output that sam.fit() can use
