@@ -539,15 +539,15 @@ calcTsError <- function(fitSim, simOut) {
   for (h in indNF) {
     for (i in 1:nRepAccept) {
       rownames(fitSim[[i]]$pl[[h]]) <- paste0("fit.", 1:nrow(fitSim[[i]]$pl[[h]]))
-      Sd <- exp(fitSim[[i]]$plsd[[h]])
-      rownames(Sd) <- paste0("Sd.", 1:nrow(fitSim[[i]]$pl[[h]]))
+      logSd <- fitSim[[i]]$plsd[[h]]
+      rownames(logSd) <- paste0("logSd.", 1:nrow(fitSim[[i]]$pl[[h]]))
       err_logNF <-
         rbind(err_logNF,
               fitSim[[i]]$pl[[h]] %>%
                 t() %>%
                 exp %>%
                 as.data.frame() %>%
-                cbind(Sd %>%
+                cbind(logSd %>%
                         t() %>%
                         as.data.frame()) %>%
                 cbind(data.frame(simOut[[i]]$trueParams$pl[[h]] %>% t %>% exp)) %>%
@@ -560,9 +560,10 @@ calcTsError <- function(fitSim, simOut) {
                 tidyr::spread(source, N) %>%
                 dplyr::mutate(age = as.numeric(age),
                               error = (fit - tru),
+                              error_pc = 100 * (fit - tru) / tru,
                               decile = ceiling(10 * pnorm(q    = log(tru), 
                                                           mean = log(fit), 
-                                                          sd   = log(Sd))),
+                                                          sd   = logSd)),
                               replicate = i,
                               variable = ifelse(names(fitSim[[i]]$pl[h]) == "logN", "N",
                                                 if(names(fitSim[[i]]$pl[h]) == "logF") "F")))
@@ -590,7 +591,7 @@ plotTsError <- function(err_logNF) {
       geom_line() +
       geom_hline(yintercept = 0) +
       theme_bw() +
-      ylab("Median error (fit - true)") +
+      ylab("Median raw error (fit - true)") +
       xlab("Year") +
       theme(axis.title = element_text(size = 16),
             axis.text = element_text(size = 14)) +
@@ -606,7 +607,7 @@ plotTsError <- function(err_logNF) {
       geom_line() +
       geom_hline(yintercept = 0) +
       theme_bw() +
-      ylab("Median error (fit - true)") +
+      ylab("Median raw error (fit - true)") +
       xlab("Year") +
       theme(axis.title = element_text(size = 16),
             axis.text = element_text(size = 14)) +
@@ -617,7 +618,7 @@ plotTsError <- function(err_logNF) {
   # Plot a few example fit vs tru time series
   p <-
     ggplot(err_logNF %>%
-             dplyr::select(-Sd, -decile) %>%
+             dplyr::select(-logSd, -decile) %>%
              dplyr::filter(variable == "F",
                            age == 4,
                            replicate %in% 1:10) %>%
@@ -639,6 +640,61 @@ plotTsError <- function(err_logNF) {
       theme_bw() +
       facet_grid(variable~age) +
       ggtitle("Confidence interval coverage for each age")
+  print(p)
+  
+  # Plot relationship between percent error and true value
+  p <-
+    ggplot(err_logNF, aes(x = tru, y = error_pc)) +
+      geom_point() +
+      theme_bw() +
+      facet_wrap(variable~age, scales = "free", nrow = 2) +
+      xlab("True value") +
+      ylab("Percent error") +
+      ggtitle("Percent error vs true value")
+  print(p)
+
+    
+  
+}
+
+## Plot mean error over all replicates ####################
+plotTsMeanError <- function(err_logNF) {
+  err_logNF_mean <-
+    err_logNF %>%
+    dplyr::group_by(variable, age) %>%
+    dplyr::summarise(error_mean = mean(error),
+                     error_mean_se   = sd(error) / sqrt(nRepAccept),
+                     error_pc_mean = mean(error_pc),
+                     error_pc_mean_se = sd(error_pc) / sqrt(nRepAccept))
+  
+  # Plot raw error
+  p <-
+    ggplot(err_logNF_mean, aes(x = age)) +
+      geom_hline(aes(yintercept = 0), color = "black") +
+      geom_point(aes(y = error_mean), color = "blue") +
+      geom_errorbar(aes(ymin = error_mean - 1.96 * error_mean_se,
+                        ymax = error_mean + 1.96 * error_mean_se),
+                    width = 0.2,
+                    color = "blue") +
+      facet_wrap(~variable, scales = "free", nrow = 2) +
+      ylab("Mean raw error (fit - true)") +
+      xlab("Age") +
+      ggtitle("Mean raw error over all replicates")
+  print(p)
+  
+  # Plot percent error
+  p <-
+    ggplot(err_logNF_mean, aes(x = age)) +
+      geom_hline(aes(yintercept = 0), color = "black") +
+      geom_point(aes(y = error_pc_mean), color = "blue") +
+      geom_errorbar(aes(ymin = error_pc_mean - 1.96 * error_pc_mean_se,
+                        ymax = error_pc_mean + 1.96 * error_pc_mean_se),
+                    width = 0.2,
+                    color = "blue") +
+      facet_wrap(~variable, scales = "free", nrow = 2) +
+      ylab("Mean percent error (100 * (fit - true) / true)") +
+      xlab("Age") +
+      ggtitle("Mean percent error over all replicates")
   print(p)
 }
 

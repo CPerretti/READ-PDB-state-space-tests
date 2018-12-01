@@ -4,7 +4,8 @@
 # - Duplicate F's in output to match the config key
 # - In simulate code, move exp locations to places that make sense
 # To do:
-# Calculate time series error on the natural scale
+# - Plot relationship between percent error and true value
+# - Calculate CI decile based on lognormal distribution
 
 
 # Required packages
@@ -118,30 +119,10 @@ plotPars(fitSimAccept, simOutAccept)
 
 # Plot error for N and F
 err_logNF <- calcTsError(fitSimAccept, simOutAccept)
+
 plotTsError(err_logNF)
 
-err_logNF_mean <-
-  err_logNF %>%
-  dplyr::group_by(variable, age) %>%
-  dplyr::summarise(error_mean = mean(error),
-                   error_se   = sd(error) / sqrt(nRepAccept),
-                   pc_error_mean = mean(100 * error / tru))
-df2plot <-
-  err_logNF %>%
-  dplyr::left_join(err_logNF_mean)
-
-ggplot(err_logNF_mean, aes(x = age)) +
-  geom_hline(aes(yintercept = 0), color = "black") +
-  geom_point(aes(y = error_mean), color = "blue") +
-  geom_errorbar(aes(ymin = error_mean - 1.96 * error_se,
-                    ymax = error_mean + 1.96 * error_se),
-                width = 0.2,
-                color = "blue") +
-  facet_wrap(~variable, scales = "free", nrow = 2) +
-  ylab("Mean error (fit - true)") +
-  xlab("Age") +
-  ggtitle("Mean error over all replicates")
-  
+plotTsMeanError(err_logNF)
   
 
 # Save output
