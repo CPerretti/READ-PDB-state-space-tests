@@ -572,19 +572,66 @@ calcReTsError <- function(fitSim, simOut) {
   return(errRe)
 }
 
-## Plot random effect timeseries fit vs true #################
-plotReTsError <- function(errRe) {
+## Calculate observed time series error ###################
+calcCatchError <- function(fitSim, simOut) {
+  
+  errC <- data.frame()
+  for (i in 1:length(fitSim)) {
+    # Fit catch
+    df_Cfit_mt <- 
+      data.frame(variable = names(fitSim[[i]]$sdrep$value),
+                 value = fitSim[[i]]$sdrep$value,
+                 sd    = fitSim[[i]]$sdrep$sd) %>%
+      dplyr::filter(variable == "logCatch") %>%
+      dplyr::rename(logCatch = value,
+                    sdLog = sd) %>%
+      dplyr::mutate(fit = exp(logCatch),
+                    year = fitSim[[i]]$data$years,
+                    age = "total") %>%
+      dplyr::select(year, age, fit, sdLog)
+    
+    # True catch
+    df_Ctru_mt <- 
+      simOut[[i]]$Ctru_mt %>%
+      t() %>%
+      as.data.frame() %>%
+      dplyr::mutate(total = rowSums(.),
+                    year = fitSim[[1]]$data$years) %>%
+      tidyr::gather(age, Catch_mt, -year) %>%
+      dplyr::rename(tru = Catch_mt) %>%
+      dplyr::filter(age == "total")
+    
+    
+    errC <-
+      rbind(errC,
+            df_Cfit_mt %>%
+              dplyr::left_join(df_Ctru_mt) %>%
+              dplyr::mutate(error = fit - tru,
+                            error_pc = 100 * (fit - tru) / tru,
+                            decile = ceiling(10 * pnorm(q    = log(tru),
+                                                        mean = log(fit),
+                                                        sd   = sdLog)),
+                            replicate = i,
+                            variable = "catch"))
+  }  
+  
+  
+  return(errC)
+}
+
+## Plot timeseries error ##################################
+plotTsError <- function(err) {
 
   
   # Calculate median error
-  errReAnnual <-
-    errRe %>%
+  errAnnual <-
+    err %>%
     dplyr::group_by(variable, age, year) %>%
     dplyr::summarise(median_error = median(error))
   
   # Plot median error for N and F in each year for each age
   p <-
-    ggplot(errReAnnual %>% 
+    ggplot(errAnnual %>% 
              dplyr::filter(variable == "N") %>%
              dplyr::mutate(as.numeric(year)),
            aes(x = year, y = median_error)) +
@@ -600,7 +647,7 @@ plotReTsError <- function(errRe) {
   print(p)
   
   p <-
-    ggplot(errReAnnual %>% 
+    ggplot(errAnnual %>% 
              dplyr::filter(variable == "F") %>%
              dplyr::mutate(as.numeric(year)),
            aes(x = year, y = median_error)) +
@@ -615,10 +662,26 @@ plotReTsError <- function(errRe) {
       ggtitle("F estimation error-at-age")
   print(p)
   
+  p <-
+    ggplot(errAnnual %>% 
+             dplyr::filter(variable == "catch") %>%
+             dplyr::mutate(as.numeric(year)),
+           aes(x = year, y = median_error)) +
+    geom_line() +
+    geom_hline(yintercept = 0) +
+    theme_bw() +
+    ylab("Median raw error (fit - true)") +
+    xlab("Year") +
+    theme(axis.title = element_text(size = 16),
+          axis.text = element_text(size = 14)) +
+    facet_wrap(~age) +
+    ggtitle("Catch estimation error")
+  print(p)
+  
   # Plot a few example fit vs tru time series
   p <-
-    ggplot(errRe %>%
-             dplyr::select(-sdLog, -decile) %>%
+    ggplot(err %>%
+             dplyr::select(-sdLog, -decile, -error_pc) %>%
              dplyr::filter(variable == "F",
                            age == 4,
                            replicate %in% 1:10) %>%
@@ -630,9 +693,9 @@ plotReTsError <- function(errRe) {
       ggtitle("Age-4 F estimation error examples")
   print(p)
   
-  # Plot decile coverage for each age and variable
+  # Plot decile coverage for N and F
   p <- 
-    ggplot(errRe,
+    ggplot(err %>% dplyr::filter(variable %in% c("N", "F")),
            aes(x = decile)) +
       geom_histogram(binwidth=1, colour="white") +
       geom_hline(yintercept = ncol(fitSim[[1]]$pl$logN) * nRepAccept / 10, 
@@ -642,10 +705,23 @@ plotReTsError <- function(errRe) {
       ggtitle("Confidence interval coverage for each age")
   print(p)
   
-  # Plot relationship between percent error and true value
+  # Plot decile coverage for Catch
+  p <- 
+    ggplot(err %>% dplyr::filter(variable == "catch"),
+           aes(x = decile)) +
+    geom_histogram(binwidth=1, colour="white") +
+    geom_hline(yintercept = ncol(fitSim[[1]]$pl$logN) * nRepAccept / 10, 
+               color = "dark grey") +
+    theme_bw() +
+    facet_wrap(~age) +
+    ggtitle("Confidence interval coverage for catch")
+  print(p)
+  
+  # Plot relationship between percent error and true value for N and F
   p <-
-    ggplot(errRe, aes(x = tru, y = error_pc)) +
-      geom_point() +
+    ggplot(err  %>% dplyr::filter(variable %in% c("N", "F")),
+           aes(x = tru, y = error_pc)) +
+      geom_point(alpha = 0.2) +
       theme_bw() +
       facet_wrap(variable~age, scales = "free", nrow = 2) +
       xlab("True value") +
@@ -653,14 +729,25 @@ plotReTsError <- function(errRe) {
       ggtitle("Percent error vs true value")
   print(p)
 
+  # Plot relationship between percent error and true value for N and F
+  p <-
+    ggplot(err  %>% dplyr::filter(variable == "catch"),
+           aes(x = tru, y = error_pc)) +
+    geom_point(alpha = 0.2) +
+    theme_bw() +
+    facet_wrap(~age, scales = "free", nrow = 2) +
+    xlab("True value") +
+    ylab("Percent error") +
+    ggtitle("Percent error vs true value for Catch")
+  print(p)
     
   
 }
 
 ## Plot mean error over all replicates ####################
-plotReTsMeanError <- function(errRe) {
-  errReMean <-
-    errRe %>%
+plotTsMeanError <- function(err) {
+  errMean <-
+    err %>%
     dplyr::group_by(variable, age) %>%
     dplyr::summarise(error_mean = mean(error),
                      error_mean_se   = sd(error) / sqrt(nRepAccept),
@@ -669,7 +756,7 @@ plotReTsMeanError <- function(errRe) {
   
   # Plot raw error
   p <-
-    ggplot(errReMean, aes(x = age)) +
+    ggplot(errMean, aes(x = age)) +
       geom_hline(aes(yintercept = 0), color = "black") +
       geom_point(aes(y = error_mean), color = "blue") +
       geom_errorbar(aes(ymin = error_mean - 1.96 * error_mean_se,
@@ -684,7 +771,7 @@ plotReTsMeanError <- function(errRe) {
   
   # Plot percent error
   p <-
-    ggplot(errReMean, aes(x = age)) +
+    ggplot(errMean, aes(x = age)) +
       geom_hline(aes(yintercept = 0), color = "black") +
       geom_point(aes(y = error_pc_mean), color = "blue") +
       geom_errorbar(aes(ymin = error_pc_mean - 1.96 * error_pc_mean_se,
@@ -696,46 +783,6 @@ plotReTsMeanError <- function(errRe) {
       xlab("Age") +
       ggtitle("Mean percent error over all replicates")
   print(p)
-}
-
-## Calculate observed time series error ###################
-calcObsTsError <- function(fitSim, simOut) { #REPLACE [[1]] WITH [[i]]
-  
-  # Fit catch
-  df_Cfit_mt <- 
-    data.frame(variable = names(fitSim[[1]]$sdrep$value),
-               value = fitSim[[1]]$sdrep$value,
-               sd    = fitSim[[1]]$sdrep$sd) %>%
-    dplyr::filter(variable == "logCatch") %>%
-    dplyr::rename(logCatch = value,
-                  sdLog = sd) %>%
-    dplyr::mutate(fit = exp(logCatch),
-                  year = fitSim[[1]]$data$years,
-                  age = "total") %>%
-    dplyr::select(year, age, fit)
-  
-  # True catch
-  df_Ctru_mt <- 
-    simOut[[1]]$Ctru_mt %>%
-    t() %>%
-    as.data.frame() %>%
-    dplyr::mutate(total = rowSums(.),
-                  year = fitSim[[1]]$data$years) %>%
-    tidyr::gather(age, Catch_mt, -year) %>%
-    dplyr::rename(tru = Catch_mt) %>%
-    dplyr::filter(age == "total")
-  
-
-  errObs <-
-    df_Cfit_mt %>%
-    dplyr::left_join(df_Ctru_mt) %>%
-    dplyr::mutate(error = fit - tru,
-                  error_pc = 100 * (fit - tru) / tru)
-  # error = (fit - tru),
-  # error_pc = 100 * (fit - tru) / tru,
-  # decile = ceiling(10 * pnorm(q    = log(tru),
-  #                             mean = log(fit),
-  #                             sd   = logSd)),
 }
 
 
@@ -916,20 +963,25 @@ cp_setup.sam.data <- function (fleets = NULL, surveys = NULL, residual.fleet = N
   attr(dat, "prop.f") <- cutY(prop.f)
   attr(dat, "prop.m") <- cutY(prop.m)
   attr(dat, "land.frac") <- cutY(land.frac)
-  ret <- list(noFleets = length(attr(dat, "type")), fleetTypes = as.integer(attr(dat, 
-                                                                                 "type")), sampleTimes = attr(dat, "time"), noYears = attr(dat, 
-                                                                                                                                           "nyear"), years = attr(dat, "year"), minAgePerFleet = attr(dat, 
-                                                                                                                                                                                                      "minAgePerFleet"), maxAgePerFleet = attr(dat, "maxAgePerFleet"), 
+  ret <- list(noFleets = length(attr(dat, "type")), 
+              fleetTypes = as.integer(attr(dat, "type")),
+              sampleTimes = attr(dat, "time"), 
+              noYears = attr(dat, "nyear"), 
+              years = attr(dat, "year"), 
+              minAgePerFleet = attr(dat, "minAgePerFleet"), 
+              maxAgePerFleet = attr(dat, "maxAgePerFleet"), 
               nobs = nrow(dat), idx1 = attr(dat, "idx1"), 
               idx2 = attr(dat,"idx2"), idxCor = idxCor, 
               aux = data.matrix(dat[,-4]), 
               logobs = dat[, 4], #log(dat[, 4]), CHANGED TO ACCOMODATE LOGGED OBSERVATIONS
               weight = as.numeric(weight), 
-              propMat = attr(dat, "prop.mature"), stockMeanWeight = attr(dat, 
-                                                                         "stock.mean.weight"), catchMeanWeight = attr(dat, 
-                                                                                                                      "catch.mean.weight"), natMor = attr(dat, "natural.mortality"), 
-              landFrac = attr(dat, "land.frac"), disMeanWeight = attr(dat, 
-                                                                      "dis.mean.weight"), landMeanWeight = attr(dat, "land.mean.weight"), 
+              propMat = attr(dat, "prop.mature"), 
+              stockMeanWeight = attr(dat, "stock.mean.weight"), 
+              catchMeanWeight = attr(dat, "catch.mean.weight"), 
+              natMor = attr(dat, "natural.mortality"), 
+              landFrac = attr(dat, "land.frac"), 
+              disMeanWeight = attr(dat, "dis.mean.weight"), 
+              landMeanWeight = attr(dat, "land.mean.weight"), 
               propF = attr(dat, "prop.f"), propM = attr(dat, "prop.m"), 
               corList = corList)
   attr(ret, "fleetNames") <- attr(dat, "name")

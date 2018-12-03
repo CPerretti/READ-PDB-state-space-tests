@@ -96,6 +96,13 @@ fitSimAccept <- fitSimAccept[x != 1]
 simOutAccept <- simOutAccept[x != 1]  
 nRepAccept <- length(fitSimAccept)
 
+# Save output
+suffix <- paste0(Sys.time(), ".Rdata")
+save(list = "fitSim", file = paste0("./output/fitSim", suffix))
+save(list = "fitSimAccept", file = paste0("./output/fitSimAccept", suffix))
+save(list = "simOut", file = paste0("./output/simOut", suffix))
+save(list = "simOutAccept", file = paste0("./output/simOutAccept", suffix))
+
 ## Plot example true vs observed vs fit to observed ########
 ## (1) N-at-age (1000s)
 plotN(simOut = simOutAccept[[1]],
@@ -120,20 +127,13 @@ plotS(simOut = simOutAccept[[1]],
 plotPars(fitSimAccept, simOutAccept)
 
 # Plot error of N and F estimates (random effects)
-errRE <- calcReTsError(fitSimAccept, simOutAccept)
-plotReTsError(errRE)
-plotReTsMeanError(errRE)
+errNF <- calcReTsError(fitSimAccept, simOutAccept)
+errC  <- calcCatchError(fitSimAccept, simOutAccept)
+err <- rbind(errNF, errC)
 
-# Plor error of catch estimate (observed)
-errObs <- calcObsTsError(fitSimAccept, simOutAccept)
+plotTsError(err)
+plotTsMeanError(err)
 
-# Save output
-suffix <- paste0(Sys.time(), ".Rdata")
-save(list = "fitSim", file = paste0("./output/fitSim", suffix))
-save(list = "fitSimAccept", file = paste0("./output/fitSimAccept", suffix))
-save(list = "simOut", file = paste0("./output/simOut", suffix))
-save(list = "simOutAccept", file = paste0("./output/simOutAccept", suffix))
-        
 # Fit sam to a simulate.sam replicate
 # Need to resimulate with full.data = TRUE to get output that sam.fit() can use
 # set.seed(123)
