@@ -4,8 +4,10 @@
 # - Duplicate F's in output to match the config key
 # - In simulate code, move exp locations to places that make sense
 # To do:
-# - Plot relationship between percent error and true value
+# - Plot error of survey catch and fishery catch
+# - Simulate over a range of N process error
 # - Calculate CI decile based on lognormal distribution
+
 
 
 # Required packages
@@ -117,13 +119,13 @@ plotS(simOut = simOutAccept[[1]],
 # Plot parameters true vs fit
 plotPars(fitSimAccept, simOutAccept)
 
-# Plot error for N and F
-err_logNF <- calcTsError(fitSimAccept, simOutAccept)
+# Plot error of N and F estimates (random effects)
+errRE <- calcReTsError(fitSimAccept, simOutAccept)
+plotReTsError(errRE)
+plotReTsMeanError(errRE)
 
-plotTsError(err_logNF)
-
-plotTsMeanError(err_logNF)
-  
+# Plor error of catch estimate (observed)
+errObs <- calcObsTsError(fitSimAccept, simOutAccept)
 
 # Save output
 suffix <- paste0(Sys.time(), ".Rdata")

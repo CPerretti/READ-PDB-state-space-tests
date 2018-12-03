@@ -381,7 +381,7 @@ plotC <- function(simOut, fit) {
     tidyr::gather(age, Catch_mt, -year) %>%
     dplyr::mutate(source = "tru")  
   
-  # Pull out simulated true
+  # Put them together
   df2plot <- 
     bind_rows(df_Cfit_mt, 
               df_Cobs_mt,
@@ -532,22 +532,22 @@ plotPars <- function(fitSim, simOut) {
           axis.text = element_text(size = 14))
 }
 
-## Calculate timeseries error #############################
-calcTsError <- function(fitSim, simOut) {
+## Calculate random effect timeseries error #######################
+calcReTsError <- function(fitSim, simOut) {
   indNF <- which(names(fitSim[[1]]$pl) %in% c("logN", "logF"))
-  err_logNF <- data.frame()
+  errRe <- data.frame()
   for (h in indNF) {
     for (i in 1:nRepAccept) {
       rownames(fitSim[[i]]$pl[[h]]) <- paste0("fit.", 1:nrow(fitSim[[i]]$pl[[h]]))
-      logSd <- fitSim[[i]]$plsd[[h]]
-      rownames(logSd) <- paste0("logSd.", 1:nrow(fitSim[[i]]$pl[[h]]))
-      err_logNF <-
-        rbind(err_logNF,
+      sdLog <- fitSim[[i]]$plsd[[h]]
+      rownames(sdLog) <- paste0("sdLog.", 1:nrow(fitSim[[i]]$pl[[h]]))
+      errRe <-
+        rbind(errRe,
               fitSim[[i]]$pl[[h]] %>%
                 t() %>%
                 exp %>%
                 as.data.frame() %>%
-                cbind(logSd %>%
+                cbind(sdLog %>%
                         t() %>%
                         as.data.frame()) %>%
                 cbind(data.frame(simOut[[i]]$trueParams$pl[[h]] %>% t %>% exp)) %>%
@@ -563,28 +563,28 @@ calcTsError <- function(fitSim, simOut) {
                               error_pc = 100 * (fit - tru) / tru,
                               decile = ceiling(10 * pnorm(q    = log(tru), 
                                                           mean = log(fit), 
-                                                          sd   = logSd)),
+                                                          sd   = sdLog)),
                               replicate = i,
                               variable = ifelse(names(fitSim[[i]]$pl[h]) == "logN", "N",
                                                 if(names(fitSim[[i]]$pl[h]) == "logF") "F")))
     }
   }
-  return(err_logNF)
+  return(errRe)
 }
 
-## Plot timeseries fit vs true ############################
-plotTsError <- function(err_logNF) {
+## Plot random effect timeseries fit vs true #################
+plotReTsError <- function(errRe) {
 
   
   # Calculate median error
-  err_logNFannual <-
-    err_logNF %>%
+  errReAnnual <-
+    errRe %>%
     dplyr::group_by(variable, age, year) %>%
     dplyr::summarise(median_error = median(error))
   
   # Plot median error for N and F in each year for each age
   p <-
-    ggplot(err_logNFannual %>% 
+    ggplot(errReAnnual %>% 
              dplyr::filter(variable == "N") %>%
              dplyr::mutate(as.numeric(year)),
            aes(x = year, y = median_error)) +
@@ -600,7 +600,7 @@ plotTsError <- function(err_logNF) {
   print(p)
   
   p <-
-    ggplot(err_logNFannual %>% 
+    ggplot(errReAnnual %>% 
              dplyr::filter(variable == "F") %>%
              dplyr::mutate(as.numeric(year)),
            aes(x = year, y = median_error)) +
@@ -617,8 +617,8 @@ plotTsError <- function(err_logNF) {
   
   # Plot a few example fit vs tru time series
   p <-
-    ggplot(err_logNF %>%
-             dplyr::select(-logSd, -decile) %>%
+    ggplot(errRe %>%
+             dplyr::select(-sdLog, -decile) %>%
              dplyr::filter(variable == "F",
                            age == 4,
                            replicate %in% 1:10) %>%
@@ -632,7 +632,7 @@ plotTsError <- function(err_logNF) {
   
   # Plot decile coverage for each age and variable
   p <- 
-    ggplot(err_logNF,
+    ggplot(errRe,
            aes(x = decile)) +
       geom_histogram(binwidth=1, colour="white") +
       geom_hline(yintercept = ncol(fitSim[[1]]$pl$logN) * nRepAccept / 10, 
@@ -644,7 +644,7 @@ plotTsError <- function(err_logNF) {
   
   # Plot relationship between percent error and true value
   p <-
-    ggplot(err_logNF, aes(x = tru, y = error_pc)) +
+    ggplot(errRe, aes(x = tru, y = error_pc)) +
       geom_point() +
       theme_bw() +
       facet_wrap(variable~age, scales = "free", nrow = 2) +
@@ -658,9 +658,9 @@ plotTsError <- function(err_logNF) {
 }
 
 ## Plot mean error over all replicates ####################
-plotTsMeanError <- function(err_logNF) {
-  err_logNF_mean <-
-    err_logNF %>%
+plotReTsMeanError <- function(errRe) {
+  errReMean <-
+    errRe %>%
     dplyr::group_by(variable, age) %>%
     dplyr::summarise(error_mean = mean(error),
                      error_mean_se   = sd(error) / sqrt(nRepAccept),
@@ -669,7 +669,7 @@ plotTsMeanError <- function(err_logNF) {
   
   # Plot raw error
   p <-
-    ggplot(err_logNF_mean, aes(x = age)) +
+    ggplot(errReMean, aes(x = age)) +
       geom_hline(aes(yintercept = 0), color = "black") +
       geom_point(aes(y = error_mean), color = "blue") +
       geom_errorbar(aes(ymin = error_mean - 1.96 * error_mean_se,
@@ -684,7 +684,7 @@ plotTsMeanError <- function(err_logNF) {
   
   # Plot percent error
   p <-
-    ggplot(err_logNF_mean, aes(x = age)) +
+    ggplot(errReMean, aes(x = age)) +
       geom_hline(aes(yintercept = 0), color = "black") +
       geom_point(aes(y = error_pc_mean), color = "blue") +
       geom_errorbar(aes(ymin = error_pc_mean - 1.96 * error_pc_mean_se,
@@ -697,6 +697,47 @@ plotTsMeanError <- function(err_logNF) {
       ggtitle("Mean percent error over all replicates")
   print(p)
 }
+
+## Calculate observed time series error ###################
+calcObsTsError <- function(fitSim, simOut) { #REPLACE [[1]] WITH [[i]]
+  
+  # Fit catch
+  df_Cfit_mt <- 
+    data.frame(variable = names(fitSim[[1]]$sdrep$value),
+               value = fitSim[[1]]$sdrep$value,
+               sd    = fitSim[[1]]$sdrep$sd) %>%
+    dplyr::filter(variable == "logCatch") %>%
+    dplyr::rename(logCatch = value,
+                  sdLog = sd) %>%
+    dplyr::mutate(fit = exp(logCatch),
+                  year = fitSim[[1]]$data$years,
+                  age = "total") %>%
+    dplyr::select(year, age, fit)
+  
+  # True catch
+  df_Ctru_mt <- 
+    simOut[[1]]$Ctru_mt %>%
+    t() %>%
+    as.data.frame() %>%
+    dplyr::mutate(total = rowSums(.),
+                  year = fitSim[[1]]$data$years) %>%
+    tidyr::gather(age, Catch_mt, -year) %>%
+    dplyr::rename(tru = Catch_mt) %>%
+    dplyr::filter(age == "total")
+  
+
+  errObs <-
+    df_Cfit_mt %>%
+    dplyr::left_join(df_Ctru_mt) %>%
+    dplyr::mutate(error = fit - tru,
+                  error_pc = 100 * (fit - tru) / tru)
+  # error = (fit - tru),
+  # error_pc = 100 * (fit - tru) / tru,
+  # decile = ceiling(10 * pnorm(q    = log(tru),
+  #                             mean = log(fit),
+  #                             sd   = logSd)),
+}
+
 
 
 ## Customized setup.sam.data ##############################
