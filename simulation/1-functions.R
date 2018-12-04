@@ -533,7 +533,7 @@ plotPars <- function(fitSim, simOut) {
 }
 
 ## Calculate random effect timeseries error #######################
-calcReTsError <- function(fitSim, simOut) {
+calcNFTsError <- function(fitSim, simOut) {
   indNF <- which(names(fitSim[[1]]$pl) %in% c("logN", "logF"))
   errRe <- data.frame()
   for (h in indNF) {
@@ -729,6 +729,58 @@ plotTsError <- function(err) {
       ggtitle("Percent error vs true value")
   print(p)
 
+    
+  err2plot <-
+    err %>%  
+    dplyr::filter(variable %in% c("N")) %>%
+    dplyr::filter(year != min(year)) %>% # exclude initial condition which is identical across replicates
+    dplyr::select(year, age, replicate, tru) %>%
+    dplyr::rename(N_tru = tru) %>%
+    dplyr::left_join({err %>%  
+                      dplyr::filter(year != min(year)) %>%
+                      dplyr::filter(variable %in% c("F")) %>%
+                      dplyr::select(year, age, replicate, error_pc) %>%
+                      dplyr::rename(F_error_pc = error_pc)}) %>%
+    dplyr::left_join({err %>%  
+                      dplyr::filter(year != min(year)) %>%
+                      dplyr::filter(variable %in% c("N")) %>%
+                      dplyr::select(year, age, replicate, error_pc) %>%
+                      dplyr::rename(N_error_pc = error_pc)})
+  
+  
+  p <-
+    ggplot(err2plot %>% dplyr::filter(N_tru < quantile(N_tru, .5)),
+           aes(x = N_tru)) +
+      geom_point(aes(y = F_error_pc), alpha = 0.2) +
+      geom_hline(yintercept = 0) +
+      facet_wrap(~age) +
+      theme_bw() +
+      xlab("N (1000's)") +
+      ylab("Percent error of F estimate")
+  print(p)
+    
+  
+  # Plot mean pc_error vs percentile of N_tru
+  err2plot_percentile <-
+    err2plot %>%
+    dplyr::group_by(age) %>%
+    dplyr::mutate(N_percentile = ntile(N_tru, 100)) %>%
+    dplyr::group_by(age, N_percentile) %>%
+    dplyr::summarise(F_error_pc_mean = mean(F_error_pc),
+                     N_error_pc_mean = mean(N_error_pc))
+  
+  p <-
+    ggplot(err2plot_percentile %>% dplyr::filter(N_percentile < 100),
+           aes(x = N_percentile)) +
+    geom_line(aes(y = N_error_pc_mean)) +
+    geom_hline(yintercept = 0) +
+    facet_wrap(~age) +
+    theme_bw() +
+    xlab("N (1000's)") +
+    ylab("Percent error of F estimate")
+  print(p)
+  
+  
   # Plot relationship between percent error and true value for N and F
   p <-
     ggplot(err  %>% dplyr::filter(variable == "catch"),

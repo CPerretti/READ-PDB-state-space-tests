@@ -127,7 +127,7 @@ plotS(simOut = simOutAccept[[1]],
 plotPars(fitSimAccept, simOutAccept)
 
 # Plot error of N and F estimates (random effects)
-errNF <- calcReTsError(fitSimAccept, simOutAccept)
+errNF <- calcNFTsError(fitSimAccept, simOutAccept)
 errC  <- calcCatchError(fitSimAccept, simOutAccept)
 err <- rbind(errNF, errC)
 
