@@ -748,19 +748,34 @@ plotTsError <- function(err) {
                       dplyr::rename(N_error_pc = error_pc)})
   
   
+  # N
   p <-
-    ggplot(err2plot %>% dplyr::filter(N_tru < quantile(N_tru, .5)),
+    ggplot(err2plot %>% dplyr::filter(N_tru < quantile(N_tru, .9)),
+           aes(x = N_tru)) +
+    geom_point(aes(y = N_error_pc), alpha = 0.2) +
+    geom_hline(yintercept = 0) +
+    facet_wrap(~age) +
+    theme_bw() +
+    xlab("N (1000's)") +
+    ylab("Percent error of N estimate") +
+    ggtitle("Percent error in N vs N value (<90th percentile)")
+  print(p)
+  
+  # F
+  p <-
+    ggplot(err2plot %>% dplyr::filter(N_tru < quantile(N_tru, .9)),
            aes(x = N_tru)) +
       geom_point(aes(y = F_error_pc), alpha = 0.2) +
       geom_hline(yintercept = 0) +
       facet_wrap(~age) +
       theme_bw() +
       xlab("N (1000's)") +
-      ylab("Percent error of F estimate")
+      ylab("Percent error of F estimate") +
+    ggtitle("Percent error in F vs N value (<90th percentile)")
   print(p)
     
   
-  # Plot mean pc_error vs percentile of N_tru
+  # Plot mean percent error vs percentile of N_tru
   err2plot_percentile <-
     err2plot %>%
     dplyr::group_by(age) %>%
@@ -769,17 +784,31 @@ plotTsError <- function(err) {
     dplyr::summarise(F_error_pc_mean = mean(F_error_pc),
                      N_error_pc_mean = mean(N_error_pc))
   
+  # N
   p <-
-    ggplot(err2plot_percentile %>% dplyr::filter(N_percentile < 100),
+    ggplot(err2plot_percentile,
            aes(x = N_percentile)) +
     geom_line(aes(y = N_error_pc_mean)) +
     geom_hline(yintercept = 0) +
     facet_wrap(~age) +
     theme_bw() +
-    xlab("N (1000's)") +
-    ylab("Percent error of F estimate")
+    xlab("Percentile of N") +
+    ylab("Mean percent error of N estimate") +
+    ggtitle("Mean percent error of N vs Percentile of N")
   print(p)
   
+  # F
+  p <-
+    ggplot(err2plot_percentile,
+           aes(x = N_percentile)) +
+    geom_line(aes(y = F_error_pc_mean)) +
+    geom_hline(yintercept = 0) +
+    facet_wrap(~age) +
+    theme_bw() +
+    xlab("Percentile of N") +
+    ylab("Mean percent error of F estimate") +
+    ggtitle("Mean percent error of F vs Percentile of N")
+  print(p)
   
   # Plot relationship between percent error and true value for N and F
   p <-
