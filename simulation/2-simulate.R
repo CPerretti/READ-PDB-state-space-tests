@@ -136,7 +136,19 @@ plotTsMeanError(err)
 
 # Fit sam to a simulate.sam replicate
 # Need to resimulate with full.data = TRUE to get output that sam.fit() can use
-# set.seed(123)
-#simOut2fit <- stockassessment:::simulate.sam(fitHer, nsim = 10, full.data = TRUE)
-#sam.fit(data = simOut2fit[[10]], conf = fitHer$conf, par = defpar(fitHer$data, fitHer$conf))
+#set.seed(123)
+simdat <- simulate(fitHer, nsim = 1)[[1]]
+simfit <- sam.fit(simdat, fitHer$conf, fitHer$p)
 
+fitHerAdjusted <- fitHer
+fitHerAdjusted$pl$logSdLogFsta <- # Adjust (reduce) process error
+  (c(0.1, rep(0.33, length(fitHer$pl$logSdLogFsta)-1)) * exp(fitHer$pl$logSdLogFsta)) %>% 
+  log
+
+simOutSAM <- stockassessment:::simulate.sam(fitHerAdjusted, nsim = 10, full.data = TRUE)
+cl <- makeCluster(detectCores() - 1) #setup nodes for parallel
+clusterExport(cl, c("fitHerAdjusted"))
+clusterEvalQ(cl, {library(stockassessment)}) #load stockassessment to each node
+fitSimSAM <- parLapply(cl, simOutSAM, 
+                       function(x){try(sam.fit(x, fitHerAdjusted$conf, fitHerAdjusted$par))})
+stopCluster(cl) #shut down nodes
