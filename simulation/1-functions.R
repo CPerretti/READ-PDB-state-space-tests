@@ -572,6 +572,46 @@ calcNFTsError <- function(fitSim, simOut) {
   return(errRe)
 }
 
+## Calculate random effect timeseries error for simulate.sam output #######################
+calcNFTsErrorSAM <- function(fitSimSAM, simOutSAM) {
+  indNF <- which(names(fitSimSAM[[1]]$pl) %in% c("logN", "logF"))
+  errRe <- data.frame()
+  for (h in indNF) {
+    for (i in 1:nRepSAMAccept) {
+      rownames(fitSimSAM[[i]]$pl[[h]]) <- paste0("fit.", 1:nrow(fitSimSAM[[i]]$pl[[h]]))
+      sdLog <- fitSimSAM[[i]]$plsd[[h]]
+      rownames(sdLog) <- paste0("sdLog.", 1:nrow(fitSimSAM[[i]]$pl[[h]]))
+      errRe <-
+        rbind(errRe,
+              fitSimSAM[[i]]$pl[[h]] %>%
+                t() %>%
+                exp %>%
+                as.data.frame() %>%
+                cbind(sdLog %>%
+                        t() %>%
+                        as.data.frame()) %>%
+                cbind(data.frame(simOutSAM[[i]]$trueParams$pl[[h]] %>% t %>% exp)) %>%
+                dplyr::mutate(year = as.numeric(fitSimSAM[[i]]$data$years)) %>%
+                tidyr::gather(variable, N, -year) %>%
+                dplyr::mutate(variable = gsub(x = variable, 
+                                              pattern = "X", 
+                                              replacement = "tru.")) %>%
+                tidyr::separate(variable, c("source", "age")) %>%
+                tidyr::spread(source, N) %>%
+                dplyr::mutate(age = as.numeric(age),
+                              error = (fit - tru),
+                              error_pc = 100 * (fit - tru) / tru,
+                              decile = ceiling(10 * pnorm(q    = log(tru), 
+                                                          mean = log(fit), 
+                                                          sd   = sdLog)),
+                              replicate = i,
+                              variable = ifelse(names(fitSimSAM[[i]]$pl[h]) == "logN", "N",
+                                                if(names(fitSimSAM[[i]]$pl[h]) == "logF") "F")))
+    }
+  }
+  return(errRe)
+}
+
 ## Calculate observed time series error ###################
 calcCatchError <- function(fitSim, simOut) {
   
@@ -734,8 +774,9 @@ plotTsError <- function(err) {
     err %>%  
     dplyr::filter(variable %in% c("N")) %>%
     dplyr::filter(year != min(year)) %>% # exclude initial condition which is identical across replicates
-    dplyr::select(year, age, replicate, tru) %>%
-    dplyr::rename(N_tru = tru) %>%
+    dplyr::select(year, age, replicate, tru, fit) %>%
+    dplyr::rename(N_tru = tru,
+                  N_fit = fit) %>%
     dplyr::left_join({err %>%  
                       dplyr::filter(year != min(year)) %>%
                       dplyr::filter(variable %in% c("F")) %>%
@@ -781,8 +822,14 @@ plotTsError <- function(err) {
     dplyr::group_by(age) %>%
     dplyr::mutate(N_percentile = ntile(N_tru, 100)) %>%
     dplyr::group_by(age, N_percentile) %>%
-    dplyr::summarise(F_error_pc_mean = mean(F_error_pc),
-                     N_error_pc_mean = mean(N_error_pc))
+    dplyr::summarise(F_error_pc_mean = median(F_error_pc),
+                     N_error_pc_mean = median(N_error_pc),
+                     N_tru_value     = mean(N_tru),
+                     N_fit_max         = max(N_fit),
+                     N_fit_min         = min(N_fit))
+
+    
+    
   
   # N
   p <-
@@ -793,8 +840,8 @@ plotTsError <- function(err) {
     facet_wrap(~age) +
     theme_bw() +
     xlab("Percentile of N") +
-    ylab("Mean percent error of N estimate") +
-    ggtitle("Mean percent error of N vs Percentile of N")
+    ylab("Median percent error of N estimate") +
+    ggtitle("Median percent error of N vs Percentile of N")
   print(p)
   
   # F
@@ -806,9 +853,21 @@ plotTsError <- function(err) {
     facet_wrap(~age) +
     theme_bw() +
     xlab("Percentile of N") +
-    ylab("Mean percent error of F estimate") +
-    ggtitle("Mean percent error of F vs Percentile of N")
+    ylab("Median percent error of F estimate") +
+    ggtitle("Median percent error of F vs Percentile of N")
   print(p)
+  
+  # Plot percentile of N vs value of N
+  p <-
+    ggplot(err2plot_percentile %>% dplyr::filter(N_percentile < 10),
+           aes(x = N_percentile)) +
+    geom_ribbon(aes(ymin = N_fit_min, ymax = N_fit_max), fill = "blue", alpha = 0.3) +
+    facet_wrap(~age, scales = "free_y") +
+    xlab("N percentile") +
+    ylab("Range of N fit (1000's)")
+  print(p)
+  
+  
   
   # Plot relationship between percent error and true value for N and F
   p <-

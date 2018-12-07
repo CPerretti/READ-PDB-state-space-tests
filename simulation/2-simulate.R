@@ -126,7 +126,7 @@ plotS(simOut = simOutAccept[[1]],
 # Plot parameters true vs fit
 plotPars(fitSimAccept, simOutAccept)
 
-# Plot error of N and F estimates (random effects)
+# Plot error of time series estimates
 errNF <- calcNFTsError(fitSimAccept, simOutAccept)
 errC  <- calcCatchError(fitSimAccept, simOutAccept)
 err <- rbind(errNF, errC)
@@ -134,21 +134,42 @@ err <- rbind(errNF, errC)
 plotTsError(err)
 plotTsMeanError(err)
 
-# Fit sam to a simulate.sam replicate
-# Need to resimulate with full.data = TRUE to get output that sam.fit() can use
-#set.seed(123)
-simdat <- simulate(fitHer, nsim = 1)[[1]]
-simfit <- sam.fit(simdat, fitHer$conf, fitHer$p)
-
+## Fit sam to a simulate.sam replicate ######################
 fitHerAdjusted <- fitHer
 fitHerAdjusted$pl$logSdLogFsta <- # Adjust (reduce) process error
   (c(0.1, rep(0.33, length(fitHer$pl$logSdLogFsta)-1)) * exp(fitHer$pl$logSdLogFsta)) %>% 
   log
 
-simOutSAM <- stockassessment:::simulate.sam(fitHerAdjusted, nsim = 10, full.data = TRUE)
+nsim <- 10
+set.seed(123)
+simOutSAM <- stockassessment:::simulate.sam(fitHerAdjusted, nsim = nsim, full.data = TRUE)
+set.seed(123) # Need to do this in order to get both N & F and the data needed to run sam.fit
+simOutSAM4error <- stockassessment:::simulate.sam(fitHerAdjusted, nsim = 10, full.data = FALSE)
+
+# make sure the observations are the same
+for (i in 1:nsim) print(all(simOutSAM[[i]]$logobs == simOutSAM4error[[i]]$logobs))
+
 cl <- makeCluster(detectCores() - 1) #setup nodes for parallel
-clusterExport(cl, c("fitHerAdjusted"))
+clusterExport(cl, c("fitHerAdjusted", "setupOut"))
 clusterEvalQ(cl, {library(stockassessment)}) #load stockassessment to each node
 fitSimSAM <- parLapply(cl, simOutSAM, 
-                       function(x){try(sam.fit(x, fitHerAdjusted$conf, fitHerAdjusted$par))})
+                       function(x){try(sam.fit(data = x, conf = fitHerAdjusted$conf, par = setupOut[[1]]$par))})
 stopCluster(cl) #shut down nodes
+
+## Error handling #####
+# Exclude TMB fails
+fitSimSAMAccept <- fitSimSAM[!(sapply(fitSimSAM, class) == "try-error")]
+simOutSAMAccept <- simOutSAM[!(sapply(fitSimSAM, class) == "try-error")]
+simOutSAM4errorAccept <- simOutSAM4error[!(sapply(fitSimSAM, class) == "try-error")]
+# Exclude non-convergences
+x <- unlist(sapply(fitSimSAMAccept, function (x) x[[6]][3]))
+fitSimSAMAccept <- fitSimSAMAccept[x != 1]
+simOutSAMAccept <- simOutSAMAccept[x != 1]
+simOutSAM4errorAccept <- simOutSAM4errorAccept[x != 1]
+nRepSAMAccept <- length(fitSimSAMAccept)
+
+# Calcualte random effect error
+errNF <- calcNFTsError(fitSimSAM, simOutSAM)
+
+
+
