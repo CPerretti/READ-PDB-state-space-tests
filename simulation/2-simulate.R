@@ -134,20 +134,20 @@ err <- rbind(errNF, errC)
 plotTsError(err)
 plotTsMeanError(err)
 
-## Fit sam to a simulate.sam replicate ######################
+## Replicate using simulate.sam() ######################
 fitHerAdjusted <- fitHer
 fitHerAdjusted$pl$logSdLogFsta <- # Adjust (reduce) process error
   (c(0.1, rep(0.33, length(fitHer$pl$logSdLogFsta)-1)) * exp(fitHer$pl$logSdLogFsta)) %>% 
   log
 
-nsim <- 10
+nsim <- 100
 set.seed(123)
 simOutSAM <- stockassessment:::simulate.sam(fitHerAdjusted, nsim = nsim, full.data = TRUE)
-set.seed(123) # Need to do this in order to get both N & F and the data needed to run sam.fit
-simOutSAM4error <- stockassessment:::simulate.sam(fitHerAdjusted, nsim = 10, full.data = FALSE)
+set.seed(123) # Need to do this in order to get N & F and the data needed to run sam.fit to match
+simOutSAM4error <- stockassessment:::simulate.sam(fitHerAdjusted, nsim = nsim, full.data = FALSE)
 
 # make sure the observations are the same
-for (i in 1:nsim) print(all(simOutSAM[[i]]$logobs == simOutSAM4error[[i]]$logobs))
+#for (i in 1:nsim) print(all(simOutSAM[[i]]$logobs == simOutSAM4error[[i]]$logobs))
 
 cl <- makeCluster(detectCores() - 1) #setup nodes for parallel
 clusterExport(cl, c("fitHerAdjusted", "setupOut"))
@@ -169,7 +169,7 @@ simOutSAM4errorAccept <- simOutSAM4errorAccept[x != 1]
 nRepSAMAccept <- length(fitSimSAMAccept)
 
 # Calcualte random effect error
-errNF <- calcNFTsError(fitSimSAM, simOutSAM)
-
+errNFSAM <- calcNFTsErrorSAM(fitSimSAMAccept, simOutSAM4errorAccept)
+plotTsError(errNFSAM)
 
 

@@ -573,24 +573,25 @@ calcNFTsError <- function(fitSim, simOut) {
 }
 
 ## Calculate random effect timeseries error for simulate.sam output #######################
-calcNFTsErrorSAM <- function(fitSimSAM, simOutSAM) {
+calcNFTsErrorSAM <- function(fitSimSAM, simOutSAM4error) {
   indNF <- which(names(fitSimSAM[[1]]$pl) %in% c("logN", "logF"))
+  indNFsimOut <- which(names(simOutSAM4error[[1]]) %in% c("logN", "logF"))
   errRe <- data.frame()
-  for (h in indNF) {
+  for (h in 1:length(indNF)) {
     for (i in 1:nRepSAMAccept) {
-      rownames(fitSimSAM[[i]]$pl[[h]]) <- paste0("fit.", 1:nrow(fitSimSAM[[i]]$pl[[h]]))
-      sdLog <- fitSimSAM[[i]]$plsd[[h]]
-      rownames(sdLog) <- paste0("sdLog.", 1:nrow(fitSimSAM[[i]]$pl[[h]]))
+      rownames(fitSimSAM[[i]]$pl[[indNF[h]]]) <- paste0("fit.", 1:nrow(fitSimSAM[[i]]$pl[[indNF[h]]]))
+      sdLog <- fitSimSAM[[i]]$plsd[[indNF[h]]]
+      rownames(sdLog) <- paste0("sdLog.", 1:nrow(fitSimSAM[[i]]$pl[[indNF[h]]]))
       errRe <-
         rbind(errRe,
-              fitSimSAM[[i]]$pl[[h]] %>%
+              fitSimSAM[[i]]$pl[[indNF[h]]] %>%
                 t() %>%
                 exp %>%
                 as.data.frame() %>%
                 cbind(sdLog %>%
                         t() %>%
                         as.data.frame()) %>%
-                cbind(data.frame(simOutSAM[[i]]$trueParams$pl[[h]] %>% t %>% exp)) %>%
+                cbind(data.frame(simOutSAM4error[[i]][[indNFsimOut[h]]] %>% t %>% exp)) %>%
                 dplyr::mutate(year = as.numeric(fitSimSAM[[i]]$data$years)) %>%
                 tidyr::gather(variable, N, -year) %>%
                 dplyr::mutate(variable = gsub(x = variable, 
@@ -605,8 +606,8 @@ calcNFTsErrorSAM <- function(fitSimSAM, simOutSAM) {
                                                           mean = log(fit), 
                                                           sd   = sdLog)),
                               replicate = i,
-                              variable = ifelse(names(fitSimSAM[[i]]$pl[h]) == "logN", "N",
-                                                if(names(fitSimSAM[[i]]$pl[h]) == "logF") "F")))
+                              variable = ifelse(names(fitSimSAM[[i]]$pl[indNF[h]]) == "logN", "N",
+                                                if(names(fitSimSAM[[i]]$pl[indNF[h]]) == "logF") "F")))
     }
   }
   return(errRe)
@@ -662,6 +663,7 @@ calcCatchError <- function(fitSim, simOut) {
 ## Plot timeseries error ##################################
 plotTsError <- function(err) {
 
+  nRepAccept <- length(unique(err$replicate))
   
   # Calculate median error
   errAnnual <-
@@ -702,21 +704,24 @@ plotTsError <- function(err) {
       ggtitle("F estimation error-at-age")
   print(p)
   
-  p <-
-    ggplot(errAnnual %>% 
-             dplyr::filter(variable == "catch") %>%
-             dplyr::mutate(as.numeric(year)),
-           aes(x = year, y = median_error)) +
-    geom_line() +
-    geom_hline(yintercept = 0) +
-    theme_bw() +
-    ylab("Median raw error (fit - true)") +
-    xlab("Year") +
-    theme(axis.title = element_text(size = 16),
-          axis.text = element_text(size = 14)) +
-    facet_wrap(~age) +
-    ggtitle("Catch estimation error")
-  print(p)
+  if(any(errAnnual$variable == "catch")) {
+    p <-
+      ggplot(errAnnual %>% 
+               dplyr::filter(variable == "catch") %>%
+               dplyr::mutate(as.numeric(year)),
+             aes(x = year, y = median_error)) +
+      geom_line() +
+      geom_hline(yintercept = 0) +
+      theme_bw() +
+      ylab("Median raw error (fit - true)") +
+      xlab("Year") +
+      theme(axis.title = element_text(size = 16),
+            axis.text = element_text(size = 14)) +
+      facet_wrap(~age) +
+      ggtitle("Catch estimation error")
+    print(p)
+  }
+
   
   # Plot a few example fit vs tru time series
   p <-
@@ -746,16 +751,18 @@ plotTsError <- function(err) {
   print(p)
   
   # Plot decile coverage for Catch
-  p <- 
-    ggplot(err %>% dplyr::filter(variable == "catch"),
-           aes(x = decile)) +
-    geom_histogram(binwidth=1, colour="white") +
-    geom_hline(yintercept = ncol(fitSim[[1]]$pl$logN) * nRepAccept / 10, 
-               color = "dark grey") +
-    theme_bw() +
-    facet_wrap(~age) +
-    ggtitle("Confidence interval coverage for catch")
-  print(p)
+  if(any(errAnnual$variable == "catch")) {
+    p <- 
+      ggplot(err %>% dplyr::filter(variable == "catch"),
+             aes(x = decile)) +
+      geom_histogram(binwidth=1, colour="white") +
+      geom_hline(yintercept = ncol(fitSim[[1]]$pl$logN) * nRepAccept / 10, 
+                 color = "dark grey") +
+      theme_bw() +
+      facet_wrap(~age) +
+      ggtitle("Confidence interval coverage for catch")
+    print(p)
+  }
   
   # Plot relationship between percent error and true value for N and F
   p <-
@@ -828,8 +835,6 @@ plotTsError <- function(err) {
                      N_fit_max         = max(N_fit),
                      N_fit_min         = min(N_fit))
 
-    
-    
   
   # N
   p <-
@@ -870,16 +875,18 @@ plotTsError <- function(err) {
   
   
   # Plot relationship between percent error and true value for N and F
-  p <-
-    ggplot(err  %>% dplyr::filter(variable == "catch"),
-           aes(x = tru, y = error_pc)) +
-    geom_point(alpha = 0.2) +
-    theme_bw() +
-    facet_wrap(~age, scales = "free", nrow = 2) +
-    xlab("True value") +
-    ylab("Percent error") +
-    ggtitle("Percent error vs true value for Catch")
-  print(p)
+  if(any(errAnnual$variable == "catch")) {
+    p <-
+      ggplot(err  %>% dplyr::filter(variable == "catch"),
+             aes(x = tru, y = error_pc)) +
+      geom_point(alpha = 0.2) +
+      theme_bw() +
+      facet_wrap(~age, scales = "free", nrow = 2) +
+      xlab("True value") +
+      ylab("Percent error") +
+      ggtitle("Percent error vs true value for Catch")
+    print(p)
+  }
     
   
 }
