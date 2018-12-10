@@ -319,7 +319,10 @@ plotF <- function(simOut, fit) {
 
 ## Plot N-at-age simulated vs fit #######################
 plotN <- function(simOut, fit) {
-  N <- simOut$N
+  if (!is.null(simOut$N)) {
+    N <- simOut$N  
+  } else { N <- exp(simOut$logN); rownames(N) <- paste0("tru.", 1:nrow(N))}
+  
   
   # Setup N-at-age to plot
   df2plotN <- 
