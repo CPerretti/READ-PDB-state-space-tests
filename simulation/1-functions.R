@@ -14,7 +14,7 @@ sim <- function(fit) {
   
   # Set F sd  (notice the reduction of sd the natural scale)
   fit$pl$logSdLogFsta <- 
-    (c(0.1, rep(0.33, length(fit$pl$logSdLogFsta)-1)) * exp(fit$pl$logSdLogFsta)) %>% 
+    (c(0.001, rep(0.001, length(fit$pl$logSdLogFsta)-1)) * exp(fit$pl$logSdLogFsta)) %>% 
     #(c(1, rep(1, length(fit$pl$logSdLogFsta)-1)) * exp(fit$pl$logSdLogFsta)) %>% 
     log
   sdLogF <- exp(fit$pl$logSdLogFsta)
@@ -72,8 +72,8 @@ sim <- function(fit) {
   # Lower process error (!)
   fit$pl$logSdLogN[(fit$conf$keyVarLogN + 1)] <-
     fit$pl$logSdLogN[(fit$conf$keyVarLogN + 1)] %>%
-    #exp %>% "*"(0.33) %>% log # NOTICE THE 0.033 factor reduction on the natural scale
-    exp %>% "*"(1) %>% log
+    exp %>% "*"(0.05) %>% log # NOTICE THE reduction on the natural scale
+    #exp %>% "*"(1) %>% log
   sdLogN <- exp(fit$pl$logSdLogN[(fit$conf$keyVarLogN + 1)])
   for (i in 1:(nT-1)) { # Create process error (N-at-age)
     errPro[, i] <-  rnorm(n = nA, sd = sdLogN)
@@ -87,11 +87,10 @@ sim <- function(fit) {
   for (i in 2:nT) {
     logN[1, i] <- logN[1, i-1] + errPro[1, i-1]
     logN[-c(1, nA), i] <- logN[-c(nA-1, nA), i-1] - 
-      z[-c(nA-1, nA), i-1] + 
-      errPro[-c(1, nA), i-1]
-    logN[nA, i] <- log(exp(logN[nA-1, i-1]) * exp(-z[nA-1, i-1]) +
-                         exp(logN[nA, i-1]) * 
-                         exp(-z[nA, i-1])) + errPro[nA, i-1]
+                           z[-c(nA-1, nA), i-1] + 
+                           errPro[-c(1, nA), i-1]
+    logN[nA, i] <- log(exp(logN[nA-1, i-1] - z[nA-1, i-1]) +
+                         exp(logN[nA, i-1] - z[nA, i-1])) + errPro[nA, i-1]
   }
   
   N <- exp(logN)
@@ -106,7 +105,8 @@ sim <- function(fit) {
   # Need to replicate some sd's to match config file
   index <- as.vector(t(fit$conf$keyVarObs + 1))
   index[index == 0] <- NA
-  sdLogObs <- exp(fit$pl$logSdLogObs[index])
+  fit$pl$logSdLogObs <- fit$pl$logSdLogObs %>% exp %>% "*"(0.05) %>% log # REDUCTION!!!!!!
+  sdLogObs <- exp(fit$pl$logSdLogObs[index]) 
   
   # Make observation error (can only do uncorrelated error right now)
   for (j in 1:nT) { # all surveys in a year
@@ -254,7 +254,7 @@ prepSimData <- function(logSobs_N, fit, logCobs_N) {
 }
 
 # Setup data and params for sam model #####################
-setupModel <- function() {
+setupModel <- function(conf) {
   
   # Read in data
   cn <- read.ices("./sim_data/catch.dat") # catch abundace-at-age
@@ -284,7 +284,7 @@ setupModel <- function() {
                            catch.mean.weight = cw)
   
   # Load model configuration file
-  conf <- loadConf(dat = dat, file = "../atlherring_example/ModelConf_original.txt")
+  conf <- conf
   
   par <- defpar(dat, conf) # some default starting values
   
@@ -731,14 +731,14 @@ plotTsError <- function(err) {
     ggplot(err %>%
              dplyr::select(-sdLog, -decile, -error_pc) %>%
              dplyr::filter(variable == "F",
-                           age == 4,
+                           age == 2,
                            replicate %in% 1:10) %>%
              tidyr::gather(source, value, 
                            -year, -age, -replicate, -variable),
            aes(x = year, y = value, color = source)) +
       geom_line() +
       facet_wrap(~replicate) + 
-      ggtitle("Age-4 F estimation error examples")
+      ggtitle("Age-2 F estimation error examples")
   print(p)
   
   # Plot decile coverage for N and F

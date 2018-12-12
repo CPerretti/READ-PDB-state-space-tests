@@ -1,12 +1,6 @@
 ## Perform SAM simulation tests
 
-# Debt:
-# - Duplicate F's in output to match the config key
-# - In simulate code, move exp locations to places that make sense
-# To do:
-# - Plot error of survey catch and fishery catch
-# - Simulate over a range of N process error
-# - Calculate CI decile based on lognormal distribution
+# - Inspect occasional large errors
 
 
 
@@ -26,7 +20,7 @@ source("1-functions.R")
 load("../atlherring_example/output/fitHerSimple.Rdata")
 
 # How many simulation replicates to do
-set.seed(321) # for reproducibility
+#set.seed(321) # for reproducibility
 nRep <- 50
 
 # Generate simulation replicates
@@ -43,10 +37,9 @@ for (i in 1:nRep) {
 plotN(simOut = simOut[[1]],
       fit = fitHer)
 
-
 ## (2) F-at-age
 plotF(simOut = simOut[[1]],
-      fit = fitHer)
+      fit = fitHer) 
 
 ## (3) Catch (mt)
 plotC(simOut = simOut[[1]],
@@ -69,14 +62,8 @@ for (i in 1:nRep) {
               logCobs_N = simOut[[i]]$logCobs_N) 
   
   # Read in data, set initial params and configuration
-  setupOut[[i]] <- setupModel()
+  setupOut[[i]] <- setupModel(conf = fitHer$conf)
 }
-
-
-# test
-# fitSim <- list()
-# fitSim[[1]] <- sam.fit(setupOut[[1]]$dat, 
-#                        setupOut[[1]]$conf, setupOut[[1]]$par)
 
 # Fit model to replicates in parallel
 cl <- makeCluster(detectCores() - 1) #setup nodes for parallel
@@ -84,6 +71,7 @@ clusterEvalQ(cl, {library(stockassessment)}) #load stockassessment to each node
 fitSim <- parLapply(cl, setupOut, 
                     function(x){try(sam.fit(x$dat, x$conf, x$par))})
 stopCluster(cl) #shut down nodes
+
 
 ## Error handling #####
 # Exclude TMB fails
@@ -104,8 +92,8 @@ save(list = "simOutAccept", file = paste0("./output/simOutAccept", suffix))
 
 ## Plot example true vs observed vs fit to observed ########
 ## (1) N-at-age (1000s)
-plotN(simOut = simOutAccept[[1]],
-      fit = fitSimAccept[[1]])
+plotN(simOut = simOut[[1]],
+      fit = fitSim[[1]])
 
 ## (2) F-at-age
 plotF(simOut = simOutAccept[[1]],
@@ -133,43 +121,59 @@ err <- rbind(errNF, errC)
 plotTsError(err)
 plotTsMeanError(err)
 
+hist(errNF$error)
+
+
+
 ## Replicate using simulate.sam() ######################
-# fitHerAdjusted <- fitHer
-# fitHerAdjusted$pl$logSdLogFsta <- # Adjust (reduce) process error
-#   (c(0.1, rep(0.33, length(fitHer$pl$logSdLogFsta)-1)) * exp(fitHer$pl$logSdLogFsta)) %>% 
-#   log
-# 
-# nsim <- 100
-# set.seed(123)
-# simOutSAM <- stockassessment:::simulate.sam(fitHerAdjusted, nsim = nsim, full.data = TRUE)
-# set.seed(123) # Need to do this in order to get N & F and the data needed to run sam.fit to match
-# simOutSAM4error <- stockassessment:::simulate.sam(fitHerAdjusted, nsim = nsim, full.data = FALSE)
-# 
-# # make sure the observations are the same
-# #for (i in 1:nsim) print(all(simOutSAM[[i]]$logobs == simOutSAM4error[[i]]$logobs))
-# 
-# cl <- makeCluster(detectCores() - 1) #setup nodes for parallel
-# clusterExport(cl, c("fitHerAdjusted", "setupOut"))
-# clusterEvalQ(cl, {library(stockassessment)}) #load stockassessment to each node
-# fitSimSAM <- parLapply(cl, simOutSAM, 
-#                        function(x){try(sam.fit(data = x, conf = fitHerAdjusted$conf, par = setupOut[[1]]$par))})
-# stopCluster(cl) #shut down nodes
-# 
-# ## Error handling #####
-# # Exclude TMB fails
-# fitSimSAMAccept <- fitSimSAM[!(sapply(fitSimSAM, class) == "try-error")]
-# simOutSAM4errorAccept <- simOutSAM4error[!(sapply(fitSimSAM, class) == "try-error")]
-# # Exclude non-convergences
-# x <- unlist(sapply(fitSimSAMAccept, function (x) x[[6]][3]))
-# fitSimSAMAccept <- fitSimSAMAccept[x != 1]
-# simOutSAM4errorAccept <- simOutSAM4errorAccept[x != 1]
-# nRepSAMAccept <- length(fitSimSAMAccept)
-# 
-# # Calcualte random effect error
-# errNFSAM <- calcNFTsErrorSAM(fitSimSAMAccept, simOutSAM4errorAccept)
-# plotTsError(errNFSAM)
-# 
-# # Plot one
-# plotN(simOut = simOutSAM4errorAccept[[1]],
-#       fit = fitSimSAMAccept[[1]])
+fitHerAdjusted <- fitHer
+fitHerAdjusted$pl$logSdLogFsta <- # Adjust (reduce) process error
+  (c(0.001, rep(0.001, length(fitHer$pl$logSdLogFsta)-1)) * exp(fitHer$pl$logSdLogFsta)) %>%
+  log
+
+fitHerAdjusted$pl$logSdLogN[(fitHerAdjusted$conf$keyVarLogN + 1)] <-
+  fitHerAdjusted$pl$logSdLogN[(fitHerAdjusted$conf$keyVarLogN + 1)] %>%
+  exp %>% "*"(0.05) %>% log
+
+fitHerAdjusted$pl$logSdLogObs <- fitHerAdjusted$pl$logSdLogObs %>% exp %>% "*"(0.05) %>% log
+
+nsim <- 50
+set.seed(123)
+simOutSAM <- stockassessment:::simulate.sam(fitHerAdjusted, nsim = nsim, full.data = TRUE)
+for(i in 1:nsim) simOutSAM[[i]]$trueParams <- fitHerAdjusted
+set.seed(123) # Need to do this in order to get N & F and the data needed to run sam.fit to match
+simOutSAM4error <- stockassessment:::simulate.sam(fitHerAdjusted, nsim = nsim, full.data = FALSE)
+
+# make sure the observations are the same
+#for (i in 1:nsim) print(all(simOutSAM[[i]]$logobs == simOutSAM4error[[i]]$logobs))
+
+cl <- makeCluster(detectCores() - 1) #setup nodes for parallel
+clusterExport(cl, c("fitHerAdjusted", "setupOut"))
+clusterEvalQ(cl, {library(stockassessment)}) #load stockassessment to each node
+fitSimSAM <- parLapply(cl, simOutSAM,
+                       function(x){try(sam.fit(data = x, conf = fitHerAdjusted$conf, par = setupOut[[1]]$par))})
+stopCluster(cl) #shut down nodes
+
+## Error handling #####
+# Exclude TMB fails
+fitSimSAMAccept <- fitSimSAM[!(sapply(fitSimSAM, class) == "try-error")]
+simOutSAMAccept <- simOutSAM[!(sapply(fitSimSAM, class) == "try-error")]
+simOutSAM4errorAccept <- simOutSAM4error[!(sapply(fitSimSAM, class) == "try-error")]
+# Exclude non-convergences
+x <- unlist(sapply(fitSimSAMAccept, function (x) x[[6]][3]))
+fitSimSAMAccept <- fitSimSAMAccept[x != 1]
+simOutSAMAccept <- simOutSAMAccept[x != 1]
+simOutSAM4errorAccept <- simOutSAM4errorAccept[x != 1]
+nRepSAMAccept <- length(fitSimSAMAccept)
+
+# Plot parameter error
+plotPars(fitSimSAMAccept, simOutSAMAccept)
+
+# Calcualte random effect error
+errNFSAM <- calcNFTsErrorSAM(fitSimSAMAccept, simOutSAMAccept)
+plotTsError(errNFSAM)
+
+# Plot one
+plotN(simOut = simOutSAM4errorAccept[[4]],
+      fit = fitSimSAMAccept[[4]])
 
