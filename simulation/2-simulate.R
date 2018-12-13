@@ -1,7 +1,5 @@
 ## Perform SAM simulation tests
 
-# - Inspect occasional large errors
-
 
 
 # Required packages
@@ -92,8 +90,8 @@ save(list = "simOutAccept", file = paste0("./output/simOutAccept", suffix))
 
 ## Plot example true vs observed vs fit to observed ########
 ## (1) N-at-age (1000s)
-plotN(simOut = simOut[[1]],
-      fit = fitSim[[1]])
+plotN(simOut = simOutAccept[[1]],
+      fit = fitSimAccept[[1]])
 
 ## (2) F-at-age
 plotF(simOut = simOutAccept[[1]],
@@ -121,8 +119,6 @@ err <- rbind(errNF, errC)
 plotTsError(err)
 plotTsMeanError(err)
 
-hist(errNF$error)
-
 
 
 ## Replicate using simulate.sam() ######################
@@ -140,7 +136,6 @@ fitHerAdjusted$pl$logSdLogObs <- fitHerAdjusted$pl$logSdLogObs %>% exp %>% "*"(0
 nsim <- 50
 set.seed(123)
 simOutSAM <- stockassessment:::simulate.sam(fitHerAdjusted, nsim = nsim, full.data = TRUE)
-for(i in 1:nsim) simOutSAM[[i]]$trueParams <- fitHerAdjusted
 set.seed(123) # Need to do this in order to get N & F and the data needed to run sam.fit to match
 simOutSAM4error <- stockassessment:::simulate.sam(fitHerAdjusted, nsim = nsim, full.data = FALSE)
 
@@ -155,6 +150,7 @@ fitSimSAM <- parLapply(cl, simOutSAM,
 stopCluster(cl) #shut down nodes
 
 ## Error handling #####
+for(i in 1:nsim) simOutSAM[[i]]$trueParams <- fitHerAdjusted
 # Exclude TMB fails
 fitSimSAMAccept <- fitSimSAM[!(sapply(fitSimSAM, class) == "try-error")]
 simOutSAMAccept <- simOutSAM[!(sapply(fitSimSAM, class) == "try-error")]
@@ -174,6 +170,32 @@ errNFSAM <- calcNFTsErrorSAM(fitSimSAMAccept, simOutSAMAccept)
 plotTsError(errNFSAM)
 
 # Plot one
-plotN(simOut = simOutSAM4errorAccept[[4]],
-      fit = fitSimSAMAccept[[4]])
+plotN(simOut = simOutSAM4errorAccept[[1]],
+      fit = fitSimSAMAccept[[1]])
+
+plotF(simOut = simOutSAM4errorAccept[[1]],
+      fit = fitSimSAMAccept[[1]])
+
+plot(x<-simOutSAM4error[[2]]$logobs)
+plot(y<-fitSim[[2]]$data$logobs)
+
+hist(sapply(simOutSAM4error, function(x) mean(x$logF %>% c())))
+hist(sapply(simOut, function(x) mean(x$trueParams$pl$logF[1:2,] %>% c())))
+
+sapply(simOutSAM4error, function(x) apply(x$logF, 1, FUN = var))
+sapply(simOut, function(x) apply(x$trueParams$pl$logF[1:2,], 1, FUN = var))
+
+
+hist(sapply(simOutSAM4error, function(x) mean(x$logN %>% c())))
+hist(sapply(simOut, function(x) mean(x$trueParams$pl$logN %>% c())))
+
+#<<IT's got to be something about the observations that is different
+# since both logN and logF look similar 
+# maybe it has something to do with the log-normal observation likelihood?
+# Compare distribution of log-catch from my sim vs SAM sim
+hist(simOut[[1]]$logCobs_N)
+hist(simOutSAM4error[[1]]$logobs[simOutSAM[[1]]$aux[,"fleet"] == 1])
+
+hist(simOut[[2]]$logSobs_N)
+hist(simOutSAM4error[[2]]$logobs[simOutSAM[[1]]$aux[,"fleet"] != 1])
 

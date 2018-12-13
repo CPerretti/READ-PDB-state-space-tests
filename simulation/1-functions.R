@@ -81,7 +81,7 @@ sim <- function(fit) {
   
   #errPro <- errPro_exact # Use if you want the herring 13 fit N
   
-  ## Simulate process model #################################
+  ## Simulate population model #################################
   # N fit
   # Simulate N-at-age
   for (i in 2:nT) {
@@ -137,7 +137,7 @@ sim <- function(fit) {
   Cobs_mt <- Cobs_N * t(fit$data$catchMeanWeight)
   
   
-  # Simulate Survey (SIMULATIONS HAVE DATA IN ALL YEARS RIGHT NOW)
+  # Simulate Survey
   logStru_N <- array(data = NA, # survey container (3-d: age x year x survey)
                      dim = c(nA, nT, fit$data$noFleets),
                      dimnames = list(c(1:nA), 
@@ -160,8 +160,17 @@ sim <- function(fit) {
     logSobs_N[, , i] <- logStru_N[, , i] + errObs[, , i]
   }
   
+  # Remove survey observations where they are missing in the real data
+  for (i in surveyIndex) {
+    years2include <- unique(fit$data$aux[, "year"][fit$data$aux[, "fleet"] == i])
+    logStru_N[, !(colnames(logStru_N[,,i]) %in% years2include), i] <- NA
+    logSobs_N[, !(colnames(logStru_N[,,i]) %in% years2include), i] <- NA
+  }
+  
   Stru_N <- exp(logStru_N)
   Sobs_N <- exp(logSobs_N)
+  
+
   
   
   trueParams <- list(sdrep = fit$sdrep, pl = fit$pl)
@@ -212,8 +221,9 @@ prepSimData <- function(logSobs_N, fit, logCobs_N) {
   for (i in 1:length(surveys)) { # loop over surveys
     header_survey <-
       rbind(names(surveys)[i], 
-            paste(min(as.numeric(rownames(surveys[[i]]))), 
-                  max(as.numeric(rownames(surveys[[i]])))),
+            # Uses the min and max years from the herring dataset
+            paste(min(fit$data$aux[fit$data$aux[,"fleet"] == surveyIndex[i],"year"]), 
+                  max(fit$data$aux[fit$data$aux[,"fleet"] == surveyIndex[i],"year"])),
             paste(1, 1, fit$data$sampleTimes[surveyIndex[i]] - 0.25, 
                   fit$data$sampleTimes[surveyIndex[i]] + 0.25),
             paste(min(colnames(surveys[[i]])), max(colnames(surveys[[i]]))))
