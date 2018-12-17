@@ -1,6 +1,6 @@
 ## Perform SAM simulation tests
 
-
+# - Change observation equations to SAM format
 
 # Required packages
 library(plyr) # always load before dplyr
@@ -19,7 +19,7 @@ load("../atlherring_example/output/fitHerSimple.Rdata")
 
 # How many simulation replicates to do
 #set.seed(321) # for reproducibility
-nRep <- 50
+nRep <- 40
 
 # Generate simulation replicates
 simOut <- list()
@@ -124,16 +124,16 @@ plotTsMeanError(err)
 ## Replicate using simulate.sam() ######################
 fitHerAdjusted <- fitHer
 fitHerAdjusted$pl$logSdLogFsta <- # Adjust (reduce) process error
-  (c(0.001, rep(0.001, length(fitHer$pl$logSdLogFsta)-1)) * exp(fitHer$pl$logSdLogFsta)) %>%
+  (c(0.1, rep(0.33, length(fitHer$pl$logSdLogFsta)-1)) * exp(fitHer$pl$logSdLogFsta)) %>%
   log
 
-fitHerAdjusted$pl$logSdLogN[(fitHerAdjusted$conf$keyVarLogN + 1)] <-
-  fitHerAdjusted$pl$logSdLogN[(fitHerAdjusted$conf$keyVarLogN + 1)] %>%
-  exp %>% "*"(0.05) %>% log
+# fitHerAdjusted$pl$logSdLogN[(fitHerAdjusted$conf$keyVarLogN + 1)] <-
+#   fitHerAdjusted$pl$logSdLogN[(fitHerAdjusted$conf$keyVarLogN + 1)] %>%
+#   exp %>% "*"(0.05) %>% log
 
-fitHerAdjusted$pl$logSdLogObs <- fitHerAdjusted$pl$logSdLogObs %>% exp %>% "*"(0.05) %>% log
+#fitHerAdjusted$pl$logSdLogObs <- fitHerAdjusted$pl$logSdLogObs %>% exp %>% "*"(0.05) %>% log
 
-nsim <- 50
+nsim <- 40
 set.seed(123)
 simOutSAM <- stockassessment:::simulate.sam(fitHerAdjusted, nsim = nsim, full.data = TRUE)
 set.seed(123) # Need to do this in order to get N & F and the data needed to run sam.fit to match
@@ -165,7 +165,7 @@ nRepSAMAccept <- length(fitSimSAMAccept)
 # Plot parameter error
 plotPars(fitSimSAMAccept, simOutSAMAccept)
 
-# Calcualte random effect error
+# Calculate random effect error
 errNFSAM <- calcNFTsErrorSAM(fitSimSAMAccept, simOutSAMAccept)
 plotTsError(errNFSAM)
 

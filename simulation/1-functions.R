@@ -14,7 +14,7 @@ sim <- function(fit) {
   
   # Set F sd  (notice the reduction of sd the natural scale)
   fit$pl$logSdLogFsta <- 
-    (c(0.001, rep(0.001, length(fit$pl$logSdLogFsta)-1)) * exp(fit$pl$logSdLogFsta)) %>% 
+    (c(0.1, rep(0.33, length(fit$pl$logSdLogFsta)-1)) * exp(fit$pl$logSdLogFsta)) %>% 
     #(c(1, rep(1, length(fit$pl$logSdLogFsta)-1)) * exp(fit$pl$logSdLogFsta)) %>% 
     log
   sdLogF <- exp(fit$pl$logSdLogFsta)
@@ -72,8 +72,8 @@ sim <- function(fit) {
   # Lower process error (!)
   fit$pl$logSdLogN[(fit$conf$keyVarLogN + 1)] <-
     fit$pl$logSdLogN[(fit$conf$keyVarLogN + 1)] %>%
-    exp %>% "*"(0.05) %>% log # NOTICE THE reduction on the natural scale
-    #exp %>% "*"(1) %>% log
+    #exp %>% "*"(0.05) %>% log # NOTICE THE reduction on the natural scale
+    exp %>% "*"(1) %>% log
   sdLogN <- exp(fit$pl$logSdLogN[(fit$conf$keyVarLogN + 1)])
   for (i in 1:(nT-1)) { # Create process error (N-at-age)
     errPro[, i] <-  rnorm(n = nA, sd = sdLogN)
@@ -105,7 +105,7 @@ sim <- function(fit) {
   # Need to replicate some sd's to match config file
   index <- as.vector(t(fit$conf$keyVarObs + 1))
   index[index == 0] <- NA
-  fit$pl$logSdLogObs <- fit$pl$logSdLogObs %>% exp %>% "*"(0.05) %>% log # REDUCTION!!!!!!
+  #fit$pl$logSdLogObs <- fit$pl$logSdLogObs %>% exp %>% "*"(0.05) %>% log # REDUCTION!!!!!!
   sdLogObs <- exp(fit$pl$logSdLogObs[index]) 
   
   # Make observation error (can only do uncorrelated error right now)
@@ -204,8 +204,10 @@ prepSimData <- function(logSobs_N, fit, logCobs_N) {
                                            pattern = "simulated.", 
                                            replacement = ""); x}) %>%
     # Remove ages not in survey
-    lapply(function(x) x[, which(colSums(x, na.rm = TRUE) != 0)]) 
-  
+    lapply(function(x) x[, which(colSums(x, na.rm = TRUE) != 0)]) %>%
+    # Remove years (rows) without any data (¡caution if using data other than herring!)
+    lapply(function(x) x[which(rowSums(x, na.rm = TRUE) != 0), ])
+    
   for(i in 1:length(surveys)) { # set survey times to match real data
     attr(surveys[[i]], "time", fit$data$sampleTimes[surveyIndex[i]] + c(-0.25, 0.25))
   }
@@ -221,9 +223,8 @@ prepSimData <- function(logSobs_N, fit, logCobs_N) {
   for (i in 1:length(surveys)) { # loop over surveys
     header_survey <-
       rbind(names(surveys)[i], 
-            # Uses the min and max years from the herring dataset
-            paste(min(fit$data$aux[fit$data$aux[,"fleet"] == surveyIndex[i],"year"]), 
-                  max(fit$data$aux[fit$data$aux[,"fleet"] == surveyIndex[i],"year"])),
+            paste(min(as.numeric(rownames(surveys[[i]]))),
+                  max(as.numeric(rownames(surveys[[i]])))),
             paste(1, 1, fit$data$sampleTimes[surveyIndex[i]] - 0.25, 
                   fit$data$sampleTimes[surveyIndex[i]] + 0.25),
             paste(min(colnames(surveys[[i]])), max(colnames(surveys[[i]]))))
