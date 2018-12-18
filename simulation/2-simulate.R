@@ -1,7 +1,5 @@
 ## Perform SAM simulation tests
 
-# - Change observation equations to SAM format
-
 # Required packages
 library(plyr) # always load before dplyr
 library(dplyr)
@@ -19,7 +17,7 @@ load("../atlherring_example/output/fitHerSimple.Rdata")
 
 # How many simulation replicates to do
 #set.seed(321) # for reproducibility
-nRep <- 40
+nRep <- 5000
 
 # Generate simulation replicates
 simOut <- list()
@@ -36,7 +34,7 @@ plotN(simOut = simOut[[1]],
       fit = fitHer)
 
 ## (2) F-at-age
-plotF(simOut = simOut[[1]],
+plotF(simOut = simOut[[3]],
       fit = fitHer) 
 
 ## (3) Catch (mt)
@@ -55,9 +53,9 @@ plotS(simOut = simOut[[1]],
 setupOut <- list()
 for (i in 1:nRep) {
   # Prep simulation data for read.ices()
-  prepSimData(logSobs_N = simOut[[i]]$logSobs_N, 
+  prepSimData(logSobs_N = simOut[[i]]$logSobs_N,# %>% exp, 
               fit = fitHer, 
-              logCobs_N = simOut[[i]]$logCobs_N) 
+              logCobs_N = simOut[[i]]$logCobs_N)# %>% exp) 
   
   # Read in data, set initial params and configuration
   setupOut[[i]] <- setupModel(conf = fitHer$conf)
@@ -117,27 +115,31 @@ errC  <- calcCatchError(fitSimAccept, simOutAccept)
 err <- rbind(errNF, errC)
 
 plotTsError(err)
-plotTsMeanError(err)
+#plotTsMeanError(err)
 
 
 
 ## Replicate using simulate.sam() ######################
 fitHerAdjusted <- fitHer
 fitHerAdjusted$pl$logSdLogFsta <- # Adjust (reduce) process error
-  (c(0.1, rep(0.33, length(fitHer$pl$logSdLogFsta)-1)) * exp(fitHer$pl$logSdLogFsta)) %>%
+  (c(0.05, rep(0.33, length(fitHer$pl$logSdLogFsta)-1)) * exp(fitHer$pl$logSdLogFsta)) %>%
   log
 
-# fitHerAdjusted$pl$logSdLogN[(fitHerAdjusted$conf$keyVarLogN + 1)] <-
-#   fitHerAdjusted$pl$logSdLogN[(fitHerAdjusted$conf$keyVarLogN + 1)] %>%
-#   exp %>% "*"(0.05) %>% log
+fitHerAdjusted$pl$logSdLogN[(fitHerAdjusted$conf$keyVarLogN + 1)] <-
+  fitHerAdjusted$pl$logSdLogN[(fitHerAdjusted$conf$keyVarLogN + 1)] %>%
+  exp %>% "*"(0.5) %>% log
 
-#fitHerAdjusted$pl$logSdLogObs <- fitHerAdjusted$pl$logSdLogObs %>% exp %>% "*"(0.05) %>% log
+fitHerAdjusted$pl$logSdLogObs <-
+ fitHerAdjusted$pl$logSdLogObs %>% exp %>% "*"(0.01) %>% log
 
-nsim <- 40
 set.seed(123)
-simOutSAM <- stockassessment:::simulate.sam(fitHerAdjusted, nsim = nsim, full.data = TRUE)
+simOutSAM <- stockassessment:::simulate.sam(fitHerAdjusted, 
+                                            nsim = nRep, 
+                                            full.data = TRUE)
 set.seed(123) # Need to do this in order to get N & F and the data needed to run sam.fit to match
-simOutSAM4error <- stockassessment:::simulate.sam(fitHerAdjusted, nsim = nsim, full.data = FALSE)
+simOutSAM4error <- stockassessment:::simulate.sam(fitHerAdjusted, 
+                                                  nsim = nRep, 
+                                                  full.data = FALSE)
 
 # make sure the observations are the same
 #for (i in 1:nsim) print(all(simOutSAM[[i]]$logobs == simOutSAM4error[[i]]$logobs))
@@ -146,11 +148,12 @@ cl <- makeCluster(detectCores() - 1) #setup nodes for parallel
 clusterExport(cl, c("fitHerAdjusted", "setupOut"))
 clusterEvalQ(cl, {library(stockassessment)}) #load stockassessment to each node
 fitSimSAM <- parLapply(cl, simOutSAM,
-                       function(x){try(sam.fit(data = x, conf = fitHerAdjusted$conf, par = setupOut[[1]]$par))})
+                       function(x){try(sam.fit(data = x, conf = fitHerAdjusted$conf, 
+                                               par = setupOut[[1]]$par))})
 stopCluster(cl) #shut down nodes
 
 ## Error handling #####
-for(i in 1:nsim) simOutSAM[[i]]$trueParams <- fitHerAdjusted
+for(i in 1:nRep) simOutSAM[[i]]$trueParams <- fitHerAdjusted
 # Exclude TMB fails
 fitSimSAMAccept <- fitSimSAM[!(sapply(fitSimSAM, class) == "try-error")]
 simOutSAMAccept <- simOutSAM[!(sapply(fitSimSAM, class) == "try-error")]
@@ -166,36 +169,76 @@ nRepSAMAccept <- length(fitSimSAMAccept)
 plotPars(fitSimSAMAccept, simOutSAMAccept)
 
 # Calculate random effect error
-errNFSAM <- calcNFTsErrorSAM(fitSimSAMAccept, simOutSAMAccept)
+errNFSAM <- calcNFTsErrorSAM(fitSimSAMAccept, simOutSAM4error)
 plotTsError(errNFSAM)
 
 # Plot one
-plotN(simOut = simOutSAM4errorAccept[[1]],
-      fit = fitSimSAMAccept[[1]])
+# plotN(simOut = simOutSAM4errorAccept[[1]],
+#       fit = fitSimSAMAccept[[1]])
 
-plotF(simOut = simOutSAM4errorAccept[[1]],
-      fit = fitSimSAMAccept[[1]])
+# # plotF(simOut = simOutSAM4errorAccept[[1]],
+# #      fit = fitSimSAMAccept[[1]])
 
-plot(x<-simOutSAM4error[[2]]$logobs)
-plot(y<-fitSim[[2]]$data$logobs)
+# Some plots of the simulation output
+mean(c(sapply(simOutSAM4error, function(x) x$logN[3,])))
+mean(c(sapply(simOut, function(x) x$trueParams$pl$logN[3,])))
 
-hist(sapply(simOutSAM4error, function(x) mean(x$logF %>% c())))
-hist(sapply(simOut, function(x) mean(x$trueParams$pl$logF[1:2,] %>% c())))
+mean(c(sapply(simOutSAM, function(x) x$logobs[x$aux[, "fleet"] == 1])))
+mean(c(sapply(simOut, function(x) x$logCobs_N)))
 
-sapply(simOutSAM4error, function(x) apply(x$logF, 1, FUN = var))
-sapply(simOut, function(x) apply(x$trueParams$pl$logF[1:2,], 1, FUN = var))
+mean(c(sapply(simOutSAM, function(x) x$logobs[x$aux[, "fleet"] == 2])))
+mean(c(sapply(simOut, function(x) x$logSobs_N[,,2][!is.na(x$logSobs_N[,,2])])))
+
+mean(c(sapply(simOutSAM, function(x) x$logobs[x$aux[, "fleet"] == 3])))
+mean(c(sapply(simOut, function(x) x$logSobs_N[,,3][!is.na(x$logSobs_N[,,3])])))
+
+mean(c(sapply(simOutSAM, function(x) x$logobs[x$aux[, "fleet"] == 4])))
+mean(c(sapply(simOut, function(x) x$logSobs_N[,,4][!is.na(x$logSobs_N[,,4])])))
+
+simOut2plot <- sapply(simOut, function(x) x$logSobs_N[2,,3][!is.na(x$logSobs_N[2,,3])])
+simOut2plotSAM <- sapply(simOutSAM, function(x) x$logobs[x$aux[, "fleet"] == 3 & x$aux[, "age"] == 2])
+df2plot <-
+  data.frame(simOut2plot, source = "mine", index = 1:nrow(simOut2plot)) %>%
+  tidyr::gather(variable, value, -source, -index) %>%
+  rbind(data.frame(simOut2plotSAM, source = "SAM", index = 1:nrow(simOut2plot)) %>%
+          tidyr::gather(variable, value, -source, -index)) %>%
+  dplyr::mutate(variable = as.numeric(substr(variable, 2, 10))) %>%
+  dplyr::rename(replicate = variable) %>%
+  dplyr::group_by(source, index) %>%
+  dplyr::summarise(value_mean = mean(value),
+                   value_hi   = quantile(value, .95),
+                   value_low  = quantile(value, .05))
+
+ggplot(df2plot,
+       aes(x = index)) +
+  geom_line(aes(y = value_mean)) +
+  facet_wrap(~source)
 
 
-hist(sapply(simOutSAM4error, function(x) mean(x$logN %>% c())))
-hist(sapply(simOut, function(x) mean(x$trueParams$pl$logN %>% c())))
-
-#<<IT's got to be something about the observations that is different
-# since both logN and logF look similar 
-# maybe it has something to do with the log-normal observation likelihood?
-# Compare distribution of log-catch from my sim vs SAM sim
-hist(simOut[[1]]$logCobs_N)
-hist(simOutSAM4error[[1]]$logobs[simOutSAM[[1]]$aux[,"fleet"] == 1])
-
-hist(simOut[[2]]$logSobs_N)
-hist(simOutSAM4error[[2]]$logobs[simOutSAM[[1]]$aux[,"fleet"] != 1])
+i = 2; a = 2
+plot(simOut[[i]]$logSobs_N[a,,3], type = "l", ylim = c(-4, 4))
+lines(simOutSAM[[i]]$logobs[simOutSAM[[i]]$aux[, "fleet"] == 3 & simOutSAM[[i]]$aux[, "age"] == a])
+#
+# mean(sapply(fitSimAccept, function(x) cor(x$pl$logF[2,], x$pl$logN[2,])))
+# mean(sapply(fitSimSAMAccept, function(x) cor(x$pl$logF[2,], x$pl$logN[2,])))
+#
+#
+# plot(x<-simOutSAM4error[[2]]$logobs)
+# plot(y<-fitSim[[2]]$data$logobs)
+# 
+# hist(sapply(simOutSAM4error, function(x) mean(x$logF %>% c())))
+# hist(sapply(simOut, function(x) mean(x$trueParams$pl$logF[1:2,] %>% c())))
+# 
+# sapply(simOutSAM4error, function(x) apply(x$logF, 1, FUN = var))
+# sapply(simOut, function(x) apply(x$trueParams$pl$logF[1:2,], 1, FUN = var))
+# 
+# 
+# hist(sapply(simOutSAM4error, function(x) mean(x$logN %>% c())))
+# hist(sapply(simOut, function(x) mean(x$trueParams$pl$logN %>% c())))
+# 
+# hist(simOut[[1]]$logCobs_N)
+# hist(simOutSAM4error[[1]]$logobs[simOutSAM[[1]]$aux[,"fleet"] == 1])
+# 
+# hist(simOut[[2]]$logSobs_N)
+# hist(simOutSAM4error[[2]]$logobs[simOutSAM[[1]]$aux[,"fleet"] != 1])
 

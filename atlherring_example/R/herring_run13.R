@@ -1,7 +1,8 @@
 library(stockassessment)
 library(dplyr)
 
-cn <- read.ices("../data/Herrcn.dat") # catch abundace-at-age
+#cn <- read.ices("../data/Herrcn.dat") # catch abundace-at-age
+cn <- read.ices("../../simulation/sim_data/catch.dat") # catch abundace-at-age
 cw <- read.ices("../data/Herrcw.dat") # catch mean weight-at-age
 dw <- cw # discards mean weight-at-age (using catch mean weight-at-age for now)
 lw <- cw # landings mean weight-at-age (using catch mean weight-at-age for now)
@@ -11,7 +12,11 @@ mo <- read.ices("../data/Herrmo.dat") # maturity-at-age ogive
 nm <- read.ices("../data/Herrnm.dat") # natural mortality-at-age
 pm <- read.ices("../data/Herrpm.dat") # proportion of m before spawning
 sw <- read.ices("../data/Herrsw.dat") # stock weight-at-age (kg)
+
+cn <- read.ices("../data/Herrcn.dat") # catch abundace-at-age
+#cn <- read.ices("../../simulation/sim_data/catch.dat") # catch abundace-at-age
 surveys <- read.ices("../data/Herrsurvey_BigSep_NoAcoust.dat") #surveys
+#surveys <- read.ices("../../simulation/sim_data/surveys.dat") #surveys
 
 # setup the data as needed for SAM
 dat_atl <- setup.sam.data(surveys = surveys,
