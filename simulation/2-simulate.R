@@ -17,7 +17,7 @@ load("../atlherring_example/output/fitHerSimple.Rdata")
 
 # How many simulation replicates to do
 #set.seed(321) # for reproducibility
-nRep <- 5000
+nRep <- 40
 
 # Generate simulation replicates
 simOut <- list()
@@ -34,7 +34,7 @@ plotN(simOut = simOut[[1]],
       fit = fitHer)
 
 ## (2) F-at-age
-plotF(simOut = simOut[[3]],
+plotF(simOut = simOut[[1]],
       fit = fitHer) 
 
 ## (3) Catch (mt)
@@ -88,12 +88,12 @@ save(list = "simOutAccept", file = paste0("./output/simOutAccept", suffix))
 
 ## Plot example true vs observed vs fit to observed ########
 ## (1) N-at-age (1000s)
-plotN(simOut = simOutAccept[[1]],
-      fit = fitSimAccept[[1]])
+plotN(simOut = simOutAccept[[2]],
+      fit = fitSimAccept[[2]])
 
 ## (2) F-at-age
-plotF(simOut = simOutAccept[[1]],
-      fit = fitSimAccept[[1]])
+plotF(simOut = simOutAccept[[2]],
+      fit = fitSimAccept[[2]])
 
 ## (3) Catch (mt)
 plotC(simOut = simOutAccept[[1]],
@@ -115,28 +115,28 @@ errC  <- calcCatchError(fitSimAccept, simOutAccept)
 err <- rbind(errNF, errC)
 
 plotTsError(err)
-#plotTsMeanError(err)
+plotTsMeanError(err)
 
 
 
 ## Replicate using simulate.sam() ######################
 fitHerAdjusted <- fitHer
 fitHerAdjusted$pl$logSdLogFsta <- # Adjust (reduce) process error
-  (c(0.05, rep(0.33, length(fitHer$pl$logSdLogFsta)-1)) * exp(fitHer$pl$logSdLogFsta)) %>%
+  (c(0.1, rep(0.1, length(fitHer$pl$logSdLogFsta)-1)) * exp(fitHer$pl$logSdLogFsta)) %>%
   log
 
 fitHerAdjusted$pl$logSdLogN[(fitHerAdjusted$conf$keyVarLogN + 1)] <-
   fitHerAdjusted$pl$logSdLogN[(fitHerAdjusted$conf$keyVarLogN + 1)] %>%
-  exp %>% "*"(0.5) %>% log
+  exp %>% "*"(0.1) %>% log
 
 fitHerAdjusted$pl$logSdLogObs <-
- fitHerAdjusted$pl$logSdLogObs %>% exp %>% "*"(0.01) %>% log
+ fitHerAdjusted$pl$logSdLogObs %>% exp %>% "*"(0.1) %>% log
 
-set.seed(123)
+set.seed(1212)
 simOutSAM <- stockassessment:::simulate.sam(fitHerAdjusted, 
                                             nsim = nRep, 
                                             full.data = TRUE)
-set.seed(123) # Need to do this in order to get N & F and the data needed to run sam.fit to match
+set.seed(1212) # Need to do this in order to get N & F and the data needed to run sam.fit to match
 simOutSAM4error <- stockassessment:::simulate.sam(fitHerAdjusted, 
                                                   nsim = nRep, 
                                                   full.data = FALSE)
@@ -186,6 +186,9 @@ mean(c(sapply(simOut, function(x) x$trueParams$pl$logN[3,])))
 mean(c(sapply(simOutSAM, function(x) x$logobs[x$aux[, "fleet"] == 1])))
 mean(c(sapply(simOut, function(x) x$logCobs_N)))
 
+mean(c(sapply(fitSimAccept, function(x) x$logobs[x$aux[, "fleet"] == 1]))) #<------
+mean(c(sapply(simOutAccept, function(x) x$logobs[x$aux[, "fleet"] == 1])))
+
 mean(c(sapply(simOutSAM, function(x) x$logobs[x$aux[, "fleet"] == 2])))
 mean(c(sapply(simOut, function(x) x$logSobs_N[,,2][!is.na(x$logSobs_N[,,2])])))
 
@@ -195,8 +198,17 @@ mean(c(sapply(simOut, function(x) x$logSobs_N[,,3][!is.na(x$logSobs_N[,,3])])))
 mean(c(sapply(simOutSAM, function(x) x$logobs[x$aux[, "fleet"] == 4])))
 mean(c(sapply(simOut, function(x) x$logSobs_N[,,4][!is.na(x$logSobs_N[,,4])])))
 
-simOut2plot <- sapply(simOut, function(x) x$logSobs_N[2,,3][!is.na(x$logSobs_N[2,,3])])
-simOut2plotSAM <- sapply(simOutSAM, function(x) x$logobs[x$aux[, "fleet"] == 3 & x$aux[, "age"] == 2])
+#simOut2plot <- sapply(simOut, function(x) x$logSobs_N[6,,3][!is.na(x$logSobs_N[6,,3])])
+#simOut2plot <- sapply(simOut, function(x) x$logCobs_N[6,])
+#simOut2plot <- sapply(simOut, function(x) x$trueParams$pl$logN[3,])
+simOut2plot <- sapply(simOut, function(x) x$trueParams$pl$logF[1,])
+
+#simOut2plotSAM <- sapply(simOutSAM, function(x) x$logobs[x$aux[, "fleet"] == 3 & x$aux[, "age"] == 6])
+#simOut2plotSAM <- sapply(simOutSAM, function(x) x$logobs[x$aux[, "fleet"] == 1 & x$aux[, "age"] == 6])
+#simOut2plotSAM <- sapply(simOutSAM4error, function(x) x$logN[3,])
+simOut2plotSAM <- sapply(simOutSAM4error, function(x) x$logF[1,])
+
+
 df2plot <-
   data.frame(simOut2plot, source = "mine", index = 1:nrow(simOut2plot)) %>%
   tidyr::gather(variable, value, -source, -index) %>%
@@ -209,15 +221,11 @@ df2plot <-
                    value_hi   = quantile(value, .95),
                    value_low  = quantile(value, .05))
 
-ggplot(df2plot,
+ggplot(df2plot,# %>% dplyr::filter(index > 10),
        aes(x = index)) +
   geom_line(aes(y = value_mean)) +
   facet_wrap(~source)
 
-
-i = 2; a = 2
-plot(simOut[[i]]$logSobs_N[a,,3], type = "l", ylim = c(-4, 4))
-lines(simOutSAM[[i]]$logobs[simOutSAM[[i]]$aux[, "fleet"] == 3 & simOutSAM[[i]]$aux[, "age"] == a])
 #
 # mean(sapply(fitSimAccept, function(x) cor(x$pl$logF[2,], x$pl$logN[2,])))
 # mean(sapply(fitSimSAMAccept, function(x) cor(x$pl$logF[2,], x$pl$logN[2,])))

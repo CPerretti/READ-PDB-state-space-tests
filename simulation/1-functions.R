@@ -105,7 +105,7 @@ sim <- function(fit) {
   # Need to replicate some sd's to match config file
   index <- as.vector(t(fit$conf$keyVarObs + 1))
   index[index == 0] <- NA
-  fit$pl$logSdLogObs <- fit$pl$logSdLogObs %>% exp %>% "*"(0.01) %>% log # REDUCTION!!!!!!
+  fit$pl$logSdLogObs <- fit$pl$logSdLogObs %>% exp %>% "*"(.01) %>% log # REDUCTION!!!!!!
   sdLogObs <- exp(fit$pl$logSdLogObs[index]) 
   
   # Make observation error (can only do uncorrelated error right now)
@@ -126,7 +126,7 @@ sim <- function(fit) {
   
   # Calculate catch on N-scale (1000s)
   #logCtru_N <- log(f / z * (1 - exp(-z)) * N)
-  logCtru_N <- logN - log(z) + log(1 - exp(-z)) + log(f)
+  logCtru_N <- logN - log(z) + log(1 - exp(-z)) + logF
   rownames(logCtru_N) <- 1:nA
   logCobs_N <- logCtru_N + errObs[, , "Residual catch"]
   
@@ -176,9 +176,9 @@ sim <- function(fit) {
   
   
   trueParams <- list(sdrep = fit$sdrep, pl = fit$pl)
-  trueParams$pl$logN <- log(N)
+  trueParams$pl$logN <- logN
   dimnames(f) <- list(paste0("tru.", c(1:nA)), fit$data$years)
-  trueParams$pl$logF <- log(f)
+  trueParams$pl$logF <- logF
   return(list(trueParams = trueParams,
               N = N, 
               logN = logN,
@@ -848,10 +848,12 @@ plotTsError <- function(err) {
     dplyr::group_by(age, N_percentile) %>%
     dplyr::summarise(F_error_pc_mean = mean(F_error_pc),
                      N_error_pc_mean = mean(N_error_pc),
-                     F_error_pc_hi   = F_error_pc_mean + 1.96 * sd(F_error_pc),
-                     F_error_pc_lo  = F_error_pc_mean - 1.96 * sd(F_error_pc),
-                     N_error_pc_hi  = N_error_pc_mean + 1.96 * sd(N_error_pc),
-                     N_error_pc_lo  = N_error_pc_mean - 1.96 * sd(N_error_pc),
+                     nObsF = length(F_error_pc),
+                     nObsN = length(N_error_pc),
+                     F_error_pc_hi   = F_error_pc_mean + 1.96 * sd(F_error_pc)/sqrt(nObsF),
+                     F_error_pc_lo  = F_error_pc_mean - 1.96 * sd(F_error_pc)/sqrt(nObsF),
+                     N_error_pc_hi  = N_error_pc_mean + 1.96 * sd(N_error_pc)/sqrt(nObsN),
+                     N_error_pc_lo  = N_error_pc_mean - 1.96 * sd(N_error_pc)/sqrt(nObsN),
                      N_tru_value     = mean(N_tru),
                      N_fit_max       = max(N_fit),
                      N_fit_min       = min(N_fit))
