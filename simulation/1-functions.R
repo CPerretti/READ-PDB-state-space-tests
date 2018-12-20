@@ -514,7 +514,7 @@ plotSimSAM <- function(fit, nsim = 1, seed = NULL) {
 ## Plot parameters fit vs true ############################
 plotPars <- function(fitSim, simOut) {
   nRepAccept <- length(simOut)
-  parsFixed <- which(names(fitSim[[1]]$pl) %in% names(fitSim[[1]]$obj$par))
+  parsFixed <- which(names(fitSim[[1]]$pl) %in% c("logSdLogN", "logSdLogFsta"))#names(fitSim[[1]]$obj$par))
   df_parsOut <- data.frame()
   for (h in parsFixed) {
     for (i in 1:nRepAccept) {

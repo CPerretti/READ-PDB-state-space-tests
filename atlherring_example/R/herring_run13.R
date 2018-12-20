@@ -15,8 +15,8 @@ sw <- read.ices("../data/Herrsw.dat") # stock weight-at-age (kg)
 
 cn <- read.ices("../data/Herrcn.dat") # catch abundace-at-age
 #cn <- read.ices("../../simulation/sim_data/catch.dat") # catch abundace-at-age
-surveys <- read.ices("../data/Herrsurvey_BigSep_NoAcoust.dat") #surveys
-#surveys <- read.ices("../../simulation/sim_data/surveys.dat") #surveys
+#surveys <- read.ices("../data/Herrsurvey_BigSep_NoAcoust.dat") #surveys
+surveys <- read.ices("../../simulation/sim_data/surveys.dat") #surveys
 
 # setup the data as needed for SAM
 dat_atl <- setup.sam.data(surveys = surveys,
