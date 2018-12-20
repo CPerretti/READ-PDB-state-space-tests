@@ -168,7 +168,7 @@ nRepSAMAccept <- length(fitSimSAMAccept)
 plotPars(fitSimSAMAccept, simOutSAMAccept)
 
 # Calculate random effect error
-errNFSAM <- calcNFTsErrorSAM(fitSimSAMAccept, simOutSAM4error)
+errNFSAM <- calcNFTsErrorSAM(fitSimSAMAccept, simOutSAM4errorAccept)
 plotTsError(errNFSAM)
 
 # Plot one
@@ -179,54 +179,54 @@ plotTsError(errNFSAM)
 # #      fit = fitSimSAMAccept[[1]])
 
 # Some plots of the simulation output
-mean(c(sapply(simOutSAM4error, function(x) x$logN[3,])))
-mean(c(sapply(simOut, function(x) x$trueParams$pl$logN[3,])))
-
-mean(c(sapply(simOutSAM, function(x) x$logobs[x$aux[, "fleet"] == 1])))
-mean(c(sapply(simOut, function(x) x$logCobs_N)))
-
-mean(c(sapply(fitSimAccept, function(x) x$data$logobs[x$data$aux[, "fleet"] == 1])))
-mean(c(sapply(simOutAccept, function(x) x$logCobs_N)))
-
-c(sapply(fitSimAccept, function(x) x$data$logobs[x$data$aux[, "fleet"] == 2])) 
-c(sapply(fitSimSAMAccept, function(x) x$data$logobs[x$data$aux[, "fleet"] == 2]))
-
-mean(c(sapply(simOutSAM, function(x) x$logobs[x$aux[, "fleet"] == 2])))
-mean(c(sapply(simOut, function(x) x$logSobs_N[,,2][!is.na(x$logSobs_N[,,2])])))
-
-mean(c(sapply(simOutSAM, function(x) x$logobs[x$aux[, "fleet"] == 3])))
-mean(c(sapply(simOut, function(x) x$logSobs_N[,,3][!is.na(x$logSobs_N[,,3])])))
-
-mean(c(sapply(simOutSAM, function(x) x$logobs[x$aux[, "fleet"] == 4])))
-mean(c(sapply(simOut, function(x) x$logSobs_N[,,4][!is.na(x$logSobs_N[,,4])])))
+# mean(c(sapply(simOutSAM4error, function(x) x$logN[3,])))
+# mean(c(sapply(simOut, function(x) x$trueParams$pl$logN[3,])))
+# 
+# mean(c(sapply(simOutSAM, function(x) x$logobs[x$aux[, "fleet"] == 1])))
+# mean(c(sapply(simOut, function(x) x$logCobs_N)))
+# 
+# mean(c(sapply(fitSimAccept, function(x) x$data$logobs[x$data$aux[, "fleet"] == 1])))
+# mean(c(sapply(simOutAccept, function(x) x$logCobs_N)))
+# 
+# c(sapply(fitSimAccept, function(x) x$data$logobs[x$data$aux[, "fleet"] == 2])) 
+# c(sapply(fitSimSAMAccept, function(x) x$data$logobs[x$data$aux[, "fleet"] == 2]))
+# 
+# mean(c(sapply(simOutSAM, function(x) x$logobs[x$aux[, "fleet"] == 2])))
+# mean(c(sapply(simOut, function(x) x$logSobs_N[,,2][!is.na(x$logSobs_N[,,2])])))
+# 
+# mean(c(sapply(simOutSAM, function(x) x$logobs[x$aux[, "fleet"] == 3])))
+# mean(c(sapply(simOut, function(x) x$logSobs_N[,,3][!is.na(x$logSobs_N[,,3])])))
+# 
+# mean(c(sapply(simOutSAM, function(x) x$logobs[x$aux[, "fleet"] == 4])))
+# mean(c(sapply(simOut, function(x) x$logSobs_N[,,4][!is.na(x$logSobs_N[,,4])])))
 
 #simOut2plot <- sapply(simOut, function(x) x$logSobs_N[6,,3][!is.na(x$logSobs_N[6,,3])])
 #simOut2plot <- sapply(simOut, function(x) x$logCobs_N[6,])
 #simOut2plot <- sapply(simOut, function(x) x$trueParams$pl$logN[3,])
-simOut2plot <- sapply(simOut, function(x) x$trueParams$pl$logF[1,])
+# simOut2plot <- sapply(simOut, function(x) x$trueParams$pl$logF[1,])
 
 #simOut2plotSAM <- sapply(simOutSAM, function(x) x$logobs[x$aux[, "fleet"] == 3 & x$aux[, "age"] == 6])
 #simOut2plotSAM <- sapply(simOutSAM, function(x) x$logobs[x$aux[, "fleet"] == 1 & x$aux[, "age"] == 6])
 #simOut2plotSAM <- sapply(simOutSAM4error, function(x) x$logN[3,])
-simOut2plotSAM <- sapply(simOutSAM4error, function(x) x$logF[1,])
-
-
-df2plot <-
-  data.frame(simOut2plot, source = "mine", index = 1:nrow(simOut2plot)) %>%
-  tidyr::gather(variable, value, -source, -index) %>%
-  rbind(data.frame(simOut2plotSAM, source = "SAM", index = 1:nrow(simOut2plot)) %>%
-          tidyr::gather(variable, value, -source, -index)) %>%
-  dplyr::mutate(variable = as.numeric(substr(variable, 2, 10))) %>%
-  dplyr::rename(replicate = variable) %>%
-  dplyr::group_by(source, index) %>%
-  dplyr::summarise(value_mean = mean(value),
-                   value_hi   = quantile(value, .95),
-                   value_low  = quantile(value, .05))
-
-ggplot(df2plot,# %>% dplyr::filter(index > 10),
-       aes(x = index)) +
-  geom_line(aes(y = value_mean)) +
-  facet_wrap(~source)
+# simOut2plotSAM <- sapply(simOutSAM4error, function(x) x$logF[1,])
+# 
+# 
+# df2plot <-
+#   data.frame(simOut2plot, source = "mine", index = 1:nrow(simOut2plot)) %>%
+#   tidyr::gather(variable, value, -source, -index) %>%
+#   rbind(data.frame(simOut2plotSAM, source = "SAM", index = 1:nrow(simOut2plot)) %>%
+#           tidyr::gather(variable, value, -source, -index)) %>%
+#   dplyr::mutate(variable = as.numeric(substr(variable, 2, 10))) %>%
+#   dplyr::rename(replicate = variable) %>%
+#   dplyr::group_by(source, index) %>%
+#   dplyr::summarise(value_mean = mean(value),
+#                    value_hi   = quantile(value, .95),
+#                    value_low  = quantile(value, .05))
+# 
+# ggplot(df2plot,# %>% dplyr::filter(index > 10),
+#        aes(x = index)) +
+#   geom_line(aes(y = value_mean)) +
+#   facet_wrap(~source)
 
 #
 # mean(sapply(fitSimAccept, function(x) cor(x$pl$logF[2,], x$pl$logN[2,])))
