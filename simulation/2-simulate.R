@@ -13,11 +13,11 @@ source("1-functions.R")
 
 ## Run simulation #########################################
 # Use atl herring fit to set up simulation
-load("../atlherring_example/output/fitHerSimple.Rdata")
+load("../atlherring_example/output/fitHer.Rdata")
 
 # How many simulation replicates to do
 #set.seed(321) # for reproducibility
-nRep <- 40
+nRep <- 100
 
 # Generate simulation replicates
 simOut <- list()
@@ -53,9 +53,9 @@ plotS(simOut = simOut[[1]],
 setupOut <- list()
 for (i in 1:nRep) {
   # Prep simulation data for read.ices()
-  prepSimData(logSobs_N = simOut[[i]]$logSobs_N,# %>% exp, 
+  prepSimData(Sobs_N = simOut[[i]]$Sobs_N, 
               fit = fitHer, 
-              logCobs_N = simOut[[i]]$logCobs_N)# %>% exp) 
+              Cobs_N = simOut[[i]]$Cobs_N) 
   
   # Read in data, set initial params and configuration
   setupOut[[i]] <- setupModel(conf = fitHer$conf)
@@ -88,12 +88,12 @@ save(list = "simOutAccept", file = paste0("./output/simOutAccept", suffix))
 
 ## Plot example true vs observed vs fit to observed ########
 ## (1) N-at-age (1000s)
-plotN(simOut = simOutAccept[[2]],
-      fit = fitSimAccept[[2]])
+plotN(simOut = simOutAccept[[1]],
+      fit = fitSimAccept[[1]])
 
 ## (2) F-at-age
-plotF(simOut = simOutAccept[[2]],
-      fit = fitSimAccept[[2]])
+plotF(simOut = simOutAccept[[1]],
+      fit = fitSimAccept[[1]])
 
 ## (3) Catch (mt)
 plotC(simOut = simOutAccept[[1]],
@@ -122,21 +122,19 @@ plotTsMeanError(err)
 ## Replicate using simulate.sam() ######################
 fitHerAdjusted <- fitHer
 fitHerAdjusted$pl$logSdLogFsta <- # Adjust (reduce) process error
-  (c(0.1, rep(0.1, length(fitHer$pl$logSdLogFsta)-1)) * exp(fitHer$pl$logSdLogFsta)) %>%
+  (c(0.1, rep(0.33, length(fitHer$pl$logSdLogFsta)-1)) * exp(fitHer$pl$logSdLogFsta)) %>%
   log
 
 fitHerAdjusted$pl$logSdLogN[(fitHerAdjusted$conf$keyVarLogN + 1)] <-
   fitHerAdjusted$pl$logSdLogN[(fitHerAdjusted$conf$keyVarLogN + 1)] %>%
-  exp %>% "*"(0.1) %>% log
+  exp %>% "*"(0.5) %>% log
 
 fitHerAdjusted$pl$logSdLogObs <-
- fitHerAdjusted$pl$logSdLogObs %>% exp %>% "*"(0.1) %>% log
+ fitHerAdjusted$pl$logSdLogObs %>% exp %>% "*"(1) %>% log
 
-set.seed(1212)
-simOutSAM <- stockassessment:::simulate.sam(fitHerAdjusted, 
-                                            nsim = nRep, 
-                                            full.data = TRUE)
-set.seed(1212) # Need to do this in order to get N & F and the data needed to run sam.fit to match
+set.seed(12)
+simOutSAM <- stockassessment:::simulate.sam(fitHerAdjusted, nsim = nRep, full.data = TRUE)
+set.seed(12) # Need to do this in order to get N & F and the data needed to run sam.fit to match
 simOutSAM4error <- stockassessment:::simulate.sam(fitHerAdjusted, 
                                                   nsim = nRep, 
                                                   full.data = FALSE)
@@ -145,11 +143,12 @@ simOutSAM4error <- stockassessment:::simulate.sam(fitHerAdjusted,
 #for (i in 1:nsim) print(all(simOutSAM[[i]]$logobs == simOutSAM4error[[i]]$logobs))
 
 cl <- makeCluster(detectCores() - 1) #setup nodes for parallel
-clusterExport(cl, c("fitHerAdjusted", "setupOut"))
+clusterExport(cl, c("fitHer"))
 clusterEvalQ(cl, {library(stockassessment)}) #load stockassessment to each node
 fitSimSAM <- parLapply(cl, simOutSAM,
-                       function(x){try(sam.fit(data = x, conf = fitHerAdjusted$conf, 
-                                               par = setupOut[[1]]$par))})
+                       function(x){try(sam.fit(data = x, conf = fitHer$conf, 
+                                               par = defpar(dat = x, 
+                                                            conf = fitHer$conf)))})
 stopCluster(cl) #shut down nodes
 
 ## Error handling #####
@@ -186,8 +185,11 @@ mean(c(sapply(simOut, function(x) x$trueParams$pl$logN[3,])))
 mean(c(sapply(simOutSAM, function(x) x$logobs[x$aux[, "fleet"] == 1])))
 mean(c(sapply(simOut, function(x) x$logCobs_N)))
 
-mean(c(sapply(fitSimAccept, function(x) x$logobs[x$aux[, "fleet"] == 1]))) #<------
-mean(c(sapply(simOutAccept, function(x) x$logobs[x$aux[, "fleet"] == 1])))
+mean(c(sapply(fitSimAccept, function(x) x$data$logobs[x$data$aux[, "fleet"] == 1])))
+mean(c(sapply(simOutAccept, function(x) x$logCobs_N)))
+
+c(sapply(fitSimAccept, function(x) x$data$logobs[x$data$aux[, "fleet"] == 2])) 
+c(sapply(fitSimSAMAccept, function(x) x$data$logobs[x$data$aux[, "fleet"] == 2]))
 
 mean(c(sapply(simOutSAM, function(x) x$logobs[x$aux[, "fleet"] == 2])))
 mean(c(sapply(simOut, function(x) x$logSobs_N[,,2][!is.na(x$logSobs_N[,,2])])))

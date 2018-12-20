@@ -14,7 +14,7 @@ sim <- function(fit) {
   
   # Set F sd  (notice the reduction of sd on the natural scale)
   fit$pl$logSdLogFsta <- 
-    (c(0.01, rep(0.01, length(fit$pl$logSdLogFsta)-1)) * exp(fit$pl$logSdLogFsta)) %>% 
+    (c(0.1, rep(0.33, length(fit$pl$logSdLogFsta)-1)) * exp(fit$pl$logSdLogFsta)) %>% 
     #(c(1, rep(1, length(fit$pl$logSdLogFsta)-1)) * exp(fit$pl$logSdLogFsta)) %>% 
     log
   sdLogF <- exp(fit$pl$logSdLogFsta)
@@ -72,7 +72,7 @@ sim <- function(fit) {
   # Lower process error (!)
   fit$pl$logSdLogN[(fit$conf$keyVarLogN + 1)] <-
     fit$pl$logSdLogN[(fit$conf$keyVarLogN + 1)] %>%
-    exp %>% "*"(0.01) %>% log # NOTICE the reduction on the natural scale
+    exp %>% "*"(0.5) %>% log # NOTICE the reduction on the natural scale
     #exp %>% "*"(1) %>% log
   sdLogN <- exp(fit$pl$logSdLogN[(fit$conf$keyVarLogN + 1)])
   for (i in 1:(nT-1)) { # Create process error (N-at-age)
@@ -105,7 +105,7 @@ sim <- function(fit) {
   # Need to replicate some sd's to match config file
   index <- as.vector(t(fit$conf$keyVarObs + 1))
   index[index == 0] <- NA
-  fit$pl$logSdLogObs <- fit$pl$logSdLogObs %>% exp %>% "*"(.01) %>% log # REDUCTION!!!!!!
+  fit$pl$logSdLogObs <- fit$pl$logSdLogObs %>% exp %>% "*"(1) %>% log # REDUCTION!!!!!!
   sdLogObs <- exp(fit$pl$logSdLogObs[index]) 
   
   # Make observation error (can only do uncorrelated error right now)
@@ -196,12 +196,12 @@ sim <- function(fit) {
 }
 
 ## Prep simulation data to be fit by SAM ##################
-prepSimData <- function(logSobs_N, fit, logCobs_N) {
+prepSimData <- function(Sobs_N, fit, Cobs_N) {
   # Convert survey data to SAM input format
   surveyIndex <- # some fleets are fishermen not surveys
     (1:fit$data$noFleets)[fit$data$fleetTypes == 2] 
   surveys <-
-    lapply(X = plyr::alply(logSobs_N[, , surveyIndex], 3, .dims = TRUE), t) %>%
+    lapply(X = plyr::alply(Sobs_N[, , surveyIndex], 3, .dims = TRUE), t) %>%
     lapply(function(x) {colnames(x) <- sub(colnames(x), # Change colnames
                                            pattern = "simulated.", 
                                            replacement = ""); x}) %>%
@@ -244,7 +244,7 @@ prepSimData <- function(logSobs_N, fit, logCobs_N) {
   
   
   # Next, manipulate catch so it also can be read in by read.ices()
-  catch <- t(logCobs_N) 
+  catch <- t(Cobs_N) 
   colnames(catch) <- sub(colnames(catch), 
                          pattern = "simulated.", 
                          replacement = "")
@@ -284,17 +284,17 @@ setupModel <- function(conf) {
   #surveys <- read.ices("../atlherring_example/data/Herrsurvey_BigSep_NoAcoust.dat") #surveys
   
   # setup the data as needed for SAM
-  dat <- cp_setup.sam.data(surveys = surveys,
-                           residual.fleet = cn,
-                           prop.mature = mo,
-                           stock.mean.weight = sw,
-                           dis.mean.weight = dw,
-                           land.mean.weight = lw,
-                           land.frac = lf,
-                           prop.f = pf,
-                           prop.m = pm,
-                           natural.mortality = nm,
-                           catch.mean.weight = cw)
+  dat <- setup.sam.data(surveys = surveys,
+                        residual.fleet = cn,
+                        prop.mature = mo,
+                        stock.mean.weight = sw,
+                        dis.mean.weight = dw,
+                        land.mean.weight = lw,
+                        land.frac = lf,
+                        prop.f = pf,
+                        prop.m = pm,
+                        natural.mortality = nm,
+                        catch.mean.weight = cw)
   
   # Load model configuration file
   conf <- conf
@@ -855,8 +855,8 @@ plotTsError <- function(err) {
                      N_error_pc_hi  = N_error_pc_mean + 1.96 * sd(N_error_pc)/sqrt(nObsN),
                      N_error_pc_lo  = N_error_pc_mean - 1.96 * sd(N_error_pc)/sqrt(nObsN),
                      N_tru_value     = mean(N_tru),
-                     N_fit_max       = max(N_fit),
-                     N_fit_min       = min(N_fit))
+                     N_fit_max       = quantile(N_fit, .95),
+                     N_fit_min       = quantile(N_fit, .05))
 
   
   # N
