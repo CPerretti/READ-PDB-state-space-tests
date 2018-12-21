@@ -1,14 +1,16 @@
 # Why do sd estimates from process model not equal emprical estimates
 set.seed(1) # for reproducibility
 
-nT <- 100#0 # length of time series
+nT <- 1000 # length of time series
 true_states_i <- vector(mode = "numeric", length = nT)
 true_states_i[1] <- rnorm(n = 1) # intial condition
+sd_pro <- 1
 for (i in 2:nT) {
-  true_states_i[i] <- true_states_i[i-1] + rnorm(n = 1) # step forward with process error
+  true_states_i[i] <- true_states_i[i-1] + rnorm(n = 1, sd = sd_pro) # step forward with process error
 }
 
-observations_i <- true_states_i + rnorm(n = length(true_states_i), sd = 1) # add observation error
+sd_obs <- .01
+observations_i <- true_states_i + rnorm(n = length(true_states_i), sd = sd_obs) # add observation error
 
 # plot it 
 plot(true_states_i, xlab = "Year", ylab = "Value", type = "l")
@@ -82,13 +84,13 @@ derived_sigma_obs <- sd(estimates_i - observations_i)
 
 df2plot <-
   data.frame(variable = "Process error sd",
-             tru = 1,
+             tru = sd_pro,
              sim = sd(true_states_i[2:nT] - true_states_i[1:(nT-1)]), #simulated sd
              der = derived_sigma_pro,
              est = Report_sd$value["sigma_pro"],
              sd  = Report_sd$sd[1]) %>%
   rbind(data.frame(variable = "Observation error sd",
-                   tru = .1,
+                   tru = sd_obs,
                    sim = sd(true_states_i - observations_i), #simulated
                    der = derived_sigma_obs,
                    est = Report_sd$value["sigma_obs"],
@@ -99,7 +101,7 @@ ggplot(df2plot, aes(y = variable)) +
   geom_point( aes(x = tru), color = "red", size  = 3) +
   geom_point( aes(x = est), color = "blue", size = 3) +
   geom_point( aes(x = der), color = "black", size = 3) +
-  geom_point( aes(x = sim), color = "purple", size = 3) +
+  #geom_point( aes(x = sim), color = "purple", size = 3) +
   geom_errorbarh(aes(xmin = est - 1.96*sd,
                      xmax = est + 1.96*sd), height = 0.1, color = "blue") +
   theme_bw() +
