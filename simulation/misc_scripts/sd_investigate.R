@@ -1,5 +1,5 @@
 # Why do sd estimates from process model not equal emprical estimates
-set.seed(1) # for reproducibility
+set.seed(123) # for reproducibility
 
 nT <- 1000 # length of time series
 true_states_i <- vector(mode = "numeric", length = nT)
