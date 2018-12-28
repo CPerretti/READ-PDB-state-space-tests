@@ -1,32 +1,30 @@
 
 
 data {
-  //int<lower=0> N_obs;
-  int<lower=0> N_mis;
-  real<lower=0> rland_obs[N_obs];
-  //real<lower=0> cland4obs[N_obs];
-  real<lower=0> cland4mis[N_mis];
+  int<lower=0> N_obs;
+  real obs[N_obs];
 }
 
 parameters {
-  real<lower=0> sigma;
-  real<lower=0> rland_mis[N_mis];
-  real a;
-  real b;
+  real<lower=0> sigma_pro;
+  real<lower=0> sigma_obs;
+  real tru_est[N_obs];
 }
 
 model {
-  //sigma ~ cauchy(0, 5);
-  //a ~ normal(0, 1e4);
-  //b ~ normal(0, 1e4);
+  sigma_pro ~ cauchy(0, 5);
+  sigma_obs ~ cauchy(0, 5);
   
-  // Likelihood of observed
-  // for (n in 1:N_obs)
-  // rland_obs[n] ~ normal(cland4obs[n], sigma);
+  // Probability of initial true state
+  tru_est[1] ~ normal(0, sigma_pro);
   
-  // Likeilhood of missing
-  for (n in 1:N_mis)
-  rland_mis[n] ~ normal(cland4mis[n], sigma);
+  // Probability of true state
+  for (n in 2:N_obs)
+  tru_est[n] ~ normal(tru_est[n-1], sigma_pro);
+  
+  // Likeilhood of obs
+  for (n in 1:N_obs)
+  obs[n] ~ normal(tru_est[n], sigma_obs);
 }
 
 
