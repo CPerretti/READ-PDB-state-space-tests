@@ -13,7 +13,11 @@ source("1-functions.R")
 
 ## Run simulation #########################################
 # Use atl herring fit to set up simulation
-load("../atlherring_example/output/fitHer.Rdata")
+#load("../atlherring_example/output/fitHer.Rdata")
+
+# Use North Sea cod fit to set up simulation
+load("../nscod_example/fitNScod.Rdata")
+fitHer <- fitNScod
 
 # How many simulation replicates to do
 #set.seed(321) # for reproducibility

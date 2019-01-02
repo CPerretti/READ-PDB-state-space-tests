@@ -3,6 +3,7 @@
 ## Simulation model #######################################
 sim <- function(fit) {
   nA <- ncol(fit$data$propF) # number of age-classes
+  years2use <- fit$data$years #<<< DO SOMETHING with fit$data$aux to filter years
   nT <- fit$data$noYears # length of time series
   
   # Set F (need to replicate some elements to match ModelConf)

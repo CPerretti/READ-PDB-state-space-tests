@@ -65,7 +65,7 @@ df_samples <-
 print(fit)
 
 derived_sigma_pro <- sd(df_all$tru_est[2:N_obs] - df_all$tru_est[1:(N_obs-1)])
-#derived_sigma_obs <- sd(estimates_i - observations_i)
-shinystan::launch_shinystan(fit)
+
+#shinystan::launch_shinystan(fit)
 
 
