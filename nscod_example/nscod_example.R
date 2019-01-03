@@ -18,6 +18,15 @@ pm <- read.ices("pm.dat")
 sw <- read.ices("sw.dat")
 surveys <- read.ices("survey.dat")
 
+# Fix for my simulation script because commerical landings
+# are shorter than survey landings
+# mo <- mo[rownames(mo) < 2015,]
+#nm <- nm[rownames(nm) < 2015,]
+#pf <- pf[rownames(pf) < 2015,]
+#pm <- pm[rownames(pm) < 2015,]
+#sw <- sw[rownames(sw) < 2015,]
+#surveys[[1]] <- surveys[[1]][rownames(surveys[[1]]) < 2015,]
+
 dat <- setup.sam.data(surveys=surveys,
                       residual.fleet=cn, 
                       prop.mature=mo, 
@@ -29,6 +38,8 @@ dat <- setup.sam.data(surveys=surveys,
                       prop.m=pm, 
                       natural.mortality=nm, 
                       land.frac=lf)
+
+
 
 conf <- defcon(dat)
 
@@ -48,6 +59,9 @@ par <- defpar(dat,conf)
 
 fitNScod <- sam.fit(dat,conf,par) 
 
+#save("fitNScod", file = "./fitNScod.Rdata")
+
+
 ssbplot(fitNScod)
 
 fbarplot(fitNScod)
@@ -56,11 +70,11 @@ recplot(fitNScod)
 
 catchplot(fitNScod)
 
-res <- residuals(fitNScod)
-plot(res)
-
-resp <- procres(fitNScod)
-plot(resp)
-
-retro <- retro(fitNScod, year=10)
-plot(retro)
+# res <- residuals(fitNScod)
+# plot(res)
+# 
+# resp <- procres(fitNScod)
+# plot(resp)
+# 
+# retro <- retro(fitNScod, year=10)
+# plot(retro)

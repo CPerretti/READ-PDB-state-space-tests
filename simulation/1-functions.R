@@ -3,7 +3,6 @@
 ## Simulation model #######################################
 sim <- function(fit) {
   nA <- ncol(fit$data$propF) # number of age-classes
-  years2use <- fit$data$years #<<< DO SOMETHING with fit$data$aux to filter years
   nT <- fit$data$noYears # length of time series
   
   # Set F (need to replicate some elements to match ModelConf)
@@ -74,7 +73,7 @@ sim <- function(fit) {
   fit$pl$logSdLogN[(fit$conf$keyVarLogN + 1)] <-
     fit$pl$logSdLogN[(fit$conf$keyVarLogN + 1)] %>%
     exp %>% "*"(0.5) %>% log # NOTICE the reduction on the natural scale
-    #exp %>% "*"(1) %>% log
+  #exp %>% "*"(1) %>% log
   sdLogN <- exp(fit$pl$logSdLogN[(fit$conf$keyVarLogN + 1)])
   for (i in 1:(nT-1)) { # Create process error (N-at-age)
     errPro[, i] <-  rnorm(n = nA, sd = sdLogN)
@@ -88,8 +87,8 @@ sim <- function(fit) {
   for (i in 2:nT) {
     logN[1, i] <- logN[1, i-1] + errPro[1, i-1]
     logN[-c(1, nA), i] <- logN[-c(nA-1, nA), i-1] - 
-                           z[-c(nA-1, nA), i-1] + 
-                           errPro[-c(1, nA), i-1]
+      z[-c(nA-1, nA), i-1] + 
+      errPro[-c(1, nA), i-1]
     logN[nA, i] <- log(exp(logN[nA-1, i-1] - z[nA-1, i-1]) +
                          exp(logN[nA, i-1] - z[nA, i-1])) + errPro[nA, i-1]
   }
@@ -173,7 +172,7 @@ sim <- function(fit) {
   Stru_N <- exp(logStru_N)
   Sobs_N <- exp(logSobs_N)
   
-
+  
   
   
   trueParams <- list(sdrep = fit$sdrep, pl = fit$pl)
@@ -210,16 +209,16 @@ prepSimData <- function(Sobs_N, fit, Cobs_N) {
     lapply(function(x) x[, which(colSums(x, na.rm = TRUE) != 0)]) %>%
     # Remove years (rows) without any data (¡caution if using data other than herring!)
     lapply(function(x) x[which(rowSums(x, na.rm = TRUE) != 0), ])
-    
+  
   for(i in 1:length(surveys)) { # set survey times to match real data
-    attr(surveys[[i]], "time", fit$data$sampleTimes[surveyIndex[i]] + c(-0.25, 0.25))
+    attr(surveys[[i]], "time", rep(fit$data$sampleTimes[surveyIndex[i]],2))
   }
   
   # Export the simulated surveys to a text file, then import it
   # using read.ices().
   
   # First set survey file header
-  write.table(rbind("US Atlantic Herring Survey Data", 100 + length(surveys)), 
+  write.table(rbind("Fake Fish Survey Data", 100 + length(surveys)), 
               file = "./sim_data/surveys.dat", sep = " ", 
               row.names = FALSE, col.names = FALSE, quote = FALSE)
   # Then append surveys
@@ -228,8 +227,8 @@ prepSimData <- function(Sobs_N, fit, Cobs_N) {
       rbind(names(surveys)[i], 
             paste(min(as.numeric(rownames(surveys[[i]]))),
                   max(as.numeric(rownames(surveys[[i]])))),
-            paste(1, 1, fit$data$sampleTimes[surveyIndex[i]] - 0.25, 
-                  fit$data$sampleTimes[surveyIndex[i]] + 0.25),
+            paste(1, 1, fit$data$sampleTimes[surveyIndex[i]], 
+                  fit$data$sampleTimes[surveyIndex[i]]),
             paste(min(colnames(surveys[[i]])), max(colnames(surveys[[i]]))))
     a_survey <- cbind(1, as.data.frame(surveys[[i]]))
     
@@ -251,7 +250,7 @@ prepSimData <- function(Sobs_N, fit, Cobs_N) {
                          replacement = "")
   catch <- catch[, which(colSums(catch, na.rm = TRUE) != 0)]
   header_catch <-
-    rbind("US Atlantic Herring Total Catch Numbers at age (000s; combines all gear types)", 
+    rbind("Fake Fish Total Catch Numbers at age (000s; combines all gear types)", 
           paste(1, 2),
           paste(min(as.numeric(rownames(catch))),
                 max(as.numeric(rownames(catch)))),
@@ -268,7 +267,7 @@ prepSimData <- function(Sobs_N, fit, Cobs_N) {
 }
 
 # Setup data and params for sam model #####################
-setupModel <- function(conf) {
+setupModel <- function(conf) { #<< CHANGE THIS TO BE A CHOSEN EXAMPLE FISH
   
   # Read in data
   cn <- read.ices("./sim_data/catch.dat") # catch abundace-at-age
@@ -407,7 +406,7 @@ plotC <- function(simOut, fit) {
   
   # Plot Catch (should exactly match in total subplot when using errPro_exact)
   ggplot(data = df2plot,
-           aes(x = year, y = Catch_mt, color = source)) +
+         aes(x = year, y = Catch_mt, color = source)) +
     geom_line() +
     facet_wrap(~age, scales = "free") +
     ylab("Catch (MT)") +
@@ -415,7 +414,7 @@ plotC <- function(simOut, fit) {
     theme_bw() +
     theme(legend.title = element_blank(),
           legend.text = element_text(size = 12))
-
+  
 }
 
 ## Plot survey data vs original fit #######################
@@ -471,9 +470,9 @@ plotS <- function(simOut, fit) {
   
   # Plot Survey (should match exactly when using errPro_exact)
   ggplot(data = df2plot %>% 
-                dplyr::filter(age > 1, # for atl herring only
-                              fleetNames != "Residual catch"),
-           aes(x = year, y = value, color = source)) +
+           dplyr::filter(age > 1, # for atl herring only
+                         fleetNames != "Residual catch"),
+         aes(x = year, y = value, color = source)) +
     geom_line() +
     facet_wrap(age ~ fleetNames, scales = "free", ncol = 5) +
     ggtitle("Survey catch-at-age") +
@@ -680,7 +679,7 @@ calcCatchError <- function(fitSim, simOut) {
 
 ## Plot timeseries error ##################################
 plotTsError <- function(err) {
-
+  
   nRepAccept <- length(unique(err$replicate))
   
   # # Calculate median error
@@ -739,7 +738,7 @@ plotTsError <- function(err) {
   #     ggtitle("Catch estimation error")
   #   print(p)
   # }
-
+  
   
   # Plot a few example fit vs tru time series
   p <-
@@ -751,21 +750,21 @@ plotTsError <- function(err) {
              tidyr::gather(source, value, 
                            -year, -age, -replicate, -variable),
            aes(x = year, y = value, color = source)) +
-      geom_line() +
-      facet_wrap(~replicate) + 
-      ggtitle("Age-2 F estimation error examples")
+    geom_line() +
+    facet_wrap(~replicate) + 
+    ggtitle("Age-2 F estimation error examples")
   print(p)
   
   # Plot decile coverage for N and F
   p <- 
     ggplot(err %>% dplyr::filter(variable %in% c("N", "F")),
            aes(x = decile)) +
-      geom_histogram(binwidth=1, colour="white") +
-      geom_hline(yintercept = ncol(fitSim[[1]]$pl$logN) * nRepAccept / 10, 
-                 color = "dark grey") +
-      theme_bw() +
-      facet_grid(variable~age) +
-      ggtitle("Confidence interval coverage for each age")
+    geom_histogram(binwidth=1, colour="white") +
+    geom_hline(yintercept = ncol(fitSim[[1]]$pl$logN) * nRepAccept / 10, 
+               color = "dark grey") +
+    theme_bw() +
+    facet_grid(variable~age) +
+    ggtitle("Confidence interval coverage for each age")
   print(p)
   
   # Plot decile coverage for Catch
@@ -793,8 +792,8 @@ plotTsError <- function(err) {
   #     ylab("Percent error") +
   #     ggtitle("Percent error vs true value")
   # print(p)
-
-    
+  
+  
   err2plot <-
     err %>%  
     dplyr::filter(variable %in% c("N")) %>%
@@ -803,15 +802,15 @@ plotTsError <- function(err) {
     dplyr::rename(N_tru = tru,
                   N_fit = fit) %>%
     dplyr::left_join({err %>%  
-                      dplyr::filter(year != min(year)) %>%
-                      dplyr::filter(variable %in% c("F")) %>%
-                      dplyr::select(year, age, replicate, error_pc) %>%
-                      dplyr::rename(F_error_pc = error_pc)}) %>%
+        dplyr::filter(year != min(year)) %>%
+        dplyr::filter(variable %in% c("F")) %>%
+        dplyr::select(year, age, replicate, error_pc) %>%
+        dplyr::rename(F_error_pc = error_pc)}) %>%
     dplyr::left_join({err %>%  
-                      dplyr::filter(year != min(year)) %>%
-                      dplyr::filter(variable %in% c("N")) %>%
-                      dplyr::select(year, age, replicate, error_pc) %>%
-                      dplyr::rename(N_error_pc = error_pc)})
+        dplyr::filter(year != min(year)) %>%
+        dplyr::filter(variable %in% c("N")) %>%
+        dplyr::select(year, age, replicate, error_pc) %>%
+        dplyr::rename(N_error_pc = error_pc)})
   
   
   # N
@@ -839,7 +838,7 @@ plotTsError <- function(err) {
   #     ylab("Percent error of F estimate") +
   #   ggtitle("Percent error in F vs N value (<90th percentile)")
   # print(p)
-    
+  
   
   # Plot mean percent error vs percentile of N_tru
   err2plot_percentile <-
@@ -858,7 +857,7 @@ plotTsError <- function(err) {
                      N_tru_value     = mean(N_tru),
                      N_fit_max       = quantile(N_fit, .95),
                      N_fit_min       = quantile(N_fit, .05))
-
+  
   
   # N
   p <-
@@ -913,7 +912,7 @@ plotTsError <- function(err) {
   #     ggtitle("Percent error vs true value for Catch")
   #   print(p)
   # }
-    
+  
   
 }
 
@@ -930,31 +929,31 @@ plotTsMeanError <- function(err) {
   # Plot raw error
   p <-
     ggplot(errMean, aes(x = age)) +
-      geom_hline(aes(yintercept = 0), color = "black") +
-      geom_point(aes(y = error_mean), color = "blue") +
-      geom_errorbar(aes(ymin = error_mean - 1.96 * error_mean_se,
-                        ymax = error_mean + 1.96 * error_mean_se),
-                    width = 0.2,
-                    color = "blue") +
-      facet_wrap(~variable, scales = "free", nrow = 2) +
-      ylab("Mean raw error (fit - true)") +
-      xlab("Age") +
-      ggtitle("Mean raw error over all replicates")
+    geom_hline(aes(yintercept = 0), color = "black") +
+    geom_point(aes(y = error_mean), color = "blue") +
+    geom_errorbar(aes(ymin = error_mean - 1.96 * error_mean_se,
+                      ymax = error_mean + 1.96 * error_mean_se),
+                  width = 0.2,
+                  color = "blue") +
+    facet_wrap(~variable, scales = "free", nrow = 2) +
+    ylab("Mean raw error (fit - true)") +
+    xlab("Age") +
+    ggtitle("Mean raw error over all replicates")
   print(p)
   
   # Plot percent error
   p <-
     ggplot(errMean, aes(x = age)) +
-      geom_hline(aes(yintercept = 0), color = "black") +
-      geom_point(aes(y = error_pc_mean), color = "blue") +
-      geom_errorbar(aes(ymin = error_pc_mean - 1.96 * error_pc_mean_se,
-                        ymax = error_pc_mean + 1.96 * error_pc_mean_se),
-                    width = 0.2,
-                    color = "blue") +
-      facet_wrap(~variable, scales = "free", nrow = 2) +
-      ylab("Mean percent error (100 * (fit - true) / true)") +
-      xlab("Age") +
-      ggtitle("Mean percent error over all replicates")
+    geom_hline(aes(yintercept = 0), color = "black") +
+    geom_point(aes(y = error_pc_mean), color = "blue") +
+    geom_errorbar(aes(ymin = error_pc_mean - 1.96 * error_pc_mean_se,
+                      ymax = error_pc_mean + 1.96 * error_pc_mean_se),
+                  width = 0.2,
+                  color = "blue") +
+    facet_wrap(~variable, scales = "free", nrow = 2) +
+    ylab("Mean percent error (100 * (fit - true) / true)") +
+    xlab("Age") +
+    ggtitle("Mean percent error over all replicates")
   print(p)
 }
 

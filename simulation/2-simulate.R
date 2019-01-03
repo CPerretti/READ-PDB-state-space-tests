@@ -19,9 +19,11 @@ source("1-functions.R")
 load("../nscod_example/fitNScod.Rdata")
 fitHer <- fitNScod
 
-# How many simulation replicates to do
 #set.seed(321) # for reproducibility
-nRep <- 100
+
+# How many simulation replicates to do
+
+nRep <- 4#100
 
 # Generate simulation replicates
 simOut <- list()
@@ -29,9 +31,7 @@ for (i in 1:nRep) {
   simOut[[i]] <- sim(fit = fitHer)  
 }
 
-
-
-## Plot an example true vs observed vs *herring* fit ########
+## Plot an example true vs observed vs *real data* fit ########
 
 ## (1) N-at-age (1000s)
 plotN(simOut = simOut[[1]],
