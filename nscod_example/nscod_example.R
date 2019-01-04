@@ -6,17 +6,17 @@
 # d <- lapply(filestoget, function(f)download.file(paste(url,f,sep=""), f))
 
 library(stockassessment)
-cn <- read.ices("cn.dat") # catch-at-age (thousands)
-cw <- read.ices("cw.dat") # catch weight-at-age (kg)
-dw <- read.ices("dw.dat") #
-lf <- read.ices("lf.dat") #
-lw <- read.ices("lw.dat")
-mo <- read.ices("mo.dat")
-nm <- read.ices("nm.dat")
-pf <- read.ices("pf.dat")
-pm <- read.ices("pm.dat")
-sw <- read.ices("sw.dat")
-surveys <- read.ices("survey.dat")
+cn <- read.ices("./data/cn.dat") # catch-at-age (thousands)
+cw <- read.ices("./data/cw.dat") # catch weight-at-age (kg)
+dw <- read.ices("./data/dw.dat") #
+lf <- read.ices("./data/lf.dat") #
+lw <- read.ices("./data/lw.dat")
+mo <- read.ices("./data/mo.dat")
+nm <- read.ices("./data/nm.dat")
+pf <- read.ices("./data/pf.dat")
+pm <- read.ices("./data/pm.dat")
+sw <- read.ices("./data/sw.dat")
+surveys <- read.ices("./data/survey.dat")
 
 # Fix for my simulation script because commerical landings
 # are shorter than survey landings
@@ -43,14 +43,8 @@ dat <- setup.sam.data(surveys=surveys,
 
 conf <- defcon(dat)
 
-# conf$fbarRange <- c(2,6)
-# conf$corFlag <- 1
-# conf$keyLogFpar <- 
-#   matrix(c(-1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1,
-#            -1,    0,    1,    2,    3,    4,    5,    6,   -1,
-#            -1,    7,   -1,   -1,   -1,   -1,   -1,   -1,   -1,
-#            8,   -1,   -1,   -1,   -1,   -1,   -1,   -1,   -1), 
-#          nrow=4, byrow=TRUE)
+# Make a couple of changes to conf so it matches simulation
+conf$corFlag <- 0
 
 
 par <- defpar(dat,conf)

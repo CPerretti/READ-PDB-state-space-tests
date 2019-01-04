@@ -1,5 +1,8 @@
 ## Perform SAM simulation tests
 
+# Make sure the simulation model is replicating survey q correctly (keyLogFpar)
+# And keyVarObs
+
 # Required packages
 library(plyr) # always load before dplyr
 library(dplyr)
@@ -13,17 +16,19 @@ source("1-functions.R")
 
 ## Run simulation #########################################
 # Use atl herring fit to set up simulation
-#load("../atlherring_example/output/fitHer.Rdata")
+# example_dir <- "atlherring_example"
+# load(paste0("../", example_dir, "/output/fitHer.Rdata"))
 
 # Use North Sea cod fit to set up simulation
-load("../nscod_example/fitNScod.Rdata")
+example_dir <- "nscod_example"
+load(paste0("../", example_dir, "/fitNScod.Rdata"))
 fitHer <- fitNScod
 
 #set.seed(321) # for reproducibility
 
 # How many simulation replicates to do
 
-nRep <- 4#100
+nRep <- 100
 
 # Generate simulation replicates
 simOut <- list()
@@ -62,7 +67,7 @@ for (i in 1:nRep) {
               Cobs_N = simOut[[i]]$Cobs_N) 
   
   # Read in data, set initial params and configuration
-  setupOut[[i]] <- setupModel(conf = fitHer$conf)
+  setupOut[[i]] <- setupModel(conf = fitHer$conf, example_dir = example_dir)
 }
 
 # Fit model to replicates in parallel
@@ -92,8 +97,8 @@ save(list = "simOutAccept", file = paste0("./output/simOutAccept", suffix))
 
 ## Plot example true vs observed vs fit to observed ########
 ## (1) N-at-age (1000s)
-plotN(simOut = simOutAccept[[1]],
-      fit = fitSimAccept[[1]])
+plotN(simOut = simOutAccept[[12]],
+      fit = fitSimAccept[[12]])
 
 ## (2) F-at-age
 plotF(simOut = simOutAccept[[1]],
@@ -144,7 +149,7 @@ simOutSAM4error <- stockassessment:::simulate.sam(fitHerAdjusted,
                                                   full.data = FALSE)
 
 # make sure the observations are the same
-#for (i in 1:nsim) print(all(simOutSAM[[i]]$logobs == simOutSAM4error[[i]]$logobs))
+#for (i in 1:nRep) print(all(simOutSAM[[i]]$logobs == simOutSAM4error[[i]]$logobs))
 
 cl <- makeCluster(detectCores() - 1) #setup nodes for parallel
 clusterExport(cl, c("fitHer"))
@@ -176,8 +181,8 @@ errNFSAM <- calcNFTsErrorSAM(fitSimSAMAccept, simOutSAM4errorAccept)
 plotTsError(errNFSAM)
 
 # Plot one
-# plotN(simOut = simOutSAM4errorAccept[[1]],
-#       fit = fitSimSAMAccept[[1]])
+plotN(simOut = simOutSAM4errorAccept[[1]],
+      fit = fitSimSAMAccept[[1]])
 
 # # plotF(simOut = simOutSAM4errorAccept[[1]],
 # #      fit = fitSimSAMAccept[[1]])
@@ -188,7 +193,7 @@ plotTsError(errNFSAM)
 # 
 # mean(c(sapply(simOutSAM, function(x) x$logobs[x$aux[, "fleet"] == 1])))
 # mean(c(sapply(simOut, function(x) x$logCobs_N)))
-# 
+
 # mean(c(sapply(fitSimAccept, function(x) x$data$logobs[x$data$aux[, "fleet"] == 1])))
 # mean(c(sapply(simOutAccept, function(x) x$logCobs_N)))
 # 

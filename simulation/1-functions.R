@@ -267,21 +267,24 @@ prepSimData <- function(Sobs_N, fit, Cobs_N) {
 }
 
 # Setup data and params for sam model #####################
-setupModel <- function(conf) { #<< CHANGE THIS TO BE A CHOSEN EXAMPLE FISH
+setupModel <- function(conf, example_dir) {
   
   # Read in data
   cn <- read.ices("./sim_data/catch.dat") # catch abundace-at-age
-  cw <- read.ices("../atlherring_example/data/Herrcw.dat") # catch mean weight-at-age
-  dw <- cw # discards mean weight-at-age (using catch mean weight-at-age for now)
-  lw <- cw # landings mean weight-at-age (using catch mean weight-at-age for now)
-  pf <- read.ices("../atlherring_example/data/Herrpf.dat") # proportion of f before spawning
-  lf <- pf; lf[,] <- 1 # fraction of catch that is landed (set to 1 for now)
-  mo <- read.ices("../atlherring_example/data/Herrmo.dat") # maturity-at-age ogive
-  nm <- read.ices("../atlherring_example/data/Herrnm.dat") # natural mortality-at-age
-  pm <- read.ices("../atlherring_example/data/Herrpm.dat") # proportion of m before spawning
-  sw <- read.ices("../atlherring_example/data/Herrsw.dat") # stock weight-at-age (kg)
   surveys <- read.ices("./sim_data/surveys.dat") #surveys
-  #surveys <- read.ices("../atlherring_example/data/Herrsurvey_BigSep_NoAcoust.dat") #surveys
+  
+  cw <- read.ices(paste0("../", example_dir, "/data/cw.dat")) # catch mean weight-at-age
+  #dw <- cw # discards mean weight-at-age (using catch mean weight-at-age for now)
+  #lw <- cw # landings mean weight-at-age (using catch mean weight-at-age for now)
+  dw <- read.ices(paste0("../", example_dir, "/data/dw.dat")) 
+  lw <- read.ices(paste0("../", example_dir, "/data/lw.dat"))
+  pf <- read.ices(paste0("../", example_dir, "/data/pf.dat")) # proportion of f before spawning
+  #lf <- pf; lf[,] <- 1 # fraction of catch that is landed (set to 1 for now)
+  lf <- read.ices(paste0("../", example_dir, "/data/lf.dat"))
+  mo <- read.ices(paste0("../", example_dir, "/data/mo.dat")) # maturity-at-age ogive
+  nm <- read.ices(paste0("../", example_dir, "/data/nm.dat")) # natural mortality-at-age
+  pm <- read.ices(paste0("../", example_dir, "/data/pm.dat")) # proportion of m before spawning
+  sw <- read.ices(paste0("../", example_dir, "/data/sw.dat")) # stock weight-at-age (kg)
   
   # setup the data as needed for SAM
   dat <- setup.sam.data(surveys = surveys,
@@ -514,7 +517,8 @@ plotSimSAM <- function(fit, nsim = 1, seed = NULL) {
 ## Plot parameters fit vs true ############################
 plotPars <- function(fitSim, simOut) {
   nRepAccept <- length(simOut)
-  parsFixed <- which(names(fitSim[[1]]$pl) %in% c("logSdLogN", "logSdLogFsta"))#names(fitSim[[1]]$obj$par))
+  parsFixed <- which(names(fitSim[[1]]$pl) %in% names(fitSim[[1]]$obj$par))
+  #parsFixed <- which(names(fitSim[[1]]$pl) %in% c("logSdLogN", "logSdLogFsta"))
   df_parsOut <- data.frame()
   for (h in parsFixed) {
     for (i in 1:nRepAccept) {

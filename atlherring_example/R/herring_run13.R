@@ -3,17 +3,17 @@ library(dplyr)
 
 #cn <- read.ices("../data/Herrcn.dat") # catch abundace-at-age
 cn <- read.ices("../../simulation/sim_data/catch.dat") # catch abundace-at-age
-cw <- read.ices("../data/Herrcw.dat") # catch mean weight-at-age
+cw <- read.ices("../data/cw.dat") # catch mean weight-at-age
 dw <- cw # discards mean weight-at-age (using catch mean weight-at-age for now)
 lw <- cw # landings mean weight-at-age (using catch mean weight-at-age for now)
-pf <- read.ices("../data/Herrpf.dat") # proportion of f before spawning
+pf <- read.ices("../data/pf.dat") # proportion of f before spawning
 lf <- pf; lf[,] <- 1 # fraction of catch that is landed (set to 1 for now)
-mo <- read.ices("../data/Herrmo.dat") # maturity-at-age ogive
-nm <- read.ices("../data/Herrnm.dat") # natural mortality-at-age
-pm <- read.ices("../data/Herrpm.dat") # proportion of m before spawning
-sw <- read.ices("../data/Herrsw.dat") # stock weight-at-age (kg)
+mo <- read.ices("../data/mo.dat") # maturity-at-age ogive
+nm <- read.ices("../data/nm.dat") # natural mortality-at-age
+pm <- read.ices("../data/pm.dat") # proportion of m before spawning
+sw <- read.ices("../data/sw.dat") # stock weight-at-age (kg)
 
-cn <- read.ices("../data/Herrcn.dat") # catch abundace-at-age
+cn <- read.ices("../data/cn.dat") # catch abundace-at-age
 #cn <- read.ices("../../simulation/sim_data/catch.dat") # catch abundace-at-age
 #surveys <- read.ices("../data/Herrsurvey_BigSep_NoAcoust.dat") #surveys
 surveys <- read.ices("../../simulation/sim_data/surveys.dat") #surveys
