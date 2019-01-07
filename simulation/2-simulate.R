@@ -2,6 +2,8 @@
 
 # Make sure the simulation model is replicating survey q correctly (keyLogFpar)
 # And keyVarObs
+# Still doesn't really match with simulate.sam()
+
 
 # Required packages
 library(plyr) # always load before dplyr
@@ -16,13 +18,14 @@ source("1-functions.R")
 
 ## Run simulation #########################################
 # Use atl herring fit to set up simulation
-# example_dir <- "atlherring_example"
-# load(paste0("../", example_dir, "/output/fitHer.Rdata"))
+example_dir <- "atlherring_example"
+load(paste0("../", example_dir, "/output/fitHer.Rdata"))
+fitReal <- fitHer
 
 # Use North Sea cod fit to set up simulation
-example_dir <- "nscod_example"
-load(paste0("../", example_dir, "/fitNScod.Rdata"))
-fitHer <- fitNScod
+# example_dir <- "nscod_example"
+# load(paste0("../", example_dir, "/fitNScod.Rdata"))
+# fitReal <- fitNScod
 
 #set.seed(321) # for reproducibility
 
@@ -33,29 +36,29 @@ nRep <- 100
 # Generate simulation replicates
 simOut <- list()
 for (i in 1:nRep) {
-  simOut[[i]] <- sim(fit = fitHer)  
+  simOut[[i]] <- sim(fit = fitReal)  
 }
 
 ## Plot an example true vs observed vs *real data* fit ########
 
 ## (1) N-at-age (1000s)
 plotN(simOut = simOut[[1]],
-      fit = fitHer)
+      fit = fitReal)
 
 ## (2) F-at-age
 plotF(simOut = simOut[[1]],
-      fit = fitHer) 
+      fit = fitReal) 
 
 ## (3) Catch (mt)
 plotC(simOut = simOut[[1]],
-      fit = fitHer)
+      fit = fitReal)
 
 ## (4) Survey (1000s)
 plotS(simOut = simOut[[1]],
-      fit = fitHer)
+      fit = fitReal)
 
 ## Plot some simulations from simulate.sam()
-#plotSimSAM(fitHer, nsim = 10, seed = NULL)
+#plotSimSAM(fitReal, nsim = 10, seed = NULL)
 
 
 ## Fit sam to a simulation ################################
@@ -63,11 +66,11 @@ setupOut <- list()
 for (i in 1:nRep) {
   # Prep simulation data for read.ices()
   prepSimData(Sobs_N = simOut[[i]]$Sobs_N, 
-              fit = fitHer, 
+              fit = fitReal, 
               Cobs_N = simOut[[i]]$Cobs_N) 
   
   # Read in data, set initial params and configuration
-  setupOut[[i]] <- setupModel(conf = fitHer$conf, example_dir = example_dir)
+  setupOut[[i]] <- setupModel(conf = fitReal$conf, example_dir = example_dir)
 }
 
 # Fit model to replicates in parallel
@@ -97,8 +100,8 @@ save(list = "simOutAccept", file = paste0("./output/simOutAccept", suffix))
 
 ## Plot example true vs observed vs fit to observed ########
 ## (1) N-at-age (1000s)
-plotN(simOut = simOutAccept[[12]],
-      fit = fitSimAccept[[12]])
+plotN(simOut = simOutAccept[[1]],
+      fit = fitSimAccept[[1]])
 
 ## (2) F-at-age
 plotF(simOut = simOutAccept[[1]],
@@ -129,22 +132,23 @@ plotTsMeanError(err)
 
 
 ## Replicate using simulate.sam() ######################
-fitHerAdjusted <- fitHer
-fitHerAdjusted$pl$logSdLogFsta <- # Adjust (reduce) process error
-  (c(0.1, rep(0.33, length(fitHer$pl$logSdLogFsta)-1)) * exp(fitHer$pl$logSdLogFsta)) %>%
+fitRealAdjusted <- fitReal
+fitRealAdjusted$pl$logSdLogFsta <- # Adjust (reduce) process error
+  #(c(0.1, rep(0.33, length(fitReal$pl$logSdLogFsta)-1)) * exp(fitReal$pl$logSdLogFsta)) %>%
+  (c(1, rep(1, length(fitReal$pl$logSdLogFsta)-1)) * exp(fitReal$pl$logSdLogFsta)) %>%
   log
 
-fitHerAdjusted$pl$logSdLogN[(fitHerAdjusted$conf$keyVarLogN + 1)] <-
-  fitHerAdjusted$pl$logSdLogN[(fitHerAdjusted$conf$keyVarLogN + 1)] %>%
+fitRealAdjusted$pl$logSdLogN[(fitRealAdjusted$conf$keyVarLogN + 1)] <-
+  fitRealAdjusted$pl$logSdLogN[(fitRealAdjusted$conf$keyVarLogN + 1)] %>%
   exp %>% "*"(0.5) %>% log
 
-fitHerAdjusted$pl$logSdLogObs <-
- fitHerAdjusted$pl$logSdLogObs %>% exp %>% "*"(1) %>% log
+fitRealAdjusted$pl$logSdLogObs <-
+ fitRealAdjusted$pl$logSdLogObs %>% exp %>% "*"(1) %>% log
 
 set.seed(12)
-simOutSAM <- stockassessment:::simulate.sam(fitHerAdjusted, nsim = nRep, full.data = TRUE)
+simOutSAM <- stockassessment:::simulate.sam(fitRealAdjusted, nsim = nRep, full.data = TRUE)
 set.seed(12) # Need to do this in order to get N & F and the data needed to run sam.fit to match
-simOutSAM4error <- stockassessment:::simulate.sam(fitHerAdjusted, 
+simOutSAM4error <- stockassessment:::simulate.sam(fitRealAdjusted, 
                                                   nsim = nRep, 
                                                   full.data = FALSE)
 
@@ -152,16 +156,16 @@ simOutSAM4error <- stockassessment:::simulate.sam(fitHerAdjusted,
 #for (i in 1:nRep) print(all(simOutSAM[[i]]$logobs == simOutSAM4error[[i]]$logobs))
 
 cl <- makeCluster(detectCores() - 1) #setup nodes for parallel
-clusterExport(cl, c("fitHer"))
+clusterExport(cl, c("fitReal"))
 clusterEvalQ(cl, {library(stockassessment)}) #load stockassessment to each node
 fitSimSAM <- parLapply(cl, simOutSAM,
-                       function(x){try(sam.fit(data = x, conf = fitHer$conf, 
+                       function(x){try(sam.fit(data = x, conf = fitReal$conf, 
                                                par = defpar(dat = x, 
-                                                            conf = fitHer$conf)))})
+                                                            conf = fitReal$conf)))})
 stopCluster(cl) #shut down nodes
 
 ## Error handling #####
-for(i in 1:nRep) simOutSAM[[i]]$trueParams <- fitHerAdjusted
+for(i in 1:nRep) simOutSAM[[i]]$trueParams <- fitRealAdjusted
 # Exclude TMB fails
 fitSimSAMAccept <- fitSimSAM[!(sapply(fitSimSAM, class) == "try-error")]
 simOutSAMAccept <- simOutSAM[!(sapply(fitSimSAM, class) == "try-error")]
@@ -176,13 +180,19 @@ nRepSAMAccept <- length(fitSimSAMAccept)
 # Plot parameter error
 plotPars(fitSimSAMAccept, simOutSAMAccept)
 
+plotPars(fitSimAccept, simOutAccept) #comapre to mine
+
 # Calculate random effect error
 errNFSAM <- calcNFTsErrorSAM(fitSimSAMAccept, simOutSAM4errorAccept)
 plotTsError(errNFSAM)
 
+plotTsError(err) # compare to mine
 # Plot one
-plotN(simOut = simOutSAM4errorAccept[[1]],
-      fit = fitSimSAMAccept[[1]])
+plotN(simOut = simOutSAM4errorAccept[[3]],
+      fit = fitSimSAMAccept[[3]])
+
+plotN(simOut = simOutAccept[[3]], #compare to mine
+      fit = fitSimAccept[[3]])
 
 # # plotF(simOut = simOutSAM4errorAccept[[1]],
 # #      fit = fitSimSAMAccept[[1]])

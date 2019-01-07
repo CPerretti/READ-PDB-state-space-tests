@@ -6,6 +6,7 @@
 # d <- lapply(filestoget, function(f)download.file(paste(url,f,sep=""), f))
 
 library(stockassessment)
+# note: For my code to run I deleted 2015 data from the survey files so everything ends in 2014.
 cn <- read.ices("./data/cn.dat") # catch-at-age (thousands)
 cw <- read.ices("./data/cw.dat") # catch weight-at-age (kg)
 dw <- read.ices("./data/dw.dat") #
@@ -17,15 +18,6 @@ pf <- read.ices("./data/pf.dat")
 pm <- read.ices("./data/pm.dat")
 sw <- read.ices("./data/sw.dat")
 surveys <- read.ices("./data/survey.dat")
-
-# Fix for my simulation script because commerical landings
-# are shorter than survey landings
-# mo <- mo[rownames(mo) < 2015,]
-#nm <- nm[rownames(nm) < 2015,]
-#pf <- pf[rownames(pf) < 2015,]
-#pm <- pm[rownames(pm) < 2015,]
-#sw <- sw[rownames(sw) < 2015,]
-#surveys[[1]] <- surveys[[1]][rownames(surveys[[1]]) < 2015,]
 
 dat <- setup.sam.data(surveys=surveys,
                       residual.fleet=cn, 
@@ -43,15 +35,13 @@ dat <- setup.sam.data(surveys=surveys,
 
 conf <- defcon(dat)
 
-# Make a couple of changes to conf so it matches simulation
+# Turn off ar1 correlation of F so it matches my simulation
 conf$corFlag <- 0
 
 
 par <- defpar(dat,conf)
 
-#par$logFpar <- rep(0,9)
-
-fitNScod <- sam.fit(dat,conf,par) 
+fitNScod <- sam.fit(dat,conf,par, sim.condRE = FALSE) 
 
 #save("fitNScod", file = "./fitNScod.Rdata")
 

@@ -14,8 +14,7 @@ sim <- function(fit) {
   
   # Set F sd  (notice the reduction of sd on the natural scale)
   fit$pl$logSdLogFsta <- 
-    (c(0.1, rep(0.33, length(fit$pl$logSdLogFsta)-1)) * exp(fit$pl$logSdLogFsta)) %>% 
-    #(c(1, rep(1, length(fit$pl$logSdLogFsta)-1)) * exp(fit$pl$logSdLogFsta)) %>% 
+    (c(0.1, rep(0.1, length(fit$pl$logSdLogFsta)-1)) * exp(fit$pl$logSdLogFsta)) %>% 
     log
   sdLogF <- exp(fit$pl$logSdLogFsta)
   for (i in 1:(nT-1)) { # Create F error
@@ -72,8 +71,8 @@ sim <- function(fit) {
   # Lower process error (!)
   fit$pl$logSdLogN[(fit$conf$keyVarLogN + 1)] <-
     fit$pl$logSdLogN[(fit$conf$keyVarLogN + 1)] %>%
-    exp %>% "*"(0.5) %>% log # NOTICE the reduction on the natural scale
-  #exp %>% "*"(1) %>% log
+    exp %>% "*"(0.1) %>% log # NOTICE the reduction on the natural scale
+  
   sdLogN <- exp(fit$pl$logSdLogN[(fit$conf$keyVarLogN + 1)])
   for (i in 1:(nT-1)) { # Create process error (N-at-age)
     errPro[, i] <-  rnorm(n = nA, sd = sdLogN)
@@ -105,7 +104,7 @@ sim <- function(fit) {
   # Need to replicate some sd's to match config file
   index <- as.vector(t(fit$conf$keyVarObs + 1))
   index[index == 0] <- NA
-  fit$pl$logSdLogObs <- fit$pl$logSdLogObs %>% exp %>% "*"(1) %>% log # REDUCTION!!!!!!
+  fit$pl$logSdLogObs <- fit$pl$logSdLogObs %>% exp %>% "*"(1) %>% log
   sdLogObs <- exp(fit$pl$logSdLogObs[index]) 
   
   # Make observation error (can only do uncorrelated error right now)
