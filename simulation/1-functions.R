@@ -68,10 +68,10 @@ sim <- function(fit) {
   errPro <- matrix(data = NA,
                    nrow = nA, 
                    ncol = nT-1)
-  # Lower process error (!)
+  # Lower N process error (!)
   fit$pl$logSdLogN[(fit$conf$keyVarLogN + 1)] <-
     fit$pl$logSdLogN[(fit$conf$keyVarLogN + 1)] %>%
-    exp %>% "*"(0.1) %>% log # NOTICE the reduction on the natural scale
+    exp %>% "*"(0.5) %>% log # NOTICE the reduction on the natural scale
   
   sdLogN <- exp(fit$pl$logSdLogN[(fit$conf$keyVarLogN + 1)])
   for (i in 1:(nT-1)) { # Create process error (N-at-age)

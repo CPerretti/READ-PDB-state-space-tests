@@ -18,14 +18,14 @@ source("1-functions.R")
 
 ## Run simulation #########################################
 # Use atl herring fit to set up simulation
-example_dir <- "atlherring_example"
-load(paste0("../", example_dir, "/output/fitHer.Rdata"))
-fitReal <- fitHer
+# example_dir <- "atlherring_example"
+# load(paste0("../", example_dir, "/output/fitHer.Rdata"))
+# fitReal <- fitHer
 
 # Use North Sea cod fit to set up simulation
-# example_dir <- "nscod_example"
-# load(paste0("../", example_dir, "/fitNScod.Rdata"))
-# fitReal <- fitNScod
+example_dir <- "nscod_example"
+load(paste0("../", example_dir, "/fitNScod.Rdata"))
+fitReal <- fitNScod
 
 #set.seed(321) # for reproducibility
 
