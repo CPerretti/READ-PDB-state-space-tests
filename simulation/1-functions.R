@@ -14,7 +14,7 @@ sim <- function(fit) {
   
   # Set F sd  (notice the reduction of sd on the natural scale)
   fit$pl$logSdLogFsta <- 
-    (c(0.1, rep(0.1, length(fit$pl$logSdLogFsta)-1)) * exp(fit$pl$logSdLogFsta)) %>% 
+    (c(1, rep(1, length(fit$pl$logSdLogFsta)-1)) * exp(fit$pl$logSdLogFsta)) %>% 
     log
   sdLogF <- exp(fit$pl$logSdLogFsta)
   for (i in 1:(nT-1)) { # Create F error
@@ -71,7 +71,7 @@ sim <- function(fit) {
   # Lower N process error (!)
   fit$pl$logSdLogN[(fit$conf$keyVarLogN + 1)] <-
     fit$pl$logSdLogN[(fit$conf$keyVarLogN + 1)] %>%
-    exp %>% "*"(0.5) %>% log # NOTICE the reduction on the natural scale
+    exp %>% "*"(1) %>% log # NOTICE the reduction on the natural scale
   
   sdLogN <- exp(fit$pl$logSdLogN[(fit$conf$keyVarLogN + 1)])
   for (i in 1:(nT-1)) { # Create process error (N-at-age)
@@ -962,205 +962,87 @@ plotTsMeanError <- function(err) {
 
 
 
-## Customized setup.sam.data ##############################
-# to avoid logging data when it is alread logged
-cp_setup.sam.data <- function (fleets = NULL, surveys = NULL, residual.fleet = NULL, 
-                               prop.mature = NULL, stock.mean.weight = NULL, catch.mean.weight = NULL, 
-                               dis.mean.weight = NULL, land.mean.weight = NULL, natural.mortality = NULL, 
-                               prop.f = NULL, prop.m = NULL, land.frac = NULL, recapture = NULL) 
+## Customized sam.fit() ##############################
+sam.fit_cp <- 
+  function (data, conf, parameters, newtonsteps = 3, rm.unidentified = FALSE, 
+            run = TRUE, 
+            lower = stockassessment:::getLowerBounds(parameters), 
+            upper = stockassessment:::getUpperBounds(parameters), 
+            sim.condRE = TRUE, ...) 
 {
-  fleet.idx <- 0
-  type <- NULL
-  time <- NULL
-  name <- NULL
-  corList <- list()
-  idxCor <- matrix(NA, nrow = length(fleets) + length(surveys) + 
-                     1, ncol = nrow(natural.mortality))
-  colnames(idxCor) <- rownames(natural.mortality)
-  dat <- data.frame(year = NA, fleet = NA, age = NA, aux = NA)
-  weight <- NULL
-  doone <- function(m) {
-    year <- rownames(m)[row(m)]
-    fleet.idx <<- fleet.idx + 1
-    fleet <- rep(fleet.idx, length(year))
-    age <- as.integer(colnames(m)[col(m)])
-    aux <- as.vector(m)
-    dat <<- rbind(dat, data.frame(year, fleet, age, aux))
-    if ("weight" %in% names(attributes(m))) {
-      weight <<- c(weight, as.vector(attr(m, "weight")))
-    }
-    else {
-      if ("cov" %in% names(attributes(m))) {
-        weight <<- c(weight, unlist(lapply(attr(m, "cov"), 
-                                           diag)))
-      }
-      else {
-        if ("cov-weight" %in% names(attributes(m))) {
-          weight <<- c(weight, 1/unlist(lapply(attr(m, 
-                                                    "cov-weight"), diag)))
-        }
-        else {
-          weight <<- c(weight, rep(NA, length(year)))
-        }
-      }
-    }
-    if ("cov" %in% names(attributes(m))) {
-      attr(m, "cor") <- lapply(attr(m, "cov"), cov2cor)
-    }
-    if ("cov-weight" %in% names(attributes(m))) {
-      attr(m, "cor") <- lapply(attr(m, "cov-weight"), 
-                               cov2cor)
-    }
-    if ("cor" %in% names(attributes(m))) {
-      thisCorList <- attr(m, "cor")
-      whichCorOK <- which(unlist(lapply(thisCorList, function(x) !any(is.na(x)))))
-      thisCorList <- thisCorList[whichCorOK]
-      corList <<- c(corList, thisCorList)
-      nextIdx <- if (all(is.na(idxCor))) {
-        0
-      }
-      else {
-        max(idxCor, na.rm = TRUE)
-      }
-      idxCor[fleet.idx, colnames(idxCor) %in% rownames(m)][whichCorOK] <<- nextIdx:(nextIdx + 
-                                                                                      length(thisCorList) - 1)
-    }
+  definit <- defpar(data, conf)
+  if (!identical(parameters, relist(unlist(parameters), skeleton = definit))) {
+    warning("Initial values are not consistent, so running with default init values from defpar()")
+    parameters <- definit
   }
-  if (!is.null(residual.fleet)) {
-    doone(residual.fleet)
-    type <- c(type, 0)
-    time <- c(time, 0)
-    name <- c(name, "Residual catch")
+  data <- stockassessment:::clean.void.catches(data, conf)
+  tmball <- c(data, conf, simFlag = as.numeric(sim.condRE))
+  if (is.null(tmball$resFlag)) {
+    tmball$resFlag <- 0
   }
-  if (!is.null(fleets)) {
-    if (is.data.frame(fleets) | is.matrix(fleets)) {
-      doone(fleets)
-      type <- c(type, 1)
-      time <- c(time, 0)
-      name <- c(name, "Comm fleet")
-    }
-    else {
-      dummy <- lapply(fleets, doone)
-      type <- c(type, rep(1, length(fleets)))
-      time <- c(time, rep(0, length(fleets)))
-      name <- c(name, strtrim(gsub("\\s", "", names(dummy)), 
-                              50))
-    }
+  nmissing <- sum(is.na(data$logobs))
+  parameters$missing <- numeric(nmissing)
+  ran <- c("logN", "logF", "missing")
+  obj <- TMB::MakeADFun(tmball, parameters, random = ran, DLL = "stockassessment", 
+                   ...)
+  if (rm.unidentified) {
+    stop("rm.unidentified not supported in the cp version of this function")
+    # gr <- obj$gr()
+    # safemap <- obj$env$parList(gr)
+    # safemap <- safemap[!names(safemap) %in% ran]
+    # safemap <- lapply(safemap, function(x) factor(ifelse(abs(x) > 
+    #                                                        1e-15, 1:length(x), NA)))
+    # ddd <- list(...)
+    # if (!is.null(ddd$map)) {
+    #   safemap <- c(ddd$map, safemap)
+    #   ddd$map <- safemap
+    #   ddd$data <- tmball
+    #   ddd$parameters <- parameters
+    #   ddd$random <- ran
+    #   obj <- do.call(MakeADFun, ddd)
+    # }
+    # else {
+    #   obj <- MakeADFun(tmball, parameters, random = ran, 
+    #                    map = safemap, DLL = "stockassessment", ...)
+    # }
   }
-  if (!is.null(surveys)) {
-    if (is.data.frame(surveys) | is.matrix(surveys)) {
-      doone(surveys)
-      thistype <- ifelse(min(as.integer(colnames(surveys))) < 
-                           (-0.5), 3, 2)
-      type <- c(type, thistype)
-      time <- c(time, mean(attr(surveys, "time")))
-      name <- c(name, "Survey fleet")
-    }
-    else {
-      dummy <- lapply(surveys, doone)
-      type <- c(type, unlist(lapply(surveys, function(x) ifelse(min(as.integer(colnames(x))) < 
-                                                                  (-0.5), 3, 2))))
-      time <- c(time, unlist(lapply(surveys, function(x) mean(attr(x, 
-                                                                   "time")))))
-      name <- c(name, strtrim(gsub("\\s", "", names(dummy)), 
-                              50))
-    }
-  }
-  if (is.null(land.frac)) {
-    land.frac <- matrix(1, nrow = nrow(residual.fleet), 
-                        ncol = ncol(residual.fleet))
-  }
-  if (is.null(dis.mean.weight)) {
-    dis.mean.weight <- catch.mean.weight
-  }
-  if (is.null(land.mean.weight)) {
-    land.mean.weight <- catch.mean.weight
-  }
-  if (is.null(prop.f)) {
-    prop.f <- matrix(0, nrow = nrow(residual.fleet), ncol = ncol(residual.fleet))
-  }
-  if (is.null(prop.m)) {
-    prop.m <- matrix(0, nrow = nrow(residual.fleet), ncol = ncol(residual.fleet))
-  }
-  dat$aux[which(dat$aux <= 0)] <- NA
-  dat <- dat[!is.na(dat$year), ]
-  if (!is.null(recapture)) {
-    tag <- data.frame(year = recapture$ReleaseY)
-    fleet.idx <- fleet.idx + 1
-    tag$fleet <- fleet.idx
-    tag$age <- recapture$ReleaseY - recapture$Yearclass
-    tag$aux <- exp(recapture$r)
-    tag <- cbind(tag, recapture[, c("RecaptureY", "Yearclass", 
-                                    "Nscan", "R", "Type")])
-    dat[names(tag)[!names(tag) %in% names(dat)]] <- NA
-    dat <- rbind(dat, tag)
-    weight <- c(weight, rep(NA, nrow(tag)))
-    type <- c(type, 5)
-    time <- c(time, 0)
-    name <- c(name, "Recaptures")
-  }
-  dat <- dat[complete.cases(dat[, 1:3]), ]
-  o <- order(as.numeric(dat$year), as.numeric(dat$fleet), 
-             as.numeric(dat$age))
-  attr(dat, "type") <- type
-  names(time) <- NULL
-  attr(dat, "time") <- time
-  names(name) <- NULL
-  attr(dat, "name") <- name
-  dat <- dat[o, ]
-  weight <- weight[o]
-  newyear <- min(as.numeric(dat$year)):max(as.numeric(dat$year))
-  newfleet <- min(as.numeric(dat$fleet)):max(as.numeric(dat$fleet))
-  mmfun <- function(f, y, ff) {
-    idx <- which(dat$year == y & dat$fleet == f)
-    ifelse(length(idx) == 0, NA, ff(idx) - 1)
-  }
-  idx1 <- outer(newfleet, newyear, Vectorize(mmfun, c("f", 
-                                                      "y")), ff = min)
-  idx2 <- outer(newfleet, newyear, Vectorize(mmfun, c("f", 
-                                                      "y")), ff = max)
-  attr(dat, "idx1") <- idx1
-  attr(dat, "idx2") <- idx2
-  attr(dat, "minAgePerFleet") <- tapply(as.integer(dat[, "age"]), 
-                                        INDEX = dat[, "fleet"], FUN = min)
-  attr(dat, "maxAgePerFleet") <- tapply(as.integer(dat[, "age"]), 
-                                        INDEX = dat[, "fleet"], FUN = max)
-  attr(dat, "year") <- newyear
-  attr(dat, "nyear") <- max(as.numeric(dat$year)) - min(as.numeric(dat$year)) + 
-    1
-  cutY <- function(x) x[rownames(x) %in% newyear, ]
-  attr(dat, "prop.mature") <- cutY(prop.mature)
-  attr(dat, "stock.mean.weight") <- cutY(stock.mean.weight)
-  attr(dat, "catch.mean.weight") <- cutY(catch.mean.weight)
-  attr(dat, "dis.mean.weight") <- cutY(dis.mean.weight)
-  attr(dat, "land.mean.weight") <- cutY(land.mean.weight)
-  attr(dat, "natural.mortality") <- cutY(natural.mortality)
-  attr(dat, "prop.f") <- cutY(prop.f)
-  attr(dat, "prop.m") <- cutY(prop.m)
-  attr(dat, "land.frac") <- cutY(land.frac)
-  ret <- list(noFleets = length(attr(dat, "type")), 
-              fleetTypes = as.integer(attr(dat, "type")),
-              sampleTimes = attr(dat, "time"), 
-              noYears = attr(dat, "nyear"), 
-              years = attr(dat, "year"), 
-              minAgePerFleet = attr(dat, "minAgePerFleet"), 
-              maxAgePerFleet = attr(dat, "maxAgePerFleet"), 
-              nobs = nrow(dat), idx1 = attr(dat, "idx1"), 
-              idx2 = attr(dat,"idx2"), idxCor = idxCor, 
-              aux = data.matrix(dat[,-4]), 
-              logobs = dat[, 4], #log(dat[, 4]), CHANGED TO ACCOMODATE LOGGED OBSERVATIONS
-              weight = as.numeric(weight), 
-              propMat = attr(dat, "prop.mature"), 
-              stockMeanWeight = attr(dat, "stock.mean.weight"), 
-              catchMeanWeight = attr(dat, "catch.mean.weight"), 
-              natMor = attr(dat, "natural.mortality"), 
-              landFrac = attr(dat, "land.frac"), 
-              disMeanWeight = attr(dat, "dis.mean.weight"), 
-              landMeanWeight = attr(dat, "land.mean.weight"), 
-              propF = attr(dat, "prop.f"), propM = attr(dat, "prop.m"), 
-              corList = corList)
-  attr(ret, "fleetNames") <- attr(dat, "name")
+  lower2 <- rep(-Inf, length(obj$par))
+  upper2 <- rep(Inf, length(obj$par))
+  for (nn in names(lower)) lower2[names(obj$par) == nn] = lower[[nn]]
+  for (nn in names(upper)) upper2[names(obj$par) == nn] = upper[[nn]]
+  if (!run) 
+    return(list(sdrep = NA, pl = parameters, plsd = NA, 
+                data = data, conf = conf, opt = NA, obj = obj))
+  opt <- nlminb(obj$par, obj$fn, obj$gr, control = list(trace = 1, 
+                                                        eval.max = 2000, iter.max = 1000), lower = lower2, upper = upper2)
+  ## Take out this little extra optimization routine here so that
+  ## parameter bounds are respected.
+  # for (i in seq_len(newtonsteps)) {
+  #   g <- as.numeric(obj$gr(opt$par))
+  #   h <- optimHess(opt$par, obj$fn, obj$gr)
+  #   opt$par <- opt$par - solve(h, g)
+  #   opt$objective <- obj$fn(opt$par)
+  # }
+  rep <- obj$report()
+  sdrep <- TMB::sdreport(obj, opt$par)
+  idx <- c(which(names(sdrep$value) == "lastLogN"), which(names(sdrep$value) == 
+                                                            "lastLogF"))
+  sdrep$estY <- sdrep$value[idx]
+  sdrep$covY <- sdrep$cov[idx, idx]
+  idx <- c(which(names(sdrep$value) == "beforeLastLogN"), 
+           which(names(sdrep$value) == "beforeLastLogF"))
+  sdrep$estYm1 <- sdrep$value[idx]
+  sdrep$covYm1 <- sdrep$cov[idx, idx]
+  pl <- as.list(sdrep, "Est")
+  plsd <- as.list(sdrep, "Std")
+  sdrep$cov <- NULL
+  ret <- list(sdrep = sdrep, pl = pl, plsd = plsd, data = data, 
+              conf = conf, opt = opt, obj = obj, rep = rep, low = lower, 
+              hig = upper)
+  attr(ret, "RemoteSha") <- substr(packageDescription("stockassessment")$RemoteSha, 
+                                   1, 12)
+  attr(ret, "Version") <- packageDescription("stockassessment")$Version
+  class(ret) <- "sam"
   return(ret)
 }
-
 

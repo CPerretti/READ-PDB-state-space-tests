@@ -14,9 +14,8 @@ pm <- read.ices("../data/pm.dat") # proportion of m before spawning
 sw <- read.ices("../data/sw.dat") # stock weight-at-age (kg)
 
 cn <- read.ices("../data/cn.dat") # catch abundace-at-age
-#cn <- read.ices("../../simulation/sim_data/catch.dat") # catch abundace-at-age
-#surveys <- read.ices("../data/Herrsurvey_BigSep_NoAcoust.dat") #surveys
-surveys <- read.ices("../../simulation/sim_data/surveys.dat") #surveys
+surveys <- read.ices("../data/Herrsurvey_BigSep_NoAcoust.dat") #surveys
+
 
 # setup the data as needed for SAM
 dat_atl <- setup.sam.data(surveys = surveys,
@@ -33,22 +32,34 @@ dat_atl <- setup.sam.data(surveys = surveys,
 
 
 # Load model configuration file
-conf <- loadConf(dat = dat_atl, file = "../ModelConf_simple.txt")
+conf <- loadConf(dat = dat_atl, file = "../ModelConf_original.txt")
 
 par <- defpar(dat_atl, conf) # some default starting values
 
-fitHer <- sam.fit(dat_atl, conf, par, sim.condRE = FALSE) # fit the model
+# Fit model freely
+fitHer <- sam.fit_cp(dat_atl, conf, par, sim.condRE = FALSE)
+# Fit model while mapping logSdLogN
+# par_map <- par
+# par_map$logSdLogN <- rep(-2, length(par_map$logSdLogN))
+fitHer_map <- sam.fit_cp(dat_atl, conf, par, sim.condRE = FALSE, 
+                         upper = list("logSdLogN" = rep(-2, length(par_map$logSdLogN)),
+                                      "logSdLogFsta" = rep(-2, length(par_map$logSdLogFsta))))
+                         #map = list("logSdLogN" = factor(rep(NA, length(par$logSdLogN)))))
 
-save(list = "fitHer", file = "../output/fitHerSimple.Rdata")
+#save(list = "fitHer", file = "../output/fitHerSimple.Rdata")
 
 modelTable <- modeltable(fitHer) # AIC and # of params
 
 
 # Make plots
 ssbplot(fitHer)
+ssbplot(fitHer_map, add = TRUE, col = "blue", ci = FALSE)
 fbarplot(fitHer)
+fbarplot(fitHer_map, add = TRUE, col = "blue", ci = FALSE)
 recplot(fitHer)
+recplot(fitHer_map, add = TRUE, col = "blue", ci = FALSE)
 catchplot(fitHer)
+catchplot(fitHer_map, add = TRUE, col = "blue", ci = FALSE)
 
 
 # res <- residuals(fitHer)
