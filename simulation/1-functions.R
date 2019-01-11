@@ -362,6 +362,63 @@ plotN <- function(simOut, fit) {
           legend.text = element_text(size = 12))
 }
 
+## Plot N-at-age simulated vs fit #######################
+plotN_quants <- function(simOut, fit){
+  # if (!is.null(simOut$N)) {
+  #   N <- simOut$N  
+  # } else { N <- exp(simOut$logN); rownames(N) <- paste0("tru.", 1:nrow(N))}
+  # 
+  
+  df2plot_fit <- 
+    data.frame(fit = fit$pl$logN %>% exp %>% t) %>%
+    dplyr::mutate(year = fit$data$years) %>%
+    tidyr::gather(variable, N, -year) %>%
+    tidyr::separate(variable, c("source", "age")) %>%
+    dplyr::mutate(age = paste0("age-", age))
+  
+  df2plot0 <- data.frame()
+  for (i in 1:length(simOut)) {
+    N <- simOut[[i]]$N
+    df2plot0 <-
+      rbind(df2plot0,
+            {N %>%
+             t() %>%
+             as.data.frame() %>%
+             cbind(data.frame(fit = fit$pl$logN %>% exp %>% t)) %>%
+             dplyr::mutate(year = fit$data$years) %>%
+             tidyr::gather(variable, N, -year) %>%
+             tidyr::separate(variable, c("source", "age")) %>%
+             dplyr::mutate(age = paste0("age-", age),
+                           replicate = i)})
+  }
+
+  df2plot <-
+    df2plot0 %>%
+    dplyr::group_by(year, age) %>%
+    dplyr::summarise(#pc05 = quantile(N, probs = 0.05),
+                     #pc10 = quantile(N, probs = 0.10),
+                     #pc25 = quantile(N, probs = 0.25),
+                     pc50 = quantile(N, probs = 0.50),
+                     pc75 = quantile(N, probs = 0.75),
+                     pc90 = quantile(N, probs = 0.90),
+                     #pc95 = quantile(N, probs = 0.95)
+                     ) %>%
+    tidyr::gather(variable, N, -year, -age)
+    
+  
+  # Plot N-at-age 
+  ggplot(data = df2plot, aes(x = year, y = N)) +
+    geom_line(aes(color = variable)) +
+    geom_line(data = df2plot_fit) +
+    facet_wrap(~age, scales = "free") +
+    ylab("Abundance (1000's)") +
+    ggtitle("Population abundance-at-age") +
+    theme_bw() +
+    theme(legend.title = element_blank(),
+          legend.text = element_text(size = 12))
+}
+
+
 ## Plot C-at-age simulated vs fit #######################
 plotC <- function(simOut, fit) {
   Cobs_mt <- simOut$Cobs_mt

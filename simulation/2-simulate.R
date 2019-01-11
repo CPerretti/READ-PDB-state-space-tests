@@ -1,10 +1,5 @@
 ## Perform SAM simulation tests
 
-# Make sure the simulation model is replicating survey q correctly (keyLogFpar)
-# And keyVarObs
-# Still doesn't really match with simulate.sam()
-
-
 # Required packages
 library(plyr) # always load before dplyr
 library(dplyr)
