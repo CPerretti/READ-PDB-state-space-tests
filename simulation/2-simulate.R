@@ -26,7 +26,7 @@ fitReal <- fitNScod
 
 # How many simulation replicates to do
 
-nRep <- 100
+nRep <- 50#0
 
 # Generate simulation replicates
 simOut <- list()
@@ -124,75 +124,81 @@ err <- rbind(errNF, errC)
 plotTsError(err)
 plotTsMeanError(err)
 
-
+# Plot observed catch vs true catch vs estimated catch in N (not MT) because
+# the model fit is in N, and we want to check to see how well it estiamtes the
+# bias which occurs there.
+# plotC_N(simOut = simOutAccept[[1]],
+#       fit = fitSimAccept[[1]])
 
 ## Replicate using simulate.sam() ######################
-fitRealAdjusted <- fitReal
-fitRealAdjusted$pl$logSdLogFsta <- # Adjust (reduce) process error
-  #(c(0.1, rep(0.33, length(fitReal$pl$logSdLogFsta)-1)) * exp(fitReal$pl$logSdLogFsta)) %>%
-  (c(1, rep(1, length(fitReal$pl$logSdLogFsta)-1)) * exp(fitReal$pl$logSdLogFsta)) %>%
-  log
-
-fitRealAdjusted$pl$logSdLogN[(fitRealAdjusted$conf$keyVarLogN + 1)] <-
-  fitRealAdjusted$pl$logSdLogN[(fitRealAdjusted$conf$keyVarLogN + 1)] %>%
-  exp %>% "*"(0.5) %>% log
-
-fitRealAdjusted$pl$logSdLogObs <-
- fitRealAdjusted$pl$logSdLogObs %>% exp %>% "*"(1) %>% log
-
-set.seed(12)
-simOutSAM <- stockassessment:::simulate.sam(fitRealAdjusted, nsim = nRep, full.data = TRUE)
-set.seed(12) # Need to do this in order to get N & F and the data needed to run sam.fit to match
-simOutSAM4error <- stockassessment:::simulate.sam(fitRealAdjusted, 
-                                                  nsim = nRep, 
-                                                  full.data = FALSE)
-
-# make sure the observations are the same
-#for (i in 1:nRep) print(all(simOutSAM[[i]]$logobs == simOutSAM4error[[i]]$logobs))
-
-cl <- makeCluster(detectCores() - 1) #setup nodes for parallel
-clusterExport(cl, c("fitReal"))
-clusterEvalQ(cl, {library(stockassessment)}) #load stockassessment to each node
-fitSimSAM <- parLapply(cl, simOutSAM,
-                       function(x){try(sam.fit(data = x, conf = fitReal$conf, 
-                                               par = defpar(dat = x, 
-                                                            conf = fitReal$conf)))})
-stopCluster(cl) #shut down nodes
-
-## Error handling #####
-for(i in 1:nRep) simOutSAM[[i]]$trueParams <- fitRealAdjusted
-# Exclude TMB fails
-fitSimSAMAccept <- fitSimSAM[!(sapply(fitSimSAM, class) == "try-error")]
-simOutSAMAccept <- simOutSAM[!(sapply(fitSimSAM, class) == "try-error")]
-simOutSAM4errorAccept <- simOutSAM4error[!(sapply(fitSimSAM, class) == "try-error")]
-# Exclude non-convergences
-x <- unlist(sapply(fitSimSAMAccept, function (x) x[[6]][3]))
-fitSimSAMAccept <- fitSimSAMAccept[x != 1]
-simOutSAMAccept <- simOutSAMAccept[x != 1]
-simOutSAM4errorAccept <- simOutSAM4errorAccept[x != 1]
-nRepSAMAccept <- length(fitSimSAMAccept)
-
-# Plot parameter error
-plotPars(fitSimSAMAccept, simOutSAMAccept)
-
-plotPars(fitSimAccept, simOutAccept) #comapre to mine
-
-# Calculate random effect error
-errNFSAM <- calcNFTsErrorSAM(fitSimSAMAccept, simOutSAM4errorAccept)
-plotTsError(errNFSAM)
-
-plotTsError(err) # compare to mine
-# Plot one
-plotN(simOut = simOutSAM4errorAccept[[3]],
-      fit = fitSimSAMAccept[[3]])
-
-plotN(simOut = simOutAccept[[3]], #compare to mine
-      fit = fitSimAccept[[3]])
-
+# fitRealAdjusted <- fitReal
+# fitRealAdjusted$pl$logSdLogFsta <- # Adjust (reduce) process error
+#   #(c(0.1, rep(0.33, length(fitReal$pl$logSdLogFsta)-1)) * exp(fitReal$pl$logSdLogFsta)) %>%
+#   (c(1, rep(1, length(fitReal$pl$logSdLogFsta)-1)) * exp(fitReal$pl$logSdLogFsta)) %>%
+#   log
+# 
+# fitRealAdjusted$pl$logSdLogN[(fitRealAdjusted$conf$keyVarLogN + 1)] <-
+#   fitRealAdjusted$pl$logSdLogN[(fitRealAdjusted$conf$keyVarLogN + 1)] %>%
+#   exp %>% "*"(1) %>% log
+# 
+# fitRealAdjusted$pl$logSdLogObs <-
+#  fitRealAdjusted$pl$logSdLogObs %>% exp %>% "*"(1) %>% log
+# 
+# set.seed(12)
+# simOutSAM <- stockassessment:::simulate.sam(fitRealAdjusted, nsim = nRep, full.data = TRUE)
+# set.seed(12) # Need to do this in order to get N & F and the data needed to run sam.fit to match
+# simOutSAM4error <- stockassessment:::simulate.sam(fitRealAdjusted, 
+#                                                   nsim = nRep, 
+#                                                   full.data = FALSE)
+# 
+# # make sure the observations are the same
+# #for (i in 1:nRep) print(all(simOutSAM[[i]]$logobs == simOutSAM4error[[i]]$logobs))
+# 
+# cl <- makeCluster(detectCores() - 1) #setup nodes for parallel
+# clusterExport(cl, c("fitReal"))
+# clusterEvalQ(cl, {library(stockassessment)}) #load stockassessment to each node
+# fitSimSAM <- parLapply(cl, simOutSAM,
+#                        function(x){try(sam.fit(data = x, conf = fitReal$conf, 
+#                                                par = defpar(dat = x, 
+#                                                             conf = fitReal$conf)))})
+# stopCluster(cl) #shut down nodes
+# 
+# ## Error handling #####
+# for(i in 1:nRep) simOutSAM[[i]]$trueParams <- fitRealAdjusted
+# # Exclude TMB fails
+# fitSimSAMAccept <- fitSimSAM[!(sapply(fitSimSAM, class) == "try-error")]
+# simOutSAMAccept <- simOutSAM[!(sapply(fitSimSAM, class) == "try-error")]
+# simOutSAM4errorAccept <- simOutSAM4error[!(sapply(fitSimSAM, class) == "try-error")]
+# # Exclude non-convergences
+# x <- unlist(sapply(fitSimSAMAccept, function (x) x[[6]][3]))
+# fitSimSAMAccept <- fitSimSAMAccept[x != 1]
+# simOutSAMAccept <- simOutSAMAccept[x != 1]
+# simOutSAM4errorAccept <- simOutSAM4errorAccept[x != 1]
+# nRepSAMAccept <- length(fitSimSAMAccept)
+# 
+# # Plot parameter error
+# plotPars(fitSimSAMAccept, simOutSAMAccept)
+# 
+# plotPars(fitSimAccept, simOutAccept) #comapre to mine
+# 
+# # Calculate random effect error
+# errNFSAM <- calcNFTsErrorSAM(fitSimSAMAccept, simOutSAM4errorAccept)
+# plotTsError(errNFSAM)
+# 
+# plotTsError(err) # compare to mine
+# # Plot one
+# plotN(simOut = simOutSAM4errorAccept[[3]],
+#       fit = fitSimSAMAccept[[3]])
+# 
+# plotN(simOut = simOutAccept[[3]], #compare to mine
+#       fit = fitSimAccept[[3]])
+#
 # # plotF(simOut = simOutSAM4errorAccept[[1]],
 # #      fit = fitSimSAMAccept[[1]])
 
-# Some plots of the simulation output
+
+
+# Some plots to inspect simulaiton output from the two sources
 # mean(c(sapply(simOutSAM4error, function(x) x$logN[3,])))
 # mean(c(sapply(simOut, function(x) x$trueParams$pl$logN[3,])))
 # 
