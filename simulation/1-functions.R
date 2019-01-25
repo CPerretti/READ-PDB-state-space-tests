@@ -128,7 +128,7 @@ sim <- function(fit) {
   logCtru_N <- logN - log(z) + log(1 - exp(-z)) + logF
   rownames(logCtru_N) <- 1:nA
   #logCobs_N <- logCtru_N + errObs[, , "Residual catch"]
-  logCobs_N <- logCtru_N + log(0.5) + errObs[, , "Residual catch"] # Model misspecificaiton, take half
+  logCobs_N <- logCtru_N - log(2) + errObs[, , "Residual catch"] # Model misspecification, take half
   
   Ctru_N <- exp(logCtru_N)
   Cobs_N <- exp(logCobs_N) 
@@ -480,9 +480,9 @@ plotC <- function(simOut, fit) {
 
 ## Plot C_N-at-age simulated vs fit ####################### <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 # Numbers at age *not* MT.
-fitSim[[1]]$data$aux #<-- Use to tell which is commerical catch, and which age
-fitSim[[1]]$data$logobs #<-- Use to pull out observations
-fitSim[[1]]$rep #<-- Use to pull out model fit
+# fitSim[[1]]$data$aux #<-- Use to tell which is commerical catch, and which age
+# fitSim[[1]]$data$logobs #<-- Use to pull out observations
+# fitSim[[1]]$rep #<-- Use to pull out model fit
 
 
 ## Plot survey data vs original fit #######################

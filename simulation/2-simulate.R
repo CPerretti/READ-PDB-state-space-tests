@@ -1,4 +1,6 @@
 ## Perform SAM simulation tests
+#devtools::install_local("../../SAM/stockassessment/", force = TRUE)
+#devtools::install_github("fishfollower/SAM/stockassessment")
 
 # Required packages
 library(plyr) # always load before dplyr
@@ -10,6 +12,7 @@ library(parallel)
 
 # Load user-defined functions
 source("1-functions.R")
+
 
 ## Run simulation #########################################
 # Use atl herring fit to set up simulation
