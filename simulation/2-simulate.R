@@ -1,5 +1,5 @@
 ## Perform SAM simulation tests
-#devtools::install_local("../../SAM/stockassessment/", force = TRUE)
+#devtools::install_local("../../SAM/stockassessment/", force = TRUE) # Install altered SAM code
 #devtools::install_github("fishfollower/SAM/stockassessment")
 
 # Required packages
@@ -52,8 +52,8 @@ plotC(simOut = simOut[[1]],
       fit = fitReal)
 
 ## (4) Survey (1000s)
-plotS(simOut = simOut[[1]],
-      fit = fitReal)
+# plotS(simOut = simOut[[1]],
+#       fit = fitReal)
 
 ## Plot some simulations from simulate.sam()
 #plotSimSAM(fitReal, nsim = 10, seed = NULL)

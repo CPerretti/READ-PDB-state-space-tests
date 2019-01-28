@@ -128,7 +128,8 @@ sim <- function(fit) {
   logCtru_N <- logN - log(z) + log(1 - exp(-z)) + logF
   rownames(logCtru_N) <- 1:nA
   #logCobs_N <- logCtru_N + errObs[, , "Residual catch"]
-  logCobs_N <- logCtru_N - log(2) + errObs[, , "Residual catch"] # Model misspecification, take half
+  logFracReport <- -log(2) # log fraction reported (-log(2) half unreported)
+  logCobs_N <- logCtru_N + logFracReport + errObs[, , "Residual catch"] # Misreported catch
   
   Ctru_N <- exp(logCtru_N)
   Cobs_N <- exp(logCobs_N) 
@@ -176,6 +177,7 @@ sim <- function(fit) {
   
   
   trueParams <- list(sdrep = fit$sdrep, pl = fit$pl)
+  trueParams$pl$logFracReport <- logFracReport
   trueParams$pl$logN <- logN
   dimnames(f) <- list(paste0("tru.", c(1:nA)), fit$data$years)
   trueParams$pl$logF <- logF
@@ -587,11 +589,12 @@ plotPars <- function(fitSim, simOut) {
   df_parsOut <- data.frame()
   for (h in parsFixed) {
     for (i in 1:nRepAccept) {
+      h_tru <- which(names(simOut[[i]]$trueParams$pl) == names(fitSim[[i]]$pl[h]))
       df_parsOut <-
         rbind(df_parsOut,
               data.frame(variable = paste(names(fitSim[[1]]$pl)[h], 
                                           1:length(fitSim[[1]]$pl[[h]]), sep = "."),
-                         tru = simOut[[i]]$trueParams$pl[[h]],
+                         tru = simOut[[i]]$trueParams$pl[[h_tru]],
                          est = fitSim[[i]]$pl[[h]],
                          sd  = fitSim[[i]]$plsd[[h]],
                          replicate = i))
@@ -627,6 +630,7 @@ calcNFTsError <- function(fitSim, simOut) {
       rownames(fitSim[[i]]$pl[[h]]) <- paste0("fit.", 1:nrow(fitSim[[i]]$pl[[h]]))
       sdLog <- fitSim[[i]]$plsd[[h]]
       rownames(sdLog) <- paste0("sdLog.", 1:nrow(fitSim[[i]]$pl[[h]]))
+      h_tru <- which(names(simOut[[i]]$trueParams$pl) == names(fitSim[[i]]$pl[h]))
       errRe <-
         rbind(errRe,
               fitSim[[i]]$pl[[h]] %>%
@@ -636,7 +640,7 @@ calcNFTsError <- function(fitSim, simOut) {
                 cbind(sdLog %>%
                         t() %>%
                         as.data.frame()) %>%
-                cbind(data.frame(simOut[[i]]$trueParams$pl[[h]] %>% t %>% exp)) %>%
+                cbind(data.frame(simOut[[i]]$trueParams$pl[[h_tru]] %>% t %>% exp)) %>%
                 dplyr::mutate(year = as.numeric(fitSim[[i]]$data$years)) %>%
                 tidyr::gather(variable, N, -year) %>%
                 dplyr::mutate(variable = gsub(x = variable, 
