@@ -69,13 +69,16 @@ for (i in 1:nRep) {
   
   # Read in data, set initial params and configuration
   setupOut[[i]] <- setupModel(conf = fitReal$conf, example_dir = example_dir)
+  
+  setupOut[[i]]$par$logFpar <- simOut[[1]]$trueParams$pl$logFpar#<<Take out later!! Just to set map on true values.
 }
 
 # Fit model to replicates in parallel
 cl <- makeCluster(detectCores() - 1) #setup nodes for parallel
 clusterEvalQ(cl, {library(stockassessment)}) #load stockassessment to each node
 fitSim <- parLapply(cl, setupOut, 
-                    function(x){try(sam.fit(x$dat, x$conf, x$par))})
+                    function(x){try(sam.fit(x$dat, x$conf, x$par,
+                                            map = list("logFpar" = factor(rep(NA, length(x$par$logFpar))))))})
 stopCluster(cl) #shut down nodes
 
 
