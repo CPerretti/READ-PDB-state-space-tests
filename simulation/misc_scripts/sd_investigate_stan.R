@@ -66,6 +66,6 @@ print(fit)
 
 derived_sigma_pro <- sd(df_all$tru_est[2:N_obs] - df_all$tru_est[1:(N_obs-1)])
 
-#shinystan::launch_shinystan(fit)
+shinystan::launch_shinystan(fit)
 
 
