@@ -12,9 +12,10 @@ sim <- function(fit) {
                  nrow = nA, 
                  ncol = nT - 1)
   
-  # Set F sd  (notice the reduction of sd on the natural scale)
+  # Set F sd
   fit$pl$logSdLogFsta <- 
-    (c(1, rep(1, length(fit$pl$logSdLogFsta)-1)) * exp(fit$pl$logSdLogFsta)) %>% 
+    (c(1, rep(1, length(fit$pl$logSdLogFsta)-1)) * exp(fit$pl$logSdLogFsta)) %>%
+    "*"(2) %>%
     log
   sdLogF <- exp(fit$pl$logSdLogFsta)
   for (i in 1:(nT-1)) { # Create F error
@@ -71,7 +72,7 @@ sim <- function(fit) {
   # Lower N process error (!)
   fit$pl$logSdLogN[(fit$conf$keyVarLogN + 1)] <-
     fit$pl$logSdLogN[(fit$conf$keyVarLogN + 1)] %>%
-    exp %>% "*"(1) %>% log # NOTICE the reduction on the natural scale
+    exp %>% "*"(2) %>% log # NOTICE the reduction on the natural scale
   
   sdLogN <- exp(fit$pl$logSdLogN[(fit$conf$keyVarLogN + 1)])
   for (i in 1:(nT-1)) { # Create process error (N-at-age)
@@ -104,7 +105,7 @@ sim <- function(fit) {
   # Need to replicate some sd's to match config file
   index <- as.vector(t(fit$conf$keyVarObs + 1))
   index[index == 0] <- NA
-  fit$pl$logSdLogObs <- fit$pl$logSdLogObs %>% exp %>% "*"(1) %>% log
+  fit$pl$logSdLogObs <- fit$pl$logSdLogObs %>% exp %>% "*"(2) %>% log
   sdLogObs <- exp(fit$pl$logSdLogObs[index]) 
   
   # Make observation error (can only do uncorrelated error right now)
@@ -127,9 +128,11 @@ sim <- function(fit) {
   #logCtru_N <- log(f / z * (1 - exp(-z)) * N)
   logCtru_N <- logN - log(z) + log(1 - exp(-z)) + logF
   rownames(logCtru_N) <- 1:nA
-  #logCobs_N <- logCtru_N + errObs[, , "Residual catch"]
-  logFracReport <- -log(2) # log fraction reported (-log(2) half unreported)
-  logCobs_N <- logCtru_N + logFracReport + errObs[, , "Residual catch"] # Misreported catch
+
+  #logFracReport <- -log(2) # log fraction reported (-log(2) half unreported)
+  logCobs_N <- logCtru_N + 
+               #logFracReport + # Misreported catch
+               errObs[, , "Residual catch"] 
   
   Ctru_N <- exp(logCtru_N)
   Cobs_N <- exp(logCobs_N) 
@@ -177,7 +180,7 @@ sim <- function(fit) {
   
   
   trueParams <- list(sdrep = fit$sdrep, pl = fit$pl)
-  trueParams$pl$logFracReport <- logFracReport
+  if (exists("logFracReport")) trueParams$pl$logFracReport <- logFracReport
   trueParams$pl$logN <- logN
   dimnames(f) <- list(paste0("tru.", c(1:nA)), fit$data$years)
   trueParams$pl$logF <- logF
