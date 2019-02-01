@@ -15,7 +15,7 @@ sim <- function(fit) {
   # Set F sd
   fit$pl$logSdLogFsta <- 
     (c(1, rep(1, length(fit$pl$logSdLogFsta)-1)) * exp(fit$pl$logSdLogFsta)) %>%
-    "*"(2) %>%
+    "*"(1) %>%
     log
   sdLogF <- exp(fit$pl$logSdLogFsta)
   for (i in 1:(nT-1)) { # Create F error
@@ -72,7 +72,7 @@ sim <- function(fit) {
   # Lower N process error (!)
   fit$pl$logSdLogN[(fit$conf$keyVarLogN + 1)] <-
     fit$pl$logSdLogN[(fit$conf$keyVarLogN + 1)] %>%
-    exp %>% "*"(2) %>% log # NOTICE the reduction on the natural scale
+    exp %>% "*"(1) %>% log # NOTICE the reduction on the natural scale
   
   sdLogN <- exp(fit$pl$logSdLogN[(fit$conf$keyVarLogN + 1)])
   for (i in 1:(nT-1)) { # Create process error (N-at-age)
@@ -105,7 +105,7 @@ sim <- function(fit) {
   # Need to replicate some sd's to match config file
   index <- as.vector(t(fit$conf$keyVarObs + 1))
   index[index == 0] <- NA
-  fit$pl$logSdLogObs <- fit$pl$logSdLogObs %>% exp %>% "*"(2) %>% log
+  fit$pl$logSdLogObs <- fit$pl$logSdLogObs %>% exp %>% "*"(1) %>% log
   sdLogObs <- exp(fit$pl$logSdLogObs[index]) 
   
   # Make observation error (can only do uncorrelated error right now)
@@ -131,6 +131,7 @@ sim <- function(fit) {
 
   #logFracReport <- -log(2) # log fraction reported (-log(2) half unreported)
   logCobs_N <- logCtru_N + 
+               c(rep(0, nT-10), rep(-log(2), 10)) + # Under-report by 50% in last 10 years
                #logFracReport + # Misreported catch
                errObs[, , "Residual catch"] 
   
@@ -973,6 +974,27 @@ plotTsError <- function(err) {
     ylab("Range of N fit (1000's)")
   print(p)
   
+  
+  # Plot mean error in catch vs year
+  err2plot_C <-
+    err %>%  
+    dplyr::filter(year != min(year)) %>%
+    dplyr::filter(variable %in% c("catch")) %>%
+    dplyr::select(year, age, replicate, error_pc) %>%
+    dplyr::group_by(year) %>%
+    dplyr::summarise(error_pc_mean = mean(error_pc),
+                     nObs = length(error_pc),
+                     error_pc_hi   = error_pc_mean + 1.96 * sd(error_pc)/sqrt(nObs),
+                     error_pc_lo  = error_pc_mean - 1.96 * sd(error_pc)/sqrt(nObs))
+  p <-
+    ggplot(err2plot_C, aes(x = year,)) +
+    geom_line(aes(y = error_pc_mean)) +
+    geom_ribbon(aes(ymin = error_pc_lo, ymax = error_pc_hi), alpha = 0.3) +
+    geom_hline(yintercept = 0) +
+    theme_bw() +
+    xlab("Year") +
+    ylab("Percent error of total catch estimate")
+  print(p)
   
   
   # Plot relationship between percent error and true value for N and F

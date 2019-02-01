@@ -113,8 +113,8 @@ plotF(simOut = simOutAccept[[1]],
       fit = fitSimAccept[[1]])
 
 ## (3) Catch (mt)
-plotC(simOut = simOutAccept[[1]],
-      fit = fitSimAccept[[1]])
+plotC(simOut = simOutAccept[[5]],
+      fit = fitSimAccept[[5]])
 
 ## (4) Survey (1000s)
 plotS(simOut = simOutAccept[[1]],
