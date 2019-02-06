@@ -32,7 +32,7 @@ fitReal <- fitNScod
 
 # How many simulation replicates to do
 
-nRep <- 50#0
+nRep <- 5#0
 
 # Generate simulation replicates
 simOut <- list()
@@ -73,13 +73,14 @@ for (i in 1:nRep) {
   # Read in data, set initial params and configuration
   setupOut[[i]] <- setupModel(conf = fitReal$conf, example_dir = example_dir)
   
-  #setupOut[[i]]$par$logFpar <- simOut[[1]]$trueParams$pl$logFpar#<<Take out later!! Just to set map on true values.
+  #setupOut[[i]]$par$logFpar <- simOut[[1]]$trueParams$pl$logFpar #Just to set map on true values.
 }
 
 # Fit model to replicates in parallel
+#sam.fit(setupOut[[1]]$dat, setupOut[[1]]$conf, setupOut[[1]]$par)
 cl <- makeCluster(detectCores() - 1) #setup nodes for parallel
 clusterEvalQ(cl, {library(stockassessment)}) #load stockassessment to each node
-fitSim <- parLapply(cl, setupOut, 
+fitSim <- parLapply(cl, setupOut,
                     function(x){try(sam.fit(x$dat, x$conf, x$par#,
                                             #map = list("logFpar" = factor(rep(NA, length(x$par$logFpar))))
                                             ))})
@@ -113,8 +114,8 @@ plotF(simOut = simOutAccept[[1]],
       fit = fitSimAccept[[1]])
 
 ## (3) Catch (mt)
-plotC(simOut = simOutAccept[[5]],
-      fit = fitSimAccept[[5]])
+plotC(simOut = simOutAccept[[1]],
+      fit = fitSimAccept[[1]])
 
 ## (4) Survey (1000s)
 plotS(simOut = simOutAccept[[1]],
@@ -123,9 +124,6 @@ plotS(simOut = simOutAccept[[1]],
 
 ## Plot fit vs true parameter values #######################
 
-# Plot parameters true vs fit
-plotPars(fitSimAccept, simOutAccept)
-
 # Plot error of time series estimates
 errNF <- calcNFTsError(fitSimAccept, simOutAccept)
 errC  <- calcCatchError(fitSimAccept, simOutAccept)
@@ -133,6 +131,9 @@ err <- rbind(errNF, errC)
 
 plotTsError(err)
 plotTsMeanError(err)
+
+# Plot parameters true vs fit
+plotPars(fitSimAccept, simOutAccept)
 
 # Plot observed catch vs true catch vs estimated catch in N (not MT) because
 # the model fit is in N, and we want to check to see how well it estiamtes the
@@ -281,4 +282,3 @@ plotTsMeanError(err)
 # 
 # hist(simOut[[2]]$logSobs_N)
 # hist(simOutSAM4error[[2]]$logobs[simOutSAM[[1]]$aux[,"fleet"] != 1])
-

@@ -129,10 +129,9 @@ sim <- function(fit) {
   logCtru_N <- logN - log(z) + log(1 - exp(-z)) + logF
   rownames(logCtru_N) <- 1:nA
 
-  #logFracReport <- -log(2) # log fraction reported (-log(2) half unreported)
-  logCobs_N <- logCtru_N + 
-               c(rep(0, nT-10), rep(-log(2), 10)) + # Under-report by 50% in last 10 years
-               #logFracReport + # Misreported catch
+  logScale <- log(rep(0.5, nT)) # Under-report by 50% in all years
+  logCobs_N <- logCtru_N - 
+               c(rep(0, nT - length(logScale)), logScale) + # Misreported catch
                errObs[, , "Residual catch"] 
   
   Ctru_N <- exp(logCtru_N)
@@ -181,7 +180,7 @@ sim <- function(fit) {
   
   
   trueParams <- list(sdrep = fit$sdrep, pl = fit$pl)
-  if (exists("logFracReport")) trueParams$pl$logFracReport <- logFracReport
+  if (exists("logScale")) trueParams$pl$logScale <- logScale
   trueParams$pl$logN <- logN
   dimnames(f) <- list(paste0("tru.", c(1:nA)), fit$data$years)
   trueParams$pl$logF <- logF
@@ -307,6 +306,13 @@ setupModel <- function(conf, example_dir) {
   
   # Load model configuration file
   conf <- conf
+  
+  # Try SAM misreported catch code
+  conf$noScaledYears <- length(dat$years)
+  conf$keyScaledYears <- (max(dat$years) - conf$noScaledYears + 1):max(dat$years)
+  conf$keyParScaledYA <- matrix(data = 0,
+                                nrow = conf$noScaledYears,
+                                ncol = ncol(conf$keyLogFsta))
   
   par <- defpar(dat, conf) # some default starting values
   
@@ -982,20 +988,39 @@ plotTsError <- function(err) {
     dplyr::filter(variable %in% c("catch")) %>%
     dplyr::select(year, age, replicate, error_pc) %>%
     dplyr::group_by(year) %>%
-    dplyr::summarise(error_pc_mean = mean(error_pc),
+    dplyr::summarise(error_pc_median = median(error_pc),
                      nObs = length(error_pc),
-                     error_pc_hi   = error_pc_mean + 1.96 * sd(error_pc)/sqrt(nObs),
-                     error_pc_lo  = error_pc_mean - 1.96 * sd(error_pc)/sqrt(nObs))
+                     error_pc_hi   = error_pc_median + 1.96 * sd(error_pc)/sqrt(nObs),
+                     error_pc_lo  = error_pc_median - 1.96 * sd(error_pc)/sqrt(nObs))
   p <-
-    ggplot(err2plot_C, aes(x = year,)) +
-    geom_line(aes(y = error_pc_mean)) +
+    ggplot(err2plot_C, aes(x = year)) +
+    geom_line(aes(y = error_pc_median)) +
     geom_ribbon(aes(ymin = error_pc_lo, ymax = error_pc_hi), alpha = 0.3) +
     geom_hline(yintercept = 0) +
     theme_bw() +
     xlab("Year") +
-    ylab("Percent error of total catch estimate")
+    ylab("Median percent error of catch estimate")
   print(p)
   
+  # Plot average true catch vs average estimated catch
+  err2plot_C_Av <-
+    err %>%  
+    dplyr::filter(year != min(year)) %>%
+    dplyr::filter(variable %in% c("catch")) %>%
+    dplyr::select(year, age, replicate, tru, fit) %>%
+    dplyr::group_by(year) %>%
+    dplyr::summarise(median_tru = median(tru),
+                     median_fit = median(fit))
+  
+  p <-
+    ggplot(err2plot_C_Av, aes(x = year)) +
+    geom_line(aes(y = median_tru), col = "black") +
+    geom_line(aes(y = median_fit), col = "red") +
+    #geom_ribbon(aes(ymin = error_pc_lo, ymax = error_pc_hi), alpha = 0.3) +
+    theme_bw() +
+    xlab("Year") +
+    ylab("Median catch (MT)")
+  print(p)
   
   # Plot relationship between percent error and true value for N and F
   # if(any(errAnnual$variable == "catch")) {
