@@ -1,9 +1,10 @@
 # Functions for simulations
 
 ## Simulation model #######################################
-sim <- function(fit) {
+sim <- function(fit, noScaledYears) {
   nA <- ncol(fit$data$propF) # number of age-classes
   nT <- fit$data$noYears # length of time series
+
   
   # Set F (need to replicate some elements to match ModelConf)
   #f <- exp(fit$pl$logF[(fit$conf$keyLogFsta[1,] + 1),])
@@ -129,9 +130,9 @@ sim <- function(fit) {
   logCtru_N <- logN - log(z) + log(1 - exp(-z)) + logF
   rownames(logCtru_N) <- 1:nA
 
-  logScale <- log(rep(0.5, nT)) # Under-report by 50% in all years
+  logScale <- log(rep(2, noScaledYears)) # Under-report by 50% in last noScaledYears years
   logCobs_N <- logCtru_N - 
-               c(rep(0, nT - length(logScale)), logScale) + # Misreported catch
+               c(rep(0, nT - noScaledYears), logScale) + # Misreported catch
                errObs[, , "Residual catch"] 
   
   Ctru_N <- exp(logCtru_N)
@@ -272,7 +273,7 @@ prepSimData <- function(Sobs_N, fit, Cobs_N) {
 }
 
 # Setup data and params for sam model #####################
-setupModel <- function(conf, example_dir) {
+setupModel <- function(conf, example_dir, noScaledYears) {
   
   # Read in data
   cn <- read.ices("./sim_data/catch.dat") # catch abundace-at-age
@@ -308,7 +309,7 @@ setupModel <- function(conf, example_dir) {
   conf <- conf
   
   # Try SAM misreported catch code
-  conf$noScaledYears <- length(dat$years)
+  conf$noScaledYears <- noScaledYears
   conf$keyScaledYears <- (max(dat$years) - conf$noScaledYears + 1):max(dat$years)
   conf$keyParScaledYA <- matrix(data = 0,
                                 nrow = conf$noScaledYears,
@@ -761,7 +762,7 @@ calcCatchError <- function(fitSim, simOut) {
 }
 
 ## Plot timeseries error ##################################
-plotTsError <- function(err) {
+plotTsError <- function(err, noYears) {
   
   nRepAccept <- length(unique(err$replicate))
   
@@ -843,7 +844,7 @@ plotTsError <- function(err) {
     ggplot(err %>% dplyr::filter(variable %in% c("N", "F")),
            aes(x = decile)) +
     geom_histogram(binwidth=1, colour="white") +
-    geom_hline(yintercept = ncol(fitSim[[1]]$pl$logN) * nRepAccept / 10, 
+    geom_hline(yintercept = noYears * nRepAccept / 10, 
                color = "dark grey") +
     theme_bw() +
     facet_grid(variable~age) +
@@ -856,7 +857,7 @@ plotTsError <- function(err) {
       ggplot(err %>% dplyr::filter(variable == "catch"),
              aes(x = decile)) +
       geom_histogram(binwidth=1, colour="white") +
-      geom_hline(yintercept = ncol(fitSim[[1]]$pl$logN) * nRepAccept / 10, 
+      geom_hline(yintercept = noYears * nRepAccept / 10, 
                  color = "dark grey") +
       theme_bw() +
       facet_wrap(~age) +

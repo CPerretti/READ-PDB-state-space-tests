@@ -32,12 +32,13 @@ fitReal <- fitNScod
 
 # How many simulation replicates to do
 
-nRep <- 5#0
+nRep <- 50
+noScaledYears <- 30#fitReal$data$noYears
 
 # Generate simulation replicates
 simOut <- list()
 for (i in 1:nRep) {
-  simOut[[i]] <- sim(fit = fitReal)  
+  simOut[[i]] <- sim(fit = fitReal, noScaledYears = noScaledYears)  
 }
 
 ## Plot an example true vs observed vs *real data* fit ########
@@ -71,7 +72,9 @@ for (i in 1:nRep) {
               Cobs_N = simOut[[i]]$Cobs_N) 
   
   # Read in data, set initial params and configuration
-  setupOut[[i]] <- setupModel(conf = fitReal$conf, example_dir = example_dir)
+  setupOut[[i]] <- setupModel(conf = fitReal$conf, 
+                              example_dir = example_dir, 
+                              noScaledYears = noScaledYears)
   
   #setupOut[[i]]$par$logFpar <- simOut[[1]]$trueParams$pl$logFpar #Just to set map on true values.
 }
@@ -129,7 +132,7 @@ errNF <- calcNFTsError(fitSimAccept, simOutAccept)
 errC  <- calcCatchError(fitSimAccept, simOutAccept)
 err <- rbind(errNF, errC)
 
-plotTsError(err)
+plotTsError(err, noYears = fitSimAccept[[1]]$data$noYears)
 plotTsMeanError(err)
 
 # Plot parameters true vs fit
