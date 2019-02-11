@@ -32,8 +32,8 @@ fitReal <- fitNScod
 
 # How many simulation replicates to do
 
-nRep <- 50
-noScaledYears <- 30#fitReal$data$noYears
+nRep <- 10#50
+noScaledYears <- 10#fitReal$data$noYears
 
 # Generate simulation replicates
 simOut <- list()
@@ -56,8 +56,8 @@ plotC(simOut = simOut[[1]],
       fit = fitReal)
 
 ## (4) Survey (1000s)
-# plotS(simOut = simOut[[1]],
-#       fit = fitReal)
+plotS(simOut = simOut[[1]],
+      fit = fitReal)
 
 ## Plot some simulations from simulate.sam()
 #plotSimSAM(fitReal, nsim = 10, seed = NULL)

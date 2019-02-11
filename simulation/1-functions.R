@@ -30,7 +30,9 @@ sim <- function(fit, noScaledYears) {
                  ncol = nT, 
                  dimnames = list(paste0("tru.", c(1:nA)), fit$data$years)) 
   
-  logF[, 1] <- fit$pl$logF[, 1][fit$conf$keyLogFsta[1, ] + 1] # initial F from fitted model
+  logF[, 1] <- rnorm(n = nA, 
+                     mean = fit$pl$logF[, 1][fit$conf$keyLogFsta[1, ] + 1],
+                     sd = fit$plsd$logF[, 1][fit$conf$keyLogFsta[1, ] + 1]) # initial F from fitted model
   
   for (i in 2:nT) logF[, i] <- logF[, i - 1] + errF[, i - 1]
   
@@ -48,7 +50,9 @@ sim <- function(fit, noScaledYears) {
                  ncol = nT, 
                  dimnames = list(paste0("tru.", c(1:nA)), fit$data$years)) 
   
-  logN[, 1] <- fit$pl$logN[,1] # initial condition from fitted model
+  logN[, 1] <- rnorm(n = nA, 
+                     mean = fit$pl$logN[, 1],
+                     sd = fit$plsd$logF[, 1])# initial condition from fitted model
   
   # Calculate the process errors that were estimated in the fit so we can 
   # exactly replicate the fit
@@ -70,10 +74,10 @@ sim <- function(fit, noScaledYears) {
   errPro <- matrix(data = NA,
                    nrow = nA, 
                    ncol = nT-1)
-  # Lower N process error (!)
+  # Possibly lower N process error (!)
   fit$pl$logSdLogN[(fit$conf$keyVarLogN + 1)] <-
     fit$pl$logSdLogN[(fit$conf$keyVarLogN + 1)] %>%
-    exp %>% "*"(1) %>% log # NOTICE the reduction on the natural scale
+    exp %>% "*"(1) %>% log
   
   sdLogN <- exp(fit$pl$logSdLogN[(fit$conf$keyVarLogN + 1)])
   for (i in 1:(nT-1)) { # Create process error (N-at-age)
@@ -129,10 +133,10 @@ sim <- function(fit, noScaledYears) {
   #logCtru_N <- log(f / z * (1 - exp(-z)) * N)
   logCtru_N <- logN - log(z) + log(1 - exp(-z)) + logF
   rownames(logCtru_N) <- 1:nA
-
-  logScale <- log(rep(2, noScaledYears)) # Under-report by 50% in last noScaledYears years
+  
+  logScale <- log(1)#c(log(2/1), log(3/1))#c(log(4/3), log(2/1)) #log(1) # Under-report by 25%, then by 50% 
   logCobs_N <- logCtru_N - 
-               c(rep(0, nT - noScaledYears), logScale) + # Misreported catch
+               c(rep(0, nT - noScaledYears), rep(logScale, each = noScaledYears/2)) + # Misreported catch
                errObs[, , "Residual catch"] 
   
   Ctru_N <- exp(logCtru_N)
@@ -309,11 +313,11 @@ setupModel <- function(conf, example_dir, noScaledYears) {
   conf <- conf
   
   # Try SAM misreported catch code
-  conf$noScaledYears <- noScaledYears
-  conf$keyScaledYears <- (max(dat$years) - conf$noScaledYears + 1):max(dat$years)
-  conf$keyParScaledYA <- matrix(data = 0,
-                                nrow = conf$noScaledYears,
-                                ncol = ncol(conf$keyLogFsta))
+  # conf$noScaledYears <- noScaledYears
+  # conf$keyScaledYears <- (max(dat$years) - conf$noScaledYears + 1):max(dat$years)
+  # conf$keyParScaledYA <- matrix(data = c(rep(0, conf$noScaledYears/2), rep(1, conf$noScaledYears/2)),
+  #                               nrow = conf$noScaledYears,
+  #                               ncol = ncol(conf$keyLogFsta))
   
   par <- defpar(dat, conf) # some default starting values
   
