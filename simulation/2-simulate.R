@@ -33,12 +33,13 @@ fitReal <- fitNScod
 # How many simulation replicates to do
 
 nRep <- 30#50
-noScaledYears <- 30#fitReal$data$noYears
+noScaledYears <- 10#fitReal$data$noYears
+logScale <- log(runif(n = noScaledYears * ncol(fitReal$data$propF), min = 1, max = 3)) # sequence of misreporting
 
 # Generate simulation replicates
 simOut <- list()
 for (i in 1:nRep) {
-  simOut[[i]] <- sim(fit = fitReal, noScaledYears = noScaledYears)  
+  simOut[[i]] <- sim(fit = fitReal, noScaledYears = noScaledYears, logScale = logScale)  
 }
 
 ## Plot an example true vs observed vs *real data* fit ########
