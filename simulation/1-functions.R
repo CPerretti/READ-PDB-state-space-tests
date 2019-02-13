@@ -134,9 +134,11 @@ sim <- function(fit, noScaledYears) {
   logCtru_N <- logN - log(z) + log(1 - exp(-z)) + logF
   rownames(logCtru_N) <- 1:nA
   
-  logScale <- log(1)#c(log(2/1), log(3/1))#c(log(4/3), log(2/1)) #log(1) # Under-report by 25%, then by 50% 
+  logScale <- c(log(2/1), log(3/1))#c(log(4/3), log(2/1)) #log(1) # Under-report by 25%, then by 50% 
+  logScaleMat <- matrix(data = rep(c(rep(0, nT - noScaledYears), rep(logScale, each = noScaledYears/2)), times = nA),
+                        nrow = nA, byrow = T)
   logCobs_N <- logCtru_N - 
-               c(rep(0, nT - noScaledYears), rep(logScale, each = noScaledYears/2)) + # Misreported catch
+               logScaleMat + # Misreported catch
                errObs[, , "Residual catch"] 
   
   Ctru_N <- exp(logCtru_N)
@@ -313,11 +315,11 @@ setupModel <- function(conf, example_dir, noScaledYears) {
   conf <- conf
   
   # Try SAM misreported catch code
-  # conf$noScaledYears <- noScaledYears
-  # conf$keyScaledYears <- (max(dat$years) - conf$noScaledYears + 1):max(dat$years)
-  # conf$keyParScaledYA <- matrix(data = c(rep(0, conf$noScaledYears/2), rep(1, conf$noScaledYears/2)),
-  #                               nrow = conf$noScaledYears,
-  #                               ncol = ncol(conf$keyLogFsta))
+  conf$noScaledYears <- noScaledYears
+  conf$keyScaledYears <- (max(dat$years) - conf$noScaledYears + 1):max(dat$years)
+  conf$keyParScaledYA <- matrix(data = c(rep(0, conf$noScaledYears/2), rep(1, conf$noScaledYears/2)),
+                                nrow = conf$noScaledYears,
+                                ncol = ncol(conf$keyLogFsta))
   
   par <- defpar(dat, conf) # some default starting values
   

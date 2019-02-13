@@ -32,8 +32,8 @@ fitReal <- fitNScod
 
 # How many simulation replicates to do
 
-nRep <- 10#50
-noScaledYears <- 10#fitReal$data$noYears
+nRep <- 30#50
+noScaledYears <- 30#fitReal$data$noYears
 
 # Generate simulation replicates
 simOut <- list()
@@ -285,3 +285,15 @@ plotPars(fitSimAccept, simOutAccept)
 # 
 # hist(simOut[[2]]$logSobs_N)
 # hist(simOutSAM4error[[2]]$logobs[simOutSAM[[1]]$aux[,"fleet"] != 1])
+
+# Check if MLE is higher when using true logScale params
+# par2use <- fitSimAccept[[1]]$opt$par
+# par2use[which(names(par2use) == "logScale")] <- simOutAccept[[1]]$trueParams$pl$logScale
+# par2use[which(names(par2use) == "logFpar")] <- simOutAccept[[1]]$trueParams$pl$logFpar
+# par2use[which(names(par2use) == "logSdLogFsta")] <- simOutAccept[[1]]$trueParams$pl$logSdLogFsta
+# par2use[which(names(par2use) == "logSdLogN")] <- simOutAccept[[1]]$trueParams$pl$logSdLogN
+# par2use[which(names(par2use) == "logSdLogObs")] <- simOutAccept[[1]]$trueParams$pl$logSdLogObs
+# fitSimAccept[[1]]$obj$fn(fitSimAccept[[1]]$opt$par)
+# fitSimAccept[[1]]$obj$fn(par2use)
+
+
