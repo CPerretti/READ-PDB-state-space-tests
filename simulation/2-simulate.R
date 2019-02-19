@@ -32,7 +32,7 @@ fitReal <- fitNScod
 
 # How many simulation replicates to do
 
-nRep <- 30#50
+nRep <- 10#50
 noScaledYears <- 10#fitReal$data$noYears
 logScale <- log(runif(n = noScaledYears * ncol(fitReal$data$propF), min = 1, max = 3)) # sequence of misreporting
 
@@ -76,30 +76,40 @@ for (i in 1:nRep) {
   setupOut[[i]] <- setupModel(conf = fitReal$conf, 
                               example_dir = example_dir, 
                               noScaledYears = noScaledYears)
-  
-  #setupOut[[i]]$par$logFpar <- simOut[[1]]$trueParams$pl$logFpar #Just to set map on true values.
 }
 
 # Fit model to replicates in parallel
 #sam.fit(setupOut[[1]]$dat, setupOut[[1]]$conf, setupOut[[1]]$par)
 cl <- makeCluster(detectCores() - 1) #setup nodes for parallel
 clusterEvalQ(cl, {library(stockassessment)}) #load stockassessment to each node
+# Estimate with misreporting
 fitSim <- parLapply(cl, setupOut,
                     function(x){try(sam.fit(x$dat, x$conf, x$par#,
                                             #map = list("logFpar" = factor(rep(NA, length(x$par$logFpar))))
                                             ))})
+# Assume no misreporting
+fitSim_noMis<- parLapply(cl, setupOut,
+                         function(x){try(sam.fit(x$dat, x$conf, x$par,
+                                            map = list("logScale" = factor(rep(NA, length(x$par$logScale))))
+                    ))})
 stopCluster(cl) #shut down nodes
 
 
 ## Error handling #####
 # Exclude TMB fails
 fitSimAccept <- fitSim[!(sapply(fitSim, class) == "try-error")]
+fitSimAccept_noMis <- fitSim_noMis[!(sapply(fitSim_noMis, class) == "try-error")]
 simOutAccept <- simOut[!(sapply(fitSim, class) == "try-error")]
+simOutAccept_noMis <- simOut[!(sapply(fitSim_noMis, class) == "try-error")]
 # Exclude non-convergences
 x <- unlist(sapply(fitSimAccept, function (x) x[[6]][3]))
 fitSimAccept <- fitSimAccept[x != 1]
 simOutAccept <- simOutAccept[x != 1]  
 nRepAccept <- length(fitSimAccept)
+x <- unlist(sapply(fitSimAccept_noMis, function (x) x[[6]][3]))
+fitSimAccept_noMis <- fitSimAccept_noMis[x != 1]
+simOutAccept_noMis <- simOutAccept[x != 1]  
+nRepAccept_noMis <- length(fitSimAccept_noMis)
 
 # Save output
 suffix <- paste0(Sys.time(), ".Rdata")
@@ -130,14 +140,21 @@ plotS(simOut = simOutAccept[[1]],
 
 # Plot error of time series estimates
 errNF <- calcNFTsError(fitSimAccept, simOutAccept)
+errNF_noMis <- calcNFTsError(fitSimAccept_noMis, simOutAccept_noMis)
 errC  <- calcCatchError(fitSimAccept, simOutAccept)
+errC_noMis  <- calcCatchError(fitSimAccept_noMis, simOutAccept_noMis)
 err <- rbind(errNF, errC)
+err_noMis <- rbind(errNF_noMis, errC_noMis)
 
 plotTsError(err, noYears = fitSimAccept[[1]]$data$noYears)
+plotTsError(err_noMis, noYears = fitSimAccept_noMis[[1]]$data$noYears)
+
 plotTsMeanError(err)
+plotTsMeanError(err_noMis)
 
 # Plot parameters true vs fit
 plotPars(fitSimAccept, simOutAccept)
+plotPars(fitSimAccept_noMis, simOutAccept_noMis)
 
 # Plot observed catch vs true catch vs estimated catch in N (not MT) because
 # the model fit is in N, and we want to check to see how well it estiamtes the

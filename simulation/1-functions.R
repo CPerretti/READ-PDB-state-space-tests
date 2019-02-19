@@ -728,15 +728,15 @@ calcCatchError <- function(fitSim, simOut) {
       data.frame(variable = names(fitSim[[i]]$sdrep$value),
                  value = fitSim[[i]]$sdrep$value,
                  sd    = fitSim[[i]]$sdrep$sd) %>%
-      dplyr::filter(variable == "logCatch") %>%
-      dplyr::rename(logCatch = value,
+      dplyr::filter(variable %in% c("logCatch", "logssb")) %>%
+      dplyr::rename(#logCatch = value,
                     sdLog = sd) %>%
-      dplyr::mutate(fit = exp(logCatch),
-                    year = fitSim[[i]]$data$years,
+      dplyr::mutate(fit = value,
+                    year = rep(fitSim[[i]]$data$years, 2),
                     age = "total") %>%
-      dplyr::select(year, age, fit, sdLog)
+      dplyr::select(year, age, fit, sdLog, variable)
     
-    # True catch
+    # True catch << CONTINUE HERE BY EXTRACTING TRUE SSB <<<<<<<<<<<<<<<<<<<<<<
     df_Ctru_mt <- 
       simOut[[i]]$Ctru_mt %>%
       t() %>%
