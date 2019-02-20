@@ -33,7 +33,7 @@ fitReal <- fitNScod
 # How many simulation replicates to do
 
 nRep <- 10#50
-noScaledYears <- 10#fitReal$data$noYears
+noScaledYears <- 5#fitReal$data$noYears
 logScale <- log(runif(n = noScaledYears * ncol(fitReal$data$propF), min = 1, max = 3)) # sequence of misreporting
 
 # Generate simulation replicates
@@ -76,6 +76,7 @@ for (i in 1:nRep) {
   setupOut[[i]] <- setupModel(conf = fitReal$conf, 
                               example_dir = example_dir, 
                               noScaledYears = noScaledYears)
+  setupOut[[i]]$par$logScale <- logScale #Just to set map on true values.
 }
 
 # Fit model to replicates in parallel
@@ -141,13 +142,13 @@ plotS(simOut = simOutAccept[[1]],
 # Plot error of time series estimates
 errNF <- calcNFTsError(fitSimAccept, simOutAccept)
 errNF_noMis <- calcNFTsError(fitSimAccept_noMis, simOutAccept_noMis)
-errC  <- calcCatchError(fitSimAccept, simOutAccept)
-errC_noMis  <- calcCatchError(fitSimAccept_noMis, simOutAccept_noMis)
-err <- rbind(errNF, errC)
-err_noMis <- rbind(errNF_noMis, errC_noMis)
+errCSSB  <- calcCSSBError(fitSimAccept, simOutAccept)
+errCSSB_noMis  <- calcCSSBError(fitSimAccept_noMis, simOutAccept_noMis)
+err <- rbind(errNF, errCSSB)
+err_noMis <- rbind(errNF_noMis, errCSSB_noMis)
 
 plotTsError(err, noYears = fitSimAccept[[1]]$data$noYears)
-plotTsError(err_noMis, noYears = fitSimAccept_noMis[[1]]$data$noYears)
+plotTsError(err_noMis, noYears = fitSimAccept_noMis[[1]]$data$noYears) #<< FIX this now that SSB was added <<<
 
 plotTsMeanError(err)
 plotTsMeanError(err_noMis)

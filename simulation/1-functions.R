@@ -100,6 +100,9 @@ sim <- function(fit, noScaledYears, logScale) {
   
   N <- exp(logN)
   
+  SSB <- (N*exp(-f*t(fit$data$propF)-t(fit$data$natMor)*t(fit$data$propM))*
+          t(fit$data$propMat)*t(fit$data$stockMeanWeight)) %>% colSums
+  
   ## Simulate observation model #############################
   # Observation error (for catch and surveys)
   errObs <- array(data = NA, # error container (3-d: age x year x fleet)
@@ -193,6 +196,7 @@ sim <- function(fit, noScaledYears, logScale) {
   return(list(trueParams = trueParams,
               N = N, 
               logN = logN,
+              SSB = SSB,
               logCobs_N = logCobs_N,
               logCtru_N = logCtru_N, 
               logStru_N = logStru_N, 
@@ -719,25 +723,27 @@ calcNFTsErrorSAM <- function(fitSimSAM, simOutSAM4error) {
 }
 
 ## Calculate observed time series error ###################
-calcCatchError <- function(fitSim, simOut) {
+calcCSSBError <- function(fitSim, simOut) {
   
-  errC <- data.frame()
+  errCSSB <- data.frame()
   for (i in 1:length(fitSim)) {
-    # Fit catch
-    df_Cfit_mt <- 
+    # Fit catch and SSB
+    df_CSSBfit <- 
       data.frame(variable = names(fitSim[[i]]$sdrep$value),
                  value = fitSim[[i]]$sdrep$value,
                  sd    = fitSim[[i]]$sdrep$sd) %>%
       dplyr::filter(variable %in% c("logCatch", "logssb")) %>%
-      dplyr::rename(#logCatch = value,
-                    sdLog = sd) %>%
-      dplyr::mutate(fit = value,
+      dplyr::rename(sdLog = sd) %>%
+      dplyr::mutate(fit = exp(value),
                     year = rep(fitSim[[i]]$data$years, 2),
-                    age = "total") %>%
+                    age = "total",
+                    variable = as.character(variable),
+                    variable = ifelse(variable == "logCatch", "catch", variable),
+                    variable = ifelse(variable == "logssb", "ssb", variable)) %>%
       dplyr::select(year, age, fit, sdLog, variable)
     
-    # True catch << CONTINUE HERE BY EXTRACTING TRUE SSB <<<<<<<<<<<<<<<<<<<<<<
-    df_Ctru_mt <- 
+    # True catch and SSB
+    df_CSSBtru <- 
       simOut[[i]]$Ctru_mt %>%
       t() %>%
       as.data.frame() %>%
@@ -745,20 +751,25 @@ calcCatchError <- function(fitSim, simOut) {
                     year = fitSim[[1]]$data$years) %>%
       tidyr::gather(age, Catch_mt, -year) %>%
       dplyr::rename(tru = Catch_mt) %>%
-      dplyr::filter(age == "total")
+      dplyr::filter(age == "total") %>%
+      dplyr::mutate(variable = "catch") %>%
+      rbind(data.frame(tru = simOut[[i]]$SSB,
+                       year = names(simOut[[i]]$SSB),
+                       age = "total",
+                       variable = "ssb")) %>%
+      dplyr::mutate(year = as.integer(year))
+     
     
-    
-    errC <-
-      rbind(errC,
-            df_Cfit_mt %>%
-              dplyr::left_join(df_Ctru_mt) %>%
+    errCSSB <-
+      rbind(errCSSB,
+            df_CSSBfit %>%
+              dplyr::left_join(df_CSSBtru) %>%
               dplyr::mutate(error = fit - tru,
                             error_pc = 100 * (fit - tru) / tru,
                             decile = ceiling(10 * pnorm(q    = log(tru),
                                                         mean = log(fit),
                                                         sd   = sdLog)),
-                            replicate = i,
-                            variable = "catch"))
+                            replicate = i))
   }  
   
   
