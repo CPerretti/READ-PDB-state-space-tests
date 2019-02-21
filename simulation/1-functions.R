@@ -32,7 +32,7 @@ sim <- function(fit, noScaledYears, logScale) {
   
   logF[, 1] <- rnorm(n = nA, 
                      mean = fit$pl$logF[, 1][fit$conf$keyLogFsta[1, ] + 1],
-                     sd = fit$plsd$logF[, 1][fit$conf$keyLogFsta[1, ] + 1]) # initial F from fitted model
+                     sd = fit$plsd$logF[, 1][fit$conf$keyLogFsta[1, ] + 1]) # initial F
   
   for (i in 2:nT) logF[, i] <- logF[, i - 1] + errF[, i - 1]
   
@@ -52,7 +52,7 @@ sim <- function(fit, noScaledYears, logScale) {
   
   logN[, 1] <- rnorm(n = nA, 
                      mean = fit$pl$logN[, 1],
-                     sd = fit$plsd$logF[, 1])# initial condition from fitted model
+                     sd = fit$plsd$logN[, 1])# initial N
   
   # Calculate the process errors that were estimated in the fit so we can 
   # exactly replicate the fit
@@ -100,9 +100,8 @@ sim <- function(fit, noScaledYears, logScale) {
   
   N <- exp(logN)
   
-  SSB <- (N*exp(-f*t(fit$data$propF)-t(fit$data$natMor)*t(fit$data$propM))*
-          t(fit$data$propMat)*t(fit$data$stockMeanWeight)) %>% colSums
-  
+  SSB <- (exp(logN)*exp(-exp(logF)*t(fit$data$propF)-t(fit$data$natMor)*t(fit$data$propM))*
+         t(fit$data$propMat)*t(fit$data$stockMeanWeight)) %>% colSums
   ## Simulate observation model #############################
   # Observation error (for catch and surveys)
   errObs <- array(data = NA, # error container (3-d: age x year x fleet)
@@ -138,7 +137,8 @@ sim <- function(fit, noScaledYears, logScale) {
   rownames(logCtru_N) <- 1:nA
   
   logScaleMat <- cbind(matrix(data = rep(0, (nT - (noScaledYears))*nA), nrow = nA, byrow = T),
-                       matrix(data = logScale, nrow = nA, byrow = T))
+                       matrix(data = logScale,#rep(logScale, nA*noScaledYears), 
+                              nrow = nA, byrow = T))
   logCobs_N <- logCtru_N - 
                logScaleMat + # Misreported catch
                errObs[, , "Residual catch"] 
@@ -163,7 +163,7 @@ sim <- function(fit, noScaledYears, logScale) {
   logSq <- matrix(data = NA, # survey q-at-age matrix
                   nrow = nrow(fit$conf$keyLogFpar), 
                   ncol = ncol(fit$conf$keyLogFpar))
-  logSq[which(fit$conf$keyLogFpar != -1)] <- # fill with herring fit values
+  logSq[which(fit$conf$keyLogFpar != -1)] <- # fill with real fit values
     fit$pl$logFpar[fit$conf$keyLogFpar[fit$conf$keyLogFpar != -1] + 1]
   Sq <- exp(logSq)
   
@@ -320,7 +320,9 @@ setupModel <- function(conf, example_dir, noScaledYears) {
   # Try SAM misreported catch code
   conf$noScaledYears <- noScaledYears
   conf$keyScaledYears <- (max(dat$years) - conf$noScaledYears + 1):max(dat$years)
-  conf$keyParScaledYA <- matrix(data = 0:(noScaledYears*ncol(fitReal$data$propF)-1),#c(rep(0, conf$noScaledYears/2), rep(1, conf$noScaledYears/2)),
+  # conf$keyParScaledYA <-  matrix(data = c(rep(0, conf$noScaledYears * ncol(fitReal$data$propF))),
+  #                                nrow = conf$noScaledYears)
+  conf$keyParScaledYA <- matrix(data = 0:(noScaledYears*ncol(fitReal$data$propF)-1),
                                 nrow = conf$noScaledYears)
   
   par <- defpar(dat, conf) # some default starting values
@@ -644,6 +646,7 @@ plotPars <- function(fitSim, simOut) {
 calcNFTsError <- function(fitSim, simOut) {
   indNF <- which(names(fitSim[[1]]$pl) %in% c("logN", "logF"))
   errRe <- data.frame()
+  nRepAccept <- length(fitSim)
   for (h in indNF) {
     for (i in 1:nRepAccept) {
       rownames(fitSim[[i]]$pl[[h]]) <- paste0("fit.", 1:nrow(fitSim[[i]]$pl[[h]]))
@@ -773,7 +776,7 @@ calcCSSBError <- function(fitSim, simOut) {
   }  
   
   
-  return(errC)
+  return(errCSSB)
 }
 
 ## Plot timeseries error ##################################
@@ -896,17 +899,14 @@ plotTsError <- function(err, noYears) {
   err2plot <-
     err %>%  
     dplyr::filter(variable %in% c("N")) %>%
-    dplyr::filter(year != min(year)) %>% # exclude initial condition which is identical across replicates
     dplyr::select(year, age, replicate, tru, fit) %>%
     dplyr::rename(N_tru = tru,
                   N_fit = fit) %>%
     dplyr::left_join({err %>%  
-        dplyr::filter(year != min(year)) %>%
         dplyr::filter(variable %in% c("F")) %>%
         dplyr::select(year, age, replicate, error_pc) %>%
         dplyr::rename(F_error_pc = error_pc)}) %>%
     dplyr::left_join({err %>%  
-        dplyr::filter(year != min(year)) %>%
         dplyr::filter(variable %in% c("N")) %>%
         dplyr::select(year, age, replicate, error_pc) %>%
         dplyr::rename(N_error_pc = error_pc)})
@@ -997,45 +997,45 @@ plotTsError <- function(err, noYears) {
   print(p)
   
   
-  # Plot mean error in catch vs year
-  err2plot_C <-
+  # Plot mean error in catch and ssb vs year
+  err2plot_CSSB <-
     err %>%  
-    dplyr::filter(year != min(year)) %>%
-    dplyr::filter(variable %in% c("catch")) %>%
-    dplyr::select(year, age, replicate, error_pc) %>%
-    dplyr::group_by(year) %>%
-    dplyr::summarise(error_pc_median = median(error_pc),
+    dplyr::filter(variable %in% c("catch", "ssb")) %>%
+    dplyr::select(year, variable, age, replicate, error_pc) %>%
+    dplyr::group_by(year, variable) %>%
+    dplyr::summarise(error_pc_mean = mean(error_pc),
                      nObs = length(error_pc),
-                     error_pc_hi   = error_pc_median + 1.96 * sd(error_pc)/sqrt(nObs),
-                     error_pc_lo  = error_pc_median - 1.96 * sd(error_pc)/sqrt(nObs))
+                     error_pc_hi   = error_pc_mean + 1.96 * sd(error_pc)/sqrt(nObs),
+                     error_pc_lo  = error_pc_mean - 1.96 * sd(error_pc)/sqrt(nObs))
   p <-
-    ggplot(err2plot_C, aes(x = year)) +
-    geom_line(aes(y = error_pc_median)) +
+    ggplot(err2plot_CSSB, aes(x = year)) +
+    geom_line(aes(y = error_pc_mean)) +
     geom_ribbon(aes(ymin = error_pc_lo, ymax = error_pc_hi), alpha = 0.3) +
     geom_hline(yintercept = 0) +
+    facet_wrap(~variable) +
     theme_bw() +
     xlab("Year") +
-    ylab("Median percent error of catch estimate")
+    ylab("Mean percent error of estimate")
   print(p)
+  
   
   # Plot average true catch vs average estimated catch
   err2plot_C_Av <-
     err %>%  
-    dplyr::filter(year != min(year)) %>%
     dplyr::filter(variable %in% c("catch")) %>%
     dplyr::select(year, age, replicate, tru, fit) %>%
     dplyr::group_by(year) %>%
-    dplyr::summarise(median_tru = median(tru),
-                     median_fit = median(fit))
+    dplyr::summarise(mean_tru = mean(tru),
+                     mean_fit = mean(fit))
   
   p <-
     ggplot(err2plot_C_Av, aes(x = year)) +
-    geom_line(aes(y = median_tru), col = "black") +
-    geom_line(aes(y = median_fit), col = "red") +
+    geom_line(aes(y = mean_tru), col = "black") +
+    geom_line(aes(y = mean_fit), col = "red") +
     #geom_ribbon(aes(ymin = error_pc_lo, ymax = error_pc_hi), alpha = 0.3) +
     theme_bw() +
     xlab("Year") +
-    ylab("Median catch (MT)")
+    ylab("Mean catch (MT)")
   print(p)
   
   # Plot relationship between percent error and true value for N and F
@@ -1056,7 +1056,7 @@ plotTsError <- function(err, noYears) {
 }
 
 ## Plot mean error over all replicates ####################
-plotTsMeanError <- function(err) {
+plotTsMeanError <- function(err, nRepAccept) {
   errMean <-
     err %>%
     dplyr::group_by(variable, age) %>%

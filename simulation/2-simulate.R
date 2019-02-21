@@ -32,9 +32,10 @@ fitReal <- fitNScod
 
 # How many simulation replicates to do
 
-nRep <- 10#50
-noScaledYears <- 5#fitReal$data$noYears
-logScale <- log(runif(n = noScaledYears * ncol(fitReal$data$propF), min = 1, max = 3)) # sequence of misreporting
+nRep <- 20#50
+noScaledYears <- 10#fitReal$data$noYears
+logScale <- #log(2)#
+    log(runif(n = noScaledYears * ncol(fitReal$data$propF), min = 1, max = 3)) # sequence of misreporting
 
 # Generate simulation replicates
 simOut <- list()
@@ -76,7 +77,7 @@ for (i in 1:nRep) {
   setupOut[[i]] <- setupModel(conf = fitReal$conf, 
                               example_dir = example_dir, 
                               noScaledYears = noScaledYears)
-  setupOut[[i]]$par$logScale <- logScale #Just to set map on true values.
+  #setupOut[[i]]$par$logScale <- logScale #Just to set map on true values.
 }
 
 # Fit model to replicates in parallel
@@ -99,8 +100,8 @@ stopCluster(cl) #shut down nodes
 ## Error handling #####
 # Exclude TMB fails
 fitSimAccept <- fitSim[!(sapply(fitSim, class) == "try-error")]
-fitSimAccept_noMis <- fitSim_noMis[!(sapply(fitSim_noMis, class) == "try-error")]
 simOutAccept <- simOut[!(sapply(fitSim, class) == "try-error")]
+fitSimAccept_noMis <- fitSim_noMis[!(sapply(fitSim_noMis, class) == "try-error")]
 simOutAccept_noMis <- simOut[!(sapply(fitSim_noMis, class) == "try-error")]
 # Exclude non-convergences
 x <- unlist(sapply(fitSimAccept, function (x) x[[6]][3]))
@@ -109,7 +110,7 @@ simOutAccept <- simOutAccept[x != 1]
 nRepAccept <- length(fitSimAccept)
 x <- unlist(sapply(fitSimAccept_noMis, function (x) x[[6]][3]))
 fitSimAccept_noMis <- fitSimAccept_noMis[x != 1]
-simOutAccept_noMis <- simOutAccept[x != 1]  
+simOutAccept_noMis <- simOutAccept_noMis[x != 1]  
 nRepAccept_noMis <- length(fitSimAccept_noMis)
 
 # Save output
@@ -141,17 +142,18 @@ plotS(simOut = simOutAccept[[1]],
 
 # Plot error of time series estimates
 errNF <- calcNFTsError(fitSimAccept, simOutAccept)
-errNF_noMis <- calcNFTsError(fitSimAccept_noMis, simOutAccept_noMis)
 errCSSB  <- calcCSSBError(fitSimAccept, simOutAccept)
-errCSSB_noMis  <- calcCSSBError(fitSimAccept_noMis, simOutAccept_noMis)
 err <- rbind(errNF, errCSSB)
+
+errNF_noMis <- calcNFTsError(fitSimAccept_noMis, simOutAccept_noMis)
+errCSSB_noMis  <- calcCSSBError(fitSimAccept_noMis, simOutAccept_noMis)
 err_noMis <- rbind(errNF_noMis, errCSSB_noMis)
 
 plotTsError(err, noYears = fitSimAccept[[1]]$data$noYears)
-plotTsError(err_noMis, noYears = fitSimAccept_noMis[[1]]$data$noYears) #<< FIX this now that SSB was added <<<
+plotTsError(err_noMis, noYears = fitSimAccept_noMis[[1]]$data$noYears)
 
-plotTsMeanError(err)
-plotTsMeanError(err_noMis)
+plotTsMeanError(err, nRepAccept)
+plotTsMeanError(err_noMis, nRepAccept_noMis)
 
 # Plot parameters true vs fit
 plotPars(fitSimAccept, simOutAccept)
