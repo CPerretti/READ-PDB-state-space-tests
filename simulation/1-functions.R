@@ -136,9 +136,15 @@ sim <- function(fit, noScaledYears, logScale) {
   logCtru_N <- logN - log(z) + log(1 - exp(-z)) + logF
   rownames(logCtru_N) <- 1:nA
   
-  logScaleMat <- cbind(matrix(data = rep(0, (nT - (noScaledYears))*nA), nrow = nA, byrow = T),
-                       matrix(data = logScale,#rep(logScale, nA*noScaledYears), 
-                              nrow = nA, byrow = T))
+  logScaleMat <- matrix(data = rep(0, nT*nA), nrow = nA, byrow = T)
+  logScaleMat[1:3, (nT - noScaledYears + 1):nT] <- # very specific
+    matrix(data = #logScale,
+             rep(logScale[1], 3*noScaledYears),
+           nrow = 3, byrow = T)
+  logScaleMat[4:6, (nT - noScaledYears + 1):nT] <- # very specific
+    matrix(data = #logScale,
+                  rep(logScale[2], 3*noScaledYears),
+           nrow = 3, byrow = T)
   logCobs_N <- logCtru_N - 
                logScaleMat + # Misreported catch
                errObs[, , "Residual catch"] 
@@ -318,12 +324,14 @@ setupModel <- function(conf, example_dir, noScaledYears) {
   conf <- conf
   
   # Try SAM misreported catch code
-  conf$noScaledYears <- noScaledYears
+  conf$noScaledYears <- 20#noScaledYears
   conf$keyScaledYears <- (max(dat$years) - conf$noScaledYears + 1):max(dat$years)
-  # conf$keyParScaledYA <-  matrix(data = c(rep(0, conf$noScaledYears * ncol(fitReal$data$propF))),
-  #                                nrow = conf$noScaledYears)
-  conf$keyParScaledYA <- matrix(data = 0:(noScaledYears*ncol(fitReal$data$propF)-1),
-                                nrow = conf$noScaledYears)
+  # conf$keyParScaledYA <-  matrix(data = c(rep(0, conf$noScaledYears * 3), rep(-1, conf$noScaledYears * 3)),
+  #                                nrow = conf$noScaledYears) # 3 ages with parameter
+  conf$keyParScaledYA <-  matrix(data = c(rep(0, conf$noScaledYears * ncol(fitReal$data$propF))),
+                                 nrow = conf$noScaledYears) # One parameter all years
+  # conf$keyParScaledYA <- matrix(data = 0:(noScaledYears*ncol(fitReal$data$propF)-1),
+  #                               nrow = conf$noScaledYears) # New parameter each year
   
   par <- defpar(dat, conf) # some default starting values
   
@@ -615,7 +623,11 @@ plotPars <- function(fitSim, simOut) {
         rbind(df_parsOut,
               data.frame(variable = paste(names(fitSim[[1]]$pl)[h], 
                                           1:length(fitSim[[1]]$pl[[h]]), sep = "."),
-                         tru = simOut[[i]]$trueParams$pl[[h_tru]],
+                         # Don't plot tru if it isn't the same length as estimated
+                         # becuase it means the values don't match up.
+                         tru = (if (length(simOut[[i]]$trueParams$pl[[h_tru]]) == length(fitSim[[i]]$pl[[h]])) {
+                                    simOut[[i]]$trueParams$pl[[h_tru]] 
+                                } else {NA}),
                          est = fitSim[[i]]$pl[[h]],
                          sd  = fitSim[[i]]$plsd[[h]],
                          replicate = i))
