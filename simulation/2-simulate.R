@@ -32,9 +32,9 @@ fitReal <- fitNScod
 
 # How many simulation replicates to do
 
-nRep <- 20#50
+nRep <- 10#50
 noScaledYears <- 20#fitReal$data$noYears
-logScale <- c(log(2), log(4))#
+logScale <- c(log(2))#, log(4))#
     #log(runif(n = noScaledYears * ncol(fitReal$data$propF), min = 1, max = 3)) # sequence of misreporting
 
 # Generate simulation replicates
@@ -81,82 +81,97 @@ for (i in 1:nRep) {
 }
 
 # Fit model to replicates in parallel
-#sam.fit(setupOut[[1]]$dat, setupOut[[1]]$conf, setupOut[[1]]$par)
+#fitSimTest <- sam.fit_cp(setupOut[[1]]$dat, setupOut[[1]]$conf, setupOut[[1]]$par)
 cl <- makeCluster(detectCores() - 1) #setup nodes for parallel
-clusterEvalQ(cl, {library(stockassessment)}) #load stockassessment to each node
-# Estimate with misreporting
-fitSim <- parLapply(cl, setupOut,
-                    function(x){try(sam.fit(x$dat, x$conf, x$par#,
-                                            #map = list("logFpar" = factor(rep(NA, length(x$par$logFpar))))
-                                            ))})
+clusterEvalQ(cl, {library(stockassessment); source("1-functions.R")}) #load stockassessment to each node
+# Estimate with misreporting as random effect
+fitSim_random <- parLapply(cl, setupOut,
+                    function(x){try(sam.fit_cp(x$dat, x$conf, x$par, 
+                                               logScaleAsRandom = TRUE))})
+# Estimate with misreporting as fixed effect
+fitSim_fixed <- parLapply(cl, setupOut,
+                    function(x){try(sam.fit_cp(x$dat, x$conf, x$par))})
 # Assume no misreporting
 fitSim_noMis<- parLapply(cl, setupOut,
-                         function(x){try(sam.fit(x$dat, x$conf, x$par,
-                                            map = list("logScale" = factor(rep(NA, length(x$par$logScale))))
-                    ))})
+                         function(x){try(sam.fit_cp(x$dat, x$conf, x$par,
+                                            map = list("logScale" = factor(rep(NA, length(x$par$logScale)))),
+                                            logScaleAsRandom = TRUE))})
 stopCluster(cl) #shut down nodes
 
 
 ## Error handling #####
 # Exclude TMB fails
-fitSimAccept <- fitSim[!(sapply(fitSim, class) == "try-error")]
-simOutAccept <- simOut[!(sapply(fitSim, class) == "try-error")]
+fitSimAccept_random <- fitSim_random[!(sapply(fitSim_random, class) == "try-error")]
+simOutAccept_random <- simOut[!(sapply(fitSim_random, class) == "try-error")]
+fitSimAccept_fixed <- fitSim_fixed[!(sapply(fitSim_fixed, class) == "try-error")]
+simOutAccept_fixed <- simOut[!(sapply(fitSim_fixed, class) == "try-error")]
 fitSimAccept_noMis <- fitSim_noMis[!(sapply(fitSim_noMis, class) == "try-error")]
 simOutAccept_noMis <- simOut[!(sapply(fitSim_noMis, class) == "try-error")]
 # Exclude non-convergences
-x <- unlist(sapply(fitSimAccept, function (x) x[[6]][3]))
-fitSimAccept <- fitSimAccept[x != 1]
-simOutAccept <- simOutAccept[x != 1]  
-nRepAccept <- length(fitSimAccept)
+x <- unlist(sapply(fitSimAccept_random, function (x) x[[6]][3]))
+fitSimAccept_random <- fitSimAccept_random[x != 1]
+simOutAccept_random <- simOutAccept_random[x != 1]  
+nRepAccept_random <- length(fitSimAccept_random)
+x <- unlist(sapply(fitSimAccept_fixed, function (x) x[[6]][3]))
+fitSimAccept_fixed <- fitSimAccept_fixed[x != 1]
+simOutAccept_fixed <- simOutAccept_fixed[x != 1]
+nRepAccept_fixed <- length(fitSimAccept_fixed)
 x <- unlist(sapply(fitSimAccept_noMis, function (x) x[[6]][3]))
 fitSimAccept_noMis <- fitSimAccept_noMis[x != 1]
 simOutAccept_noMis <- simOutAccept_noMis[x != 1]  
 nRepAccept_noMis <- length(fitSimAccept_noMis)
 
 # Save output
-suffix <- paste0(Sys.time(), ".Rdata")
-save(list = "fitSim", file = paste0("./output/fitSim", suffix))
-save(list = "fitSimAccept", file = paste0("./output/fitSimAccept", suffix))
-save(list = "simOut", file = paste0("./output/simOut", suffix))
-save(list = "simOutAccept", file = paste0("./output/simOutAccept", suffix))
+# suffix <- paste0(Sys.time(), ".Rdata")
+# save(list = "fitSim", file = paste0("./output/fitSim", suffix))
+# save(list = "fitSimAccept", file = paste0("./output/fitSimAccept", suffix))
+# save(list = "simOut", file = paste0("./output/simOut", suffix))
+# save(list = "simOutAccept", file = paste0("./output/simOutAccept", suffix))
 
 ## Plot example true vs observed vs fit to observed ########
 ## (1) N-at-age (1000s)
-plotN(simOut = simOutAccept[[1]],
-      fit = fitSimAccept[[1]])
+plotN(simOut = simOutAccept_random[[1]],
+      fit = fitSimAccept_random[[1]])
 
 ## (2) F-at-age
-plotF(simOut = simOutAccept[[1]],
-      fit = fitSimAccept[[1]])
+plotF(simOut = simOutAccept_random[[1]],
+      fit = fitSimAccept_random[[1]])
 
 ## (3) Catch (mt)
-plotC(simOut = simOutAccept[[1]],
-      fit = fitSimAccept[[1]])
+plotC(simOut = simOutAccept_random[[1]],
+      fit = fitSimAccept_random[[1]])
 
 ## (4) Survey (1000s)
-plotS(simOut = simOutAccept[[1]],
-      fit = fitSimAccept[[1]])
+plotS(simOut = simOutAccept_random[[1]],
+      fit = fitSimAccept_random[[1]])
 
 
 ## Plot fit vs true parameter values #######################
 
 # Plot error of time series estimates
-errNF <- calcNFTsError(fitSimAccept, simOutAccept)
-errCSSB  <- calcCSSBError(fitSimAccept, simOutAccept)
-err <- rbind(errNF, errCSSB)
+errNF_random <- calcNFTsError(fitSimAccept_random, simOutAccept_random)
+errCSSB_random  <- calcCSSBError(fitSimAccept_random, simOutAccept_random)
+err_random <- rbind(errNF_random, errCSSB_random)
+
+errNF_fixed <- calcNFTsError(fitSimAccept_fixed, simOutAccept_fixed)
+errCSSB_fixed  <- calcCSSBError(fitSimAccept_fixed, simOutAccept_fixed)
+err_fixed <- rbind(errNF_fixed, errCSSB_fixed)
 
 errNF_noMis <- calcNFTsError(fitSimAccept_noMis, simOutAccept_noMis)
 errCSSB_noMis  <- calcCSSBError(fitSimAccept_noMis, simOutAccept_noMis)
 err_noMis <- rbind(errNF_noMis, errCSSB_noMis)
 
-plotTsError(err, noYears = fitSimAccept[[1]]$data$noYears)
+plotTsError(err_random, noYears = fitSimAccept_random[[1]]$data$noYears)
+plotTsError(err_fixed, noYears = fitSimAccept_fixed[[1]]$data$noYears)
 plotTsError(err_noMis, noYears = fitSimAccept_noMis[[1]]$data$noYears)
 
-plotTsMeanError(err, nRepAccept)
+plotTsMeanError(err_random, nRepAccept_random)
+plotTsMeanError(err_fixed, nRepAccept_fixed)
 plotTsMeanError(err_noMis, nRepAccept_noMis)
 
 # Plot parameters true vs fit
-plotPars(fitSimAccept, simOutAccept)
+plotPars(fitSimAccept_random, simOutAccept_random)
+plotPars(fitSimAccept_fixed, simOutAccept_fixed)
 plotPars(fitSimAccept_noMis, simOutAccept_noMis)
 
 # Plot observed catch vs true catch vs estimated catch in N (not MT) because

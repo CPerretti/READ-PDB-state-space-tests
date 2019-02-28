@@ -137,14 +137,15 @@ sim <- function(fit, noScaledYears, logScale) {
   rownames(logCtru_N) <- 1:nA
   
   logScaleMat <- matrix(data = rep(0, nT*nA), nrow = nA, byrow = T)
-  logScaleMat[1:3, (nT - noScaledYears + 1):nT] <- # very specific
-    matrix(data = #logScale,
-             rep(logScale[1], 3*noScaledYears),
-           nrow = 3, byrow = T)
-  logScaleMat[4:6, (nT - noScaledYears + 1):nT] <- # very specific
-    matrix(data = #logScale,
-                  rep(logScale[2], 3*noScaledYears),
-           nrow = 3, byrow = T)
+  logScaleMat[, (nT - noScaledYears + 1):nT] <- log(2)
+  # logScaleMat[1:3, (nT - noScaledYears + 1):nT] <- # very specific
+  #   matrix(data = #logScale,
+  #            rep(logScale[1], 3*noScaledYears),
+  #          nrow = 3, byrow = T)
+  # logScaleMat[4:6, (nT - noScaledYears + 1):nT] <- # very specific
+  #   matrix(data = #logScale,
+  #                 rep(logScale[2], 3*noScaledYears),
+  #          nrow = 3, byrow = T)
   logCobs_N <- logCtru_N - 
                logScaleMat + # Misreported catch
                errObs[, , "Residual catch"] 
@@ -613,10 +614,10 @@ plotSimSAM <- function(fit, nsim = 1, seed = NULL) {
 ## Plot parameters fit vs true ############################
 plotPars <- function(fitSim, simOut) {
   nRepAccept <- length(simOut)
-  parsFixed <- which(names(fitSim[[1]]$pl) %in% names(fitSim[[1]]$obj$par))
+  pars2plot <- which(names(fitSim[[1]]$pl) %in% names(fitSim[[1]]$obj$par))
   #parsFixed <- which(names(fitSim[[1]]$pl) %in% c("logSdLogN", "logSdLogFsta"))
   df_parsOut <- data.frame()
-  for (h in parsFixed) {
+  for (h in pars2plot) {
     for (i in 1:nRepAccept) {
       h_tru <- which(names(simOut[[i]]$trueParams$pl) == names(fitSim[[i]]$pl[h]))
       df_parsOut <-
@@ -634,6 +635,20 @@ plotPars <- function(fitSim, simOut) {
     }  
   }
   
+
+  if ("logScale" %in% names(fitSim[[1]]$sdrep$par.random)) {
+    for (i in 1:nRepAccept) {
+    h <- which(names(fitSim[[1]]$sdrep$par.random) == "logScale")
+    df_parsOut <- rbind(df_parsOut,
+                        data.frame(variable = paste(names(fitSim[[i]]$sdrep$par.random)[h], 
+                                                    1:length(fitSim[[i]]$sdrep$par.random[h]),
+                                                    sep = "."),
+                                   tru = simOut[[i]]$trueParams$pl$logScale,
+                                   est = fitSim[[i]]$sdrep$par.random[h],
+                                   sd =  fitSim[[i]]$sdrep$diag.cov.random[h],
+                                   replicate = i))
+    }
+  }
   
   df2plot <-
     df_parsOut %>%
@@ -855,45 +870,45 @@ plotTsError <- function(err, noYears) {
   
   
   # Plot a few example fit vs tru time series
-  p <-
-    ggplot(err %>%
-             dplyr::select(-sdLog, -decile, -error_pc) %>%
-             dplyr::filter(variable == "F",
-                           age == 2,
-                           replicate %in% 1:10) %>%
-             tidyr::gather(source, value, 
-                           -year, -age, -replicate, -variable),
-           aes(x = year, y = value, color = source)) +
-    geom_line() +
-    facet_wrap(~replicate) + 
-    ggtitle("Age-2 F estimation error examples")
-  print(p)
+  # p <-
+  #   ggplot(err %>%
+  #            dplyr::select(-sdLog, -decile, -error_pc) %>%
+  #            dplyr::filter(variable == "F",
+  #                          age == 2,
+  #                          replicate %in% 1:10) %>%
+  #            tidyr::gather(source, value, 
+  #                          -year, -age, -replicate, -variable),
+  #          aes(x = year, y = value, color = source)) +
+  #   geom_line() +
+  #   facet_wrap(~replicate) + 
+  #   ggtitle("Age-2 F estimation error examples")
+  # print(p)
   
   # Plot decile coverage for N and F
-  p <- 
-    ggplot(err %>% dplyr::filter(variable %in% c("N", "F")),
-           aes(x = decile)) +
-    geom_histogram(binwidth=1, colour="white") +
-    geom_hline(yintercept = noYears * nRepAccept / 10, 
-               color = "dark grey") +
-    theme_bw() +
-    facet_grid(variable~age) +
-    ggtitle("Confidence interval coverage for each age")
-  print(p)
+  # p <- 
+  #   ggplot(err %>% dplyr::filter(variable %in% c("N", "F")),
+  #          aes(x = decile)) +
+  #   geom_histogram(binwidth=1, colour="white") +
+  #   geom_hline(yintercept = noYears * nRepAccept / 10, 
+  #              color = "dark grey") +
+  #   theme_bw() +
+  #   facet_grid(variable~age) +
+  #   ggtitle("Confidence interval coverage for each age")
+  # print(p)
   
   # Plot decile coverage for Catch
-  if(any(err$variable == "catch")) {
-    p <- 
-      ggplot(err %>% dplyr::filter(variable == "catch"),
-             aes(x = decile)) +
-      geom_histogram(binwidth=1, colour="white") +
-      geom_hline(yintercept = noYears * nRepAccept / 10, 
-                 color = "dark grey") +
-      theme_bw() +
-      facet_wrap(~age) +
-      ggtitle("Confidence interval coverage for catch")
-    print(p)
-  }
+  # if(any(err$variable == "catch")) {
+  #   p <- 
+  #     ggplot(err %>% dplyr::filter(variable == "catch"),
+  #            aes(x = decile)) +
+  #     geom_histogram(binwidth=1, colour="white") +
+  #     geom_hline(yintercept = noYears * nRepAccept / 10, 
+  #                color = "dark grey") +
+  #     theme_bw() +
+  #     facet_wrap(~age) +
+  #     ggtitle("Confidence interval coverage for catch")
+  #   print(p)
+  # }
   
   # Plot relationship between percent error and true value for N and F
   # p <-
@@ -971,42 +986,42 @@ plotTsError <- function(err, noYears) {
   
   
   # N
-  p <-
-    ggplot(err2plot_percentile,
-           aes(x = N_percentile)) +
-    geom_line(aes(y = N_error_pc_mean)) +
-    geom_ribbon(aes(ymin = N_error_pc_lo, ymax = N_error_pc_hi), alpha = 0.3) +
-    geom_hline(yintercept = 0) +
-    facet_wrap(~age) +
-    theme_bw() +
-    xlab("Percentile of N") +
-    ylab("Percent error of N estimate") +
-    ggtitle("Mean percent error of N vs Percentile of N")
-  print(p)
+  # p <-
+  #   ggplot(err2plot_percentile,
+  #          aes(x = N_percentile)) +
+  #   geom_line(aes(y = N_error_pc_mean)) +
+  #   geom_ribbon(aes(ymin = N_error_pc_lo, ymax = N_error_pc_hi), alpha = 0.3) +
+  #   geom_hline(yintercept = 0) +
+  #   facet_wrap(~age) +
+  #   theme_bw() +
+  #   xlab("Percentile of N") +
+  #   ylab("Percent error of N estimate") +
+  #   ggtitle("Mean percent error of N vs Percentile of N")
+  # print(p)
   
   # F
-  p <-
-    ggplot(err2plot_percentile,
-           aes(x = N_percentile)) +
-    geom_line(aes(y = F_error_pc_mean)) +
-    geom_ribbon(aes(ymin = F_error_pc_lo, ymax = F_error_pc_hi), alpha = 0.3) +
-    geom_hline(yintercept = 0) +
-    facet_wrap(~age) +
-    theme_bw() +
-    xlab("Percentile of N") +
-    ylab("Percent error of F estimate") +
-    ggtitle("Mean percent error of F vs Percentile of N")
-  print(p)
+  # p <-
+  #   ggplot(err2plot_percentile,
+  #          aes(x = N_percentile)) +
+  #   geom_line(aes(y = F_error_pc_mean)) +
+  #   geom_ribbon(aes(ymin = F_error_pc_lo, ymax = F_error_pc_hi), alpha = 0.3) +
+  #   geom_hline(yintercept = 0) +
+  #   facet_wrap(~age) +
+  #   theme_bw() +
+  #   xlab("Percentile of N") +
+  #   ylab("Percent error of F estimate") +
+  #   ggtitle("Mean percent error of F vs Percentile of N")
+  # print(p)
   
   # Plot percentile of N vs value of N
-  p <-
-    ggplot(err2plot_percentile %>% dplyr::filter(N_percentile < 10),
-           aes(x = N_percentile)) +
-    geom_ribbon(aes(ymin = N_fit_min, ymax = N_fit_max), fill = "blue", alpha = 0.3) +
-    facet_wrap(~age, scales = "free_y") +
-    xlab("N percentile") +
-    ylab("Range of N fit (1000's)")
-  print(p)
+  # p <-
+  #   ggplot(err2plot_percentile %>% dplyr::filter(N_percentile < 10),
+  #          aes(x = N_percentile)) +
+  #   geom_ribbon(aes(ymin = N_fit_min, ymax = N_fit_max), fill = "blue", alpha = 0.3) +
+  #   facet_wrap(~age, scales = "free_y") +
+  #   xlab("N percentile") +
+  #   ylab("Range of N fit (1000's)")
+  # print(p)
   
   
   # Plot mean error in catch and ssb vs year
@@ -1032,23 +1047,23 @@ plotTsError <- function(err, noYears) {
   
   
   # Plot average true catch vs average estimated catch
-  err2plot_C_Av <-
-    err %>%  
-    dplyr::filter(variable %in% c("catch")) %>%
-    dplyr::select(year, age, replicate, tru, fit) %>%
-    dplyr::group_by(year) %>%
-    dplyr::summarise(mean_tru = mean(tru),
-                     mean_fit = mean(fit))
+  # err2plot_C_Av <-
+  #   err %>%  
+  #   dplyr::filter(variable %in% c("catch")) %>%
+  #   dplyr::select(year, age, replicate, tru, fit) %>%
+  #   dplyr::group_by(year) %>%
+  #   dplyr::summarise(mean_tru = mean(tru),
+  #                    mean_fit = mean(fit))
   
-  p <-
-    ggplot(err2plot_C_Av, aes(x = year)) +
-    geom_line(aes(y = mean_tru), col = "black") +
-    geom_line(aes(y = mean_fit), col = "red") +
-    #geom_ribbon(aes(ymin = error_pc_lo, ymax = error_pc_hi), alpha = 0.3) +
-    theme_bw() +
-    xlab("Year") +
-    ylab("Mean catch (MT)")
-  print(p)
+  # p <-
+  #   ggplot(err2plot_C_Av, aes(x = year)) +
+  #   geom_line(aes(y = mean_tru), col = "black") +
+  #   geom_line(aes(y = mean_fit), col = "red") +
+  #   #geom_ribbon(aes(ymin = error_pc_lo, ymax = error_pc_hi), alpha = 0.3) +
+  #   theme_bw() +
+  #   xlab("Year") +
+  #   ylab("Mean catch (MT)")
+  # print(p)
   
   # Plot relationship between percent error and true value for N and F
   # if(any(errAnnual$variable == "catch")) {
@@ -1111,12 +1126,14 @@ plotTsMeanError <- function(err, nRepAccept) {
 
 
 ## Customized sam.fit() ##############################
-sam.fit_cp <- 
-  function (data, conf, parameters, newtonsteps = 3, rm.unidentified = FALSE, 
-            run = TRUE, 
-            lower = stockassessment:::getLowerBounds(parameters), 
-            upper = stockassessment:::getUpperBounds(parameters), 
-            sim.condRE = TRUE, ...) 
+sam.fit_cp <-
+function (data, conf, parameters, newtonsteps = 3, rm.unidentified = FALSE, 
+          run = TRUE, 
+          lower = stockassessment:::getLowerBounds(parameters), 
+          upper = stockassessment:::getUpperBounds(parameters), 
+          sim.condRE = TRUE, ignore.parm.uncertainty = FALSE, rel.tol = 1e-10,
+          logScaleAsRandom = FALSE,
+          ...) 
 {
   definit <- defpar(data, conf)
   if (!identical(parameters, relist(unlist(parameters), skeleton = definit))) {
@@ -1131,28 +1148,29 @@ sam.fit_cp <-
   nmissing <- sum(is.na(data$logobs))
   parameters$missing <- numeric(nmissing)
   ran <- c("logN", "logF", "missing")
+  if (logScaleAsRandom) ran <- c("logN", "logF", "missing", "logScale")
+  
   obj <- TMB::MakeADFun(tmball, parameters, random = ran, DLL = "stockassessment", 
                    ...)
   if (rm.unidentified) {
-    stop("rm.unidentified not supported in the cp version of this function")
-    # gr <- obj$gr()
-    # safemap <- obj$env$parList(gr)
-    # safemap <- safemap[!names(safemap) %in% ran]
-    # safemap <- lapply(safemap, function(x) factor(ifelse(abs(x) > 
-    #                                                        1e-15, 1:length(x), NA)))
-    # ddd <- list(...)
-    # if (!is.null(ddd$map)) {
-    #   safemap <- c(ddd$map, safemap)
-    #   ddd$map <- safemap
-    #   ddd$data <- tmball
-    #   ddd$parameters <- parameters
-    #   ddd$random <- ran
-    #   obj <- do.call(MakeADFun, ddd)
-    # }
-    # else {
-    #   obj <- MakeADFun(tmball, parameters, random = ran, 
-    #                    map = safemap, DLL = "stockassessment", ...)
-    # }
+    gr <- obj$gr()
+    safemap <- obj$env$parList(gr)
+    safemap <- safemap[!names(safemap) %in% ran]
+    safemap <- lapply(safemap, function(x) factor(ifelse(abs(x) > 
+                                                           1e-15, 1:length(x), NA)))
+    ddd <- list(...)
+    if (!is.null(ddd$map)) {
+      safemap <- c(ddd$map, safemap)
+      ddd$map <- safemap
+      ddd$data <- tmball
+      ddd$parameters <- parameters
+      ddd$random <- ran
+      obj <- do.call(MakeADFun, ddd)
+    }
+    else {
+      obj <- MakeADFun(tmball, parameters, random = ran, 
+                       map = safemap, DLL = "stockassessment", ...)
+    }
   }
   lower2 <- rep(-Inf, length(obj$par))
   upper2 <- rep(Inf, length(obj$par))
@@ -1162,17 +1180,16 @@ sam.fit_cp <-
     return(list(sdrep = NA, pl = parameters, plsd = NA, 
                 data = data, conf = conf, opt = NA, obj = obj))
   opt <- nlminb(obj$par, obj$fn, obj$gr, control = list(trace = 1, 
-                                                        eval.max = 2000, iter.max = 1000), lower = lower2, upper = upper2)
-  ## Take out this little extra optimization routine here so that
-  ## parameter bounds are respected.
-  # for (i in seq_len(newtonsteps)) {
-  #   g <- as.numeric(obj$gr(opt$par))
-  #   h <- optimHess(opt$par, obj$fn, obj$gr)
-  #   opt$par <- opt$par - solve(h, g)
-  #   opt$objective <- obj$fn(opt$par)
-  # }
+                                                        eval.max = 2000, iter.max = 1000, rel.tol = rel.tol), 
+                lower = lower2, upper = upper2)
+  for (i in seq_len(newtonsteps)) {
+    g <- as.numeric(obj$gr(opt$par))
+    h <- optimHess(opt$par, obj$fn, obj$gr)
+    opt$par <- opt$par - solve(h, g)
+    opt$objective <- obj$fn(opt$par)
+  }
   rep <- obj$report()
-  sdrep <- TMB::sdreport(obj, opt$par)
+  sdrep <- TMB::sdreport(obj, opt$par, ignore.parm.uncertainty = ignore.parm.uncertainty)
   idx <- c(which(names(sdrep$value) == "lastLogN"), which(names(sdrep$value) == 
                                                             "lastLogF"))
   sdrep$estY <- sdrep$value[idx]
@@ -1193,4 +1210,5 @@ sam.fit_cp <-
   class(ret) <- "sam"
   return(ret)
 }
+
 
