@@ -32,10 +32,10 @@ fitReal <- fitNScod
 
 # How many simulation replicates to do
 
-nRep <- 10#50
-noScaledYears <- 20#fitReal$data$noYears
-logScale <- c(log(2))#, log(4))#
-    #log(runif(n = noScaledYears * ncol(fitReal$data$propF), min = 1, max = 3)) # sequence of misreporting
+nRep <- 10
+noScaledYears <- 10
+logScale <- #c(log(2))#, log(4))#
+    log(runif(n = noScaledYears * ncol(fitReal$data$propF), min = 1, max = 3)) # sequence of misreporting
 
 # Generate simulation replicates
 simOut <- list()
@@ -81,21 +81,37 @@ for (i in 1:nRep) {
 }
 
 # Fit model to replicates in parallel
-#fitSimTest <- sam.fit_cp(setupOut[[1]]$dat, setupOut[[1]]$conf, setupOut[[1]]$par)
+fitSimTest <- sam.fit_cp(setupOut[[1]]$dat, setupOut[[1]]$conf, setupOut[[1]]$par,
+                         map = list("logScale" = factor(cbind(matrix(data = NA, 
+                                                                     nrow = nrow(setupOut[[1]]$par$logF), 
+                                                                     ncol = ncol(setupOut[[1]]$par$logF) - noScaledYears),
+                                                              matrix(data = 1:(nrow(setupOut[[1]]$par$logF)*noScaledYears),
+                                                                     nrow = nrow(setupOut[[1]]$par$logF), 
+                                                                     ncol = noScaledYears)))))
 cl <- makeCluster(detectCores() - 1) #setup nodes for parallel
 clusterEvalQ(cl, {library(stockassessment); source("1-functions.R")}) #load stockassessment to each node
 # Estimate with misreporting as random effect
+start.time <- Sys.time()
 fitSim_random <- parLapply(cl, setupOut,
                     function(x){try(sam.fit_cp(x$dat, x$conf, x$par, 
-                                               logScaleAsRandom = TRUE))})
+                                               map = list("logScale" = factor(cbind(matrix(data = NA, 
+                                                                                           nrow = nrow(x$par$logF), 
+                                                                                           ncol = ncol(x$par$logF) - noScaledYears),
+                                                                                    matrix(data = 1,
+                                                                                           nrow = nrow(x$par$logF), 
+                                                                                           ncol = noScaledYears))))))})
+end.time <- Sys.time()
+time.taken_random <- end.time - start.time
 # Estimate with misreporting as fixed effect
-fitSim_fixed <- parLapply(cl, setupOut,
-                    function(x){try(sam.fit_cp(x$dat, x$conf, x$par))})
+# start.time <- Sys.time()
+# fitSim_fixed <- parLapply(cl, setupOut,
+#                     function(x){try(sam.fit_cp(x$dat, x$conf, x$par))})
+# end.time <- Sys.time()
+time.taken_fixed <- end.time - start.time
 # Assume no misreporting
 fitSim_noMis<- parLapply(cl, setupOut,
                          function(x){try(sam.fit_cp(x$dat, x$conf, x$par,
-                                            map = list("logScale" = factor(rep(NA, length(x$par$logScale)))),
-                                            logScaleAsRandom = TRUE))})
+                                            map = list("logScale" = factor(rep(NA, length(x$par$logScale))))))})
 stopCluster(cl) #shut down nodes
 
 
@@ -165,9 +181,9 @@ plotTsError(err_random, noYears = fitSimAccept_random[[1]]$data$noYears)
 plotTsError(err_fixed, noYears = fitSimAccept_fixed[[1]]$data$noYears)
 plotTsError(err_noMis, noYears = fitSimAccept_noMis[[1]]$data$noYears)
 
-plotTsMeanError(err_random, nRepAccept_random)
-plotTsMeanError(err_fixed, nRepAccept_fixed)
-plotTsMeanError(err_noMis, nRepAccept_noMis)
+# plotTsMeanError(err_random, nRepAccept_random)
+# plotTsMeanError(err_fixed, nRepAccept_fixed)
+# plotTsMeanError(err_noMis, nRepAccept_noMis)
 
 # Plot parameters true vs fit
 plotPars(fitSimAccept_random, simOutAccept_random)

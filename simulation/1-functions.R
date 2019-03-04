@@ -137,7 +137,7 @@ sim <- function(fit, noScaledYears, logScale) {
   rownames(logCtru_N) <- 1:nA
   
   logScaleMat <- matrix(data = rep(0, nT*nA), nrow = nA, byrow = T)
-  logScaleMat[, (nT - noScaledYears + 1):nT] <- log(2)
+  logScaleMat[, (nT - noScaledYears + 1):nT] <- logScale
   # logScaleMat[1:3, (nT - noScaledYears + 1):nT] <- # very specific
   #   matrix(data = #logScale,
   #            rep(logScale[1], 3*noScaledYears),
@@ -325,16 +325,17 @@ setupModel <- function(conf, example_dir, noScaledYears) {
   conf <- conf
   
   # Try SAM misreported catch code
-  conf$noScaledYears <- 20#noScaledYears
-  conf$keyScaledYears <- (max(dat$years) - conf$noScaledYears + 1):max(dat$years)
-  # conf$keyParScaledYA <-  matrix(data = c(rep(0, conf$noScaledYears * 3), rep(-1, conf$noScaledYears * 3)),
-  #                                nrow = conf$noScaledYears) # 3 ages with parameter
-  conf$keyParScaledYA <-  matrix(data = c(rep(0, conf$noScaledYears * ncol(fitReal$data$propF))),
-                                 nrow = conf$noScaledYears) # One parameter all years
+  # conf$noScaledYears <- 10#noScaledYears
+  # conf$keyScaledYears <- (max(dat$years) - conf$noScaledYears + 1):max(dat$years)
+  # # conf$keyParScaledYA <-  matrix(data = c(rep(0, conf$noScaledYears * 3), rep(-1, conf$noScaledYears * 3)),
+  # #                                nrow = conf$noScaledYears) # 3 ages with parameter
+  # # conf$keyParScaledYA <-  matrix(data = c(rep(0, conf$noScaledYears * ncol(fitReal$data$propF))),
+  # #                                nrow = conf$noScaledYears) # One parameter all years
   # conf$keyParScaledYA <- matrix(data = 0:(noScaledYears*ncol(fitReal$data$propF)-1),
-  #                               nrow = conf$noScaledYears) # New parameter each year
+  #                               nrow = conf$noScaledYears) # New parameter each year x age
   
   par <- defpar(dat, conf) # some default starting values
+  par$logScale <- matrix(data = 0, nrow = nrow(par$logF), ncol = ncol(par$logF))
   
   return(list(dat = dat, conf = conf, par = par))
 }
@@ -1132,7 +1133,6 @@ function (data, conf, parameters, newtonsteps = 3, rm.unidentified = FALSE,
           lower = stockassessment:::getLowerBounds(parameters), 
           upper = stockassessment:::getUpperBounds(parameters), 
           sim.condRE = TRUE, ignore.parm.uncertainty = FALSE, rel.tol = 1e-10,
-          logScaleAsRandom = FALSE,
           ...) 
 {
   definit <- defpar(data, conf)
@@ -1147,8 +1147,8 @@ function (data, conf, parameters, newtonsteps = 3, rm.unidentified = FALSE,
   }
   nmissing <- sum(is.na(data$logobs))
   parameters$missing <- numeric(nmissing)
-  ran <- c("logN", "logF", "missing")
-  if (logScaleAsRandom) ran <- c("logN", "logF", "missing", "logScale")
+  ran <- c("logN", "logF", "missing", "logScale")
+  
   
   obj <- TMB::MakeADFun(tmball, parameters, random = ran, DLL = "stockassessment", 
                    ...)
@@ -1179,6 +1179,7 @@ function (data, conf, parameters, newtonsteps = 3, rm.unidentified = FALSE,
   if (!run) 
     return(list(sdrep = NA, pl = parameters, plsd = NA, 
                 data = data, conf = conf, opt = NA, obj = obj))
+  obj$env$tracepar <- TRUE #<< CP
   opt <- nlminb(obj$par, obj$fn, obj$gr, control = list(trace = 1, 
                                                         eval.max = 2000, iter.max = 1000, rel.tol = rel.tol), 
                 lower = lower2, upper = upper2)
