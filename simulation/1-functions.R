@@ -1136,10 +1136,12 @@ function (data, conf, parameters, newtonsteps = 3, rm.unidentified = FALSE,
           ...) 
 {
   definit <- defpar(data, conf)
-  if (!identical(parameters, relist(unlist(parameters), skeleton = definit))) {
-    warning("Initial values are not consistent, so running with default init values from defpar()")
-    parameters <- definit
-  }
+  definit$logScale <- NULL
+  definit$logScale <- matrix(0, nrow = nrow(conf$par$logN), ncol = data$noYears)
+  # if (!identical(parameters, relist(unlist(parameters), skeleton = definit))) {
+  #   warning("Initial values are not consistent, so running with default init values from defpar()")
+  #   parameters <- definit
+  # }
   data <- stockassessment:::clean.void.catches(data, conf)
   tmball <- c(data, conf, simFlag = as.numeric(sim.condRE))
   if (is.null(tmball$resFlag)) {
@@ -1147,7 +1149,7 @@ function (data, conf, parameters, newtonsteps = 3, rm.unidentified = FALSE,
   }
   nmissing <- sum(is.na(data$logobs))
   parameters$missing <- numeric(nmissing)
-  ran <- c("logN", "logF", "missing", "logScale")
+  ran <- c("logN", "logF", "logScale", "missing")
   
   
   obj <- TMB::MakeADFun(tmball, parameters, random = ran, DLL = "stockassessment", 
@@ -1179,7 +1181,6 @@ function (data, conf, parameters, newtonsteps = 3, rm.unidentified = FALSE,
   if (!run) 
     return(list(sdrep = NA, pl = parameters, plsd = NA, 
                 data = data, conf = conf, opt = NA, obj = obj))
-  obj$env$tracepar <- TRUE #<< CP
   opt <- nlminb(obj$par, obj$fn, obj$gr, control = list(trace = 1, 
                                                         eval.max = 2000, iter.max = 1000, rel.tol = rel.tol), 
                 lower = lower2, upper = upper2)
