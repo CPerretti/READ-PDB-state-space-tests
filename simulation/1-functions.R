@@ -136,19 +136,14 @@ sim <- function(fit, noScaledYears, logScale) {
   logCtru_N <- logN - log(z) + log(1 - exp(-z)) + logF
   rownames(logCtru_N) <- 1:nA
   
-  logScaleMat <- matrix(data = rep(0, nT*nA), nrow = nA, byrow = T)
-  logScaleMat[, (nT - noScaledYears + 1):nT] <- logScale
-  # logScaleMat[1:3, (nT - noScaledYears + 1):nT] <- # very specific
-  #   matrix(data = #logScale,
-  #            rep(logScale[1], 3*noScaledYears),
-  #          nrow = 3, byrow = T)
-  # logScaleMat[4:6, (nT - noScaledYears + 1):nT] <- # very specific
-  #   matrix(data = #logScale,
-  #                 rep(logScale[2], 3*noScaledYears),
-  #          nrow = 3, byrow = T)
-  logCobs_N <- logCtru_N - 
-               logScaleMat + # Misreported catch
-               errObs[, , "Residual catch"] 
+  logCobs_N0 <- logCtru_N + errObs[, , "Residual catch"]
+  logCobs_N <- logCobs_N0
+  for (a in 1:nA){
+    if (fit$conf$keyLogFsta[1, a] > -1) { # If there is fishing on an age
+      logCobs_N[a,] <- logCobs_N0[a,] - logScale[fit$conf$keyLogScale[1,a] + 1,] # Misreport catch
+    }
+  }
+    
   
   Ctru_N <- exp(logCtru_N)
   Cobs_N <- exp(logCobs_N) 
@@ -325,7 +320,7 @@ setupModel <- function(conf, example_dir, noScaledYears) {
   conf <- conf
   
   # Try SAM misreported catch code
-  # conf$noScaledYears <- 10#noScaledYears
+  conf$noScaledYears <- noScaledYears
   # conf$keyScaledYears <- (max(dat$years) - conf$noScaledYears + 1):max(dat$years)
   # # conf$keyParScaledYA <-  matrix(data = c(rep(0, conf$noScaledYears * 3), rep(-1, conf$noScaledYears * 3)),
   # #                                nrow = conf$noScaledYears) # 3 ages with parameter
@@ -335,7 +330,6 @@ setupModel <- function(conf, example_dir, noScaledYears) {
   #                               nrow = conf$noScaledYears) # New parameter each year x age
   
   par <- defpar(dat, conf) # some default starting values
-  par$logScale <- matrix(data = 0, nrow = nrow(par$logF), ncol = ncol(par$logF))
   
   return(list(dat = dat, conf = conf, par = par))
 }
@@ -637,19 +631,19 @@ plotPars <- function(fitSim, simOut) {
   }
   
 
-  if ("logScale" %in% names(fitSim[[1]]$sdrep$par.random)) {
-    for (i in 1:nRepAccept) {
-    h <- which(names(fitSim[[1]]$sdrep$par.random) == "logScale")
-    df_parsOut <- rbind(df_parsOut,
-                        data.frame(variable = paste(names(fitSim[[i]]$sdrep$par.random)[h], 
-                                                    1:length(fitSim[[i]]$sdrep$par.random[h]),
-                                                    sep = "."),
-                                   tru = simOut[[i]]$trueParams$pl$logScale,
-                                   est = fitSim[[i]]$sdrep$par.random[h],
-                                   sd =  fitSim[[i]]$sdrep$diag.cov.random[h],
-                                   replicate = i))
-    }
-  }
+  # if ("logScale" %in% names(fitSim[[1]]$sdrep$par.random)) {
+  #   for (i in 1:nRepAccept) {
+  #   h <- which(names(fitSim[[1]]$sdrep$par.random) == "logScale")
+  #   df_parsOut <- rbind(df_parsOut,
+  #                       data.frame(variable = paste(names(fitSim[[i]]$sdrep$par.random)[h], 
+  #                                                   1:length(fitSim[[i]]$sdrep$par.random[h]),
+  #                                                   sep = "."),
+  #                                  tru = simOut[[i]]$trueParams$pl$logScale,
+  #                                  est = fitSim[[i]]$sdrep$par.random[h],
+  #                                  sd =  fitSim[[i]]$sdrep$diag.cov.random[h],
+  #                                  replicate = i))
+  #   }
+  # }
   
   df2plot <-
     df_parsOut %>%
@@ -671,11 +665,15 @@ plotPars <- function(fitSim, simOut) {
 }
 
 ## Calculate random effect timeseries error #######################
-calcNFTsError <- function(fitSim, simOut) {
-  indNF <- which(names(fitSim[[1]]$pl) %in% c("logN", "logF"))
+calcReTsError <- function(fitSim, simOut) {
+  indRe <- which(names(fitSim[[1]]$pl) %in% c("logN", "logF"))
+  if (any(fitSim[[1]]$pl$logScale != 0)) { # if logScale was estimated
+    indRe <- c(indRe, which(names(fitSim[[1]]$pl) == "logScale"))
+  }
   errRe <- data.frame()
   nRepAccept <- length(fitSim)
-  for (h in indNF) {
+  for (h in indRe) {
+    varName <- substr(names(fitSim[[1]]$pl[h]), 4, 999)
     for (i in 1:nRepAccept) {
       rownames(fitSim[[i]]$pl[[h]]) <- paste0("fit.", 1:nrow(fitSim[[i]]$pl[[h]]))
       sdLog <- fitSim[[i]]$plsd[[h]]
@@ -705,8 +703,7 @@ calcNFTsError <- function(fitSim, simOut) {
                                                           mean = log(fit), 
                                                           sd   = sdLog)),
                               replicate = i,
-                              variable = ifelse(names(fitSim[[i]]$pl[h]) == "logN", "N",
-                                                if(names(fitSim[[i]]$pl[h]) == "logF") "F")))
+                              variable = varName))
     }
   }
   return(errRe)
@@ -937,7 +934,11 @@ plotTsError <- function(err, noYears) {
     dplyr::left_join({err %>%  
         dplyr::filter(variable %in% c("N")) %>%
         dplyr::select(year, age, replicate, error_pc) %>%
-        dplyr::rename(N_error_pc = error_pc)})
+        dplyr::rename(N_error_pc = error_pc)}) %>%
+    dplyr::left_join({err %>%  
+        dplyr::filter(variable %in% c("Scale")) %>%
+        dplyr::select(year, age, replicate, error_pc) %>%
+        dplyr::rename(Scale_error_pc = error_pc)})
   
   
   # N
@@ -1046,6 +1047,33 @@ plotTsError <- function(err, noYears) {
     ylab("Mean percent error of estimate")
   print(p)
   
+  # Plot mean error in Scale vs year
+  if (any(err$variable == "Scale")) {
+    err2plot_Scale <-
+      err %>%  
+      dplyr::filter(variable %in% c("Scale")) %>%
+      dplyr::group_by(year, age) %>%
+      dplyr::summarise(fit_median = median(fit),
+                       tru = unique(tru),
+                       nObs = length(fit),
+                       fit_95 = quantile(fit, probs = 0.95),
+                       fit_05 = quantile(fit, probs = 0.05))
+    p <-
+      ggplot(err2plot_Scale, aes(x = year)) +
+      geom_line(aes(y = fit_median), color = "red") +
+      geom_line(aes(y = tru), color = "black") +
+      geom_ribbon(aes(ymin = fit_05, ymax = fit_95), alpha = 0.3, fill = "red") +
+      geom_hline(yintercept = 0) +
+      facet_wrap(~ age) +
+      theme_bw() +
+      xlab("Year") +
+      ylab("Fit vs True scale parameter value")
+    print(p)
+  }
+  
+  
+
+  
   
   # Plot average true catch vs average estimated catch
   # err2plot_C_Av <-
@@ -1137,7 +1165,7 @@ function (data, conf, parameters, newtonsteps = 3, rm.unidentified = FALSE,
 {
   definit <- defpar(data, conf)
   definit$logScale <- NULL
-  definit$logScale <- matrix(0, nrow = nrow(conf$par$logN), ncol = data$noYears)
+  definit$logScale <- matrix(0, nrow = nrow(parameters$logN), ncol = data$noYears)
   # if (!identical(parameters, relist(unlist(parameters), skeleton = definit))) {
   #   warning("Initial values are not consistent, so running with default init values from defpar()")
   #   parameters <- definit
