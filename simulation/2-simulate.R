@@ -3,7 +3,7 @@
 # Install github version of package to use default package
 #devtools::install_github("fishfollower/SAM/stockassessment")
 # Install local version of package to make changes
-#devtools::install_local("../../SAM/stockassessment/", force = TRUE)
+devtools::install_local("../../SAM/stockassessment/", force = TRUE)
 
 # (1) Fix plot of logScale error so that it works even when F is not 
 # applied to all ages.
@@ -36,7 +36,7 @@ fitReal <- fitNScod
 # How many simulation replicates to do
 
 nRep <- 20
-noScaledYears <- 10
+noScaledYears <- 30
 
 
 
