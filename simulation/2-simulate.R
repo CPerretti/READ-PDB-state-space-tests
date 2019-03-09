@@ -3,7 +3,7 @@
 # Install github version of package to use default package
 #devtools::install_github("fishfollower/SAM/stockassessment")
 # Install local version of package to make changes
-devtools::install_local("../../SAM/stockassessment/", force = TRUE)
+#devtools::install_local("../../SAM/stockassessment/", force = TRUE)
 
 # (1) Fix plot of logScale error so that it works even when F is not 
 # applied to all ages.
@@ -40,7 +40,7 @@ noScaledYears <- 30
 
 
 
-# Setup keyLogScale to have uniqe logScale for each age that is fished
+# Setup keyLogScale to have unique logScale for each age that is fished
 keyLogScale <- fitReal$conf$keyLogFsta
 keyLogScale[keyLogScale > -1] <- 0:(length(keyLogScale[keyLogScale > -1])-1)
 nAs <- sum(keyLogScale[1,] > -1)
@@ -50,6 +50,7 @@ logScale <- cbind(matrix(data = 0, nrow = nAs, ncol = nY - noScaledYears),
                          #log(2), 
                          nrow = nAs, ncol = noScaledYears))
 fitReal$conf$keyLogScale <- keyLogScale
+fitReal$conf$keyVarLogScale <- rep(0, nAs)
 
 # Generate simulation replicates
 simOut <- list()
@@ -97,13 +98,13 @@ for (i in 1:nRep) {
 }
 
 # Fit model to replicates in parallel 
-# fitSimTest <- sam.fit_cp(setupOut[[1]]$dat, setupOut[[1]]$conf, setupOut[[1]]$par,
-#                          map = list("logScale" = factor(cbind(matrix(data = NA,
-#                                                                      nrow = nrow(setupOut[[1]]$par$logScale),
-#                                                                      ncol = ncol(setupOut[[1]]$par$logScale) - setupOut[[1]]$conf$noScaledYears),
-#                                                               matrix(data = 1:(nrow(setupOut[[1]]$par$logScale) * setupOut[[1]]$conf$noScaledYears),
-#                                                                      nrow = nrow(setupOut[[1]]$par$logScale),
-#                                                                      ncol = setupOut[[1]]$conf$noScaledYears)))))
+fitSimTest <- sam.fit_cp(setupOut[[1]]$dat, setupOut[[1]]$conf, setupOut[[1]]$par,
+                         map = list("logScale" = factor(cbind(matrix(data = NA,
+                                                                     nrow = nrow(setupOut[[1]]$par$logScale),
+                                                                     ncol = ncol(setupOut[[1]]$par$logScale) - setupOut[[1]]$conf$noScaledYears),
+                                                              matrix(data = 1:(nrow(setupOut[[1]]$par$logScale) * setupOut[[1]]$conf$noScaledYears),
+                                                                     nrow = nrow(setupOut[[1]]$par$logScale),
+                                                                     ncol = setupOut[[1]]$conf$noScaledYears)))))
   
   
 cl <- makeCluster(detectCores() - 1) #setup nodes for parallel
