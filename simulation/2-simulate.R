@@ -34,9 +34,8 @@ fitReal <- fitNScod
 #set.seed(321) # for reproducibility
 
 # How many simulation replicates to do
-
-nRep <- 20
-noScaledYears <- 30
+nRep <- 4
+noScaledYears <- 3#0
 
 
 
@@ -51,6 +50,7 @@ logScale <- cbind(matrix(data = 0, nrow = nAs, ncol = nY - noScaledYears),
                          nrow = nAs, ncol = noScaledYears))
 fitReal$conf$keyLogScale <- keyLogScale
 fitReal$conf$keyVarLogScale <- rep(0, nAs)
+
 
 # Generate simulation replicates
 simOut <- list()
@@ -94,25 +94,29 @@ for (i in 1:nRep) {
   setupOut[[i]] <- setupModel(conf = fitReal$conf, 
                               example_dir = example_dir, 
                               noScaledYears = noScaledYears)
-  #setupOut[[i]]$par$logScale <- logScale #Just to set map on true values.
+  #setupOut[[i]]$par$logFpar <- fitReal$pl$logFpar
+  #setupOut[[i]]$par$logSdLogScale <- 1 #Set variable to particular value for debugging.
 }
 
-# Fit model to replicates in parallel 
+# Fit model to replicates in parallel
 fitSimTest <- sam.fit_cp(setupOut[[1]]$dat, setupOut[[1]]$conf, setupOut[[1]]$par,
-                         map = list("logScale" = factor(cbind(matrix(data = NA,
+                         map = list(#"logFpar" = factor(rep(NA, length.out = length(setupOut[[1]]$par$logFpar))),
+                                    #"logSdLogScale" = factor(NA),
+                                    "logScale" = factor(cbind(matrix(data = NA,
                                                                      nrow = nrow(setupOut[[1]]$par$logScale),
                                                                      ncol = ncol(setupOut[[1]]$par$logScale) - setupOut[[1]]$conf$noScaledYears),
                                                               matrix(data = 1:(nrow(setupOut[[1]]$par$logScale) * setupOut[[1]]$conf$noScaledYears),
                                                                      nrow = nrow(setupOut[[1]]$par$logScale),
                                                                      ncol = setupOut[[1]]$conf$noScaledYears)))))
-  
-  
+
+
 cl <- makeCluster(detectCores() - 1) #setup nodes for parallel
 clusterEvalQ(cl, {library(stockassessment); source("1-functions.R")}) #load stockassessment to each node
 # Estimate with misreporting as random effect
 fitSim_random <- parLapply(cl, setupOut,
                     function(x){try(sam.fit_cp(x$dat, x$conf, x$par,
-                                               map = list("logScale" = factor(cbind(matrix(data = NA,
+                                               map = list("logSdLogScale" = factor(NA),
+                                                          "logScale" = factor(cbind(matrix(data = NA,
                                                                                            nrow = nrow(x$par$logScale),
                                                                                            ncol = ncol(x$par$logScale) - x$conf$noScaledYears),
                                                                                     matrix(data = 1:(nrow(x$par$logScale) * x$conf$noScaledYears),
@@ -126,11 +130,11 @@ fitSim_random <- parLapply(cl, setupOut,
 # end.time <- Sys.time()
 #time.taken_fixed <- end.time - start.time
 # Assume no misreporting
-fitSim_noMis<- parLapply(cl, setupOut,
-                         function(x){try(sam.fit_cp(x$dat, x$conf, x$par,
-                                                    map = list("logScale" = factor(matrix(data = NA,
-                                                                                          nrow = nrow(x$par$logScale),
-                                                                                          ncol = ncol(x$par$logScale))))))})
+# fitSim_noMis<- parLapply(cl, setupOut,
+#                          function(x){try(sam.fit_cp(x$dat, x$conf, x$par,
+#                                                     map = list("logScale" = factor(matrix(data = NA,
+#                                                                                           nrow = nrow(x$par$logScale),
+#                                                                                           ncol = ncol(x$par$logScale))))))})
 stopCluster(cl) #shut down nodes
 
 

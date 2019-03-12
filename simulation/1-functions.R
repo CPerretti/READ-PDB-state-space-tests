@@ -621,7 +621,7 @@ plotPars <- function(fitSim, simOut) {
                                           1:length(fitSim[[1]]$pl[[h]]), sep = "."),
                          # Don't plot tru if it isn't the same length as estimated
                          # becuase it means the values don't match up.
-                         tru = (if (length(simOut[[i]]$trueParams$pl[[h_tru]]) == length(fitSim[[i]]$pl[[h]])) {
+                         tru = (if ((length(h_tru) >0) && length(simOut[[i]]$trueParams$pl[[h_tru]]) == length(fitSim[[i]]$pl[[h]])) {
                                     simOut[[i]]$trueParams$pl[[h_tru]] 
                                 } else {NA}),
                          est = fitSim[[i]]$pl[[h]],
@@ -1164,8 +1164,7 @@ function (data, conf, parameters, newtonsteps = 3, rm.unidentified = FALSE,
           ...) 
 {
   definit <- defpar(data, conf)
-  definit$logScale <- NULL
-  definit$logScale <- matrix(0, nrow = nrow(parameters$logN), ncol = data$noYears)
+  
   # if (!identical(parameters, relist(unlist(parameters), skeleton = definit))) {
   #   warning("Initial values are not consistent, so running with default init values from defpar()")
   #   parameters <- definit
@@ -1182,6 +1181,7 @@ function (data, conf, parameters, newtonsteps = 3, rm.unidentified = FALSE,
   
   obj <- TMB::MakeADFun(tmball, parameters, random = ran, DLL = "stockassessment", 
                    ...)
+  obj$env$tracepar <- TRUE
   if (rm.unidentified) {
     gr <- obj$gr()
     safemap <- obj$env$parList(gr)
@@ -1206,11 +1206,14 @@ function (data, conf, parameters, newtonsteps = 3, rm.unidentified = FALSE,
   upper2 <- rep(Inf, length(obj$par))
   for (nn in names(lower)) lower2[names(obj$par) == nn] = lower[[nn]]
   for (nn in names(upper)) upper2[names(obj$par) == nn] = upper[[nn]]
+
   if (!run) 
     return(list(sdrep = NA, pl = parameters, plsd = NA, 
                 data = data, conf = conf, opt = NA, obj = obj))
   opt <- nlminb(obj$par, obj$fn, obj$gr, control = list(trace = 1, 
-                                                        eval.max = 2000, iter.max = 1000, rel.tol = rel.tol), 
+                                                        eval.max = 2000,
+                                                        iter.max = 1000, 
+                                                        rel.tol = rel.tol), 
                 lower = lower2, upper = upper2)
   for (i in seq_len(newtonsteps)) {
     g <- as.numeric(obj$gr(opt$par))
