@@ -138,9 +138,11 @@ sim <- function(fit, noScaledYears, logScale) {
   
   logCobs_N0 <- logCtru_N + errObs[, , "Residual catch"]
   logCobs_N <- logCobs_N0
+  logScale_full <- cbind(matrix(data = 0, nrow = nrow(logScale), ncol = nT - noScaledYears),
+                         logScale)
   for (a in 1:nA){
     if (fit$conf$keyLogFsta[1, a] > -1) { # If there is fishing on an age
-      logCobs_N[a,] <- logCobs_N0[a,] - logScale[fit$conf$keyLogScale[1,a] + 1,] # Misreport catch
+      logCobs_N[a,] <- logCobs_N0[a,] - logScale_full[fit$conf$keyLogScale[1,a] + 1,] # Misreport catch
     }
   }
     
@@ -674,6 +676,10 @@ calcReTsError <- function(fitSim, simOut) {
   nRepAccept <- length(fitSim)
   for (h in indRe) {
     varName <- substr(names(fitSim[[1]]$pl[h]), 4, 999)
+    year <- if (varName == "Scale") {
+      as.numeric(fitSim[[1]]$conf$keyScaledYears)
+    } else {as.numeric(fitSim[[1]]$data$years)}
+
     for (i in 1:nRepAccept) {
       rownames(fitSim[[i]]$pl[[h]]) <- paste0("fit.", 1:nrow(fitSim[[i]]$pl[[h]]))
       sdLog <- fitSim[[i]]$plsd[[h]]
@@ -689,7 +695,7 @@ calcReTsError <- function(fitSim, simOut) {
                         t() %>%
                         as.data.frame()) %>%
                 cbind(data.frame(simOut[[i]]$trueParams$pl[[h_tru]] %>% t %>% exp)) %>%
-                dplyr::mutate(year = as.numeric(fitSim[[i]]$data$years)) %>%
+                dplyr::mutate(year = year) %>%
                 tidyr::gather(variable, N, -year) %>%
                 dplyr::mutate(variable = gsub(x = variable, 
                                               pattern = "X", 

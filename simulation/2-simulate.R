@@ -34,8 +34,8 @@ fitReal <- fitNScod
 #set.seed(321) # for reproducibility
 
 # How many simulation replicates to do
-nRep <- 4
-noScaledYears <- 3#0
+nRep <- 20
+noScaledYears <- 10
 
 
 
@@ -44,12 +44,22 @@ keyLogScale <- fitReal$conf$keyLogFsta
 keyLogScale[keyLogScale > -1] <- 0:(length(keyLogScale[keyLogScale > -1])-1)
 nAs <- sum(keyLogScale[1,] > -1)
 nY <- fitReal$data$noYears
-logScale <- cbind(matrix(data = 0, nrow = nAs, ncol = nY - noScaledYears),
-                  matrix(data = log(runif(n = noScaledYears * nAs, min = 1, max = 3)),
-                         #log(2), 
-                         nrow = nAs, ncol = noScaledYears))
+
+rw_logScale_mat <- matrix(data = NA, nrow = nAs, ncol = noScaledYears)
+rw_logScale_mat[,1] <- 0
+for(i in 2:noScaledYears){
+  rw_logScale_mat[,i] <- rw_logScale_mat[,i-1] + rnorm(nAs, 0, .5)
+}
+logScale <- #cbind(matrix(data = 0, nrow = nAs, ncol = nY - noScaledYears),
+                  matrix(data = 
+                           #log(runif(n = noScaledYears * nAs, min = 1, max = 3)),
+                           #log(2), 
+                           rw_logScale_mat,
+                         nrow = nAs, ncol = noScaledYears)#)
+fitReal$pl$logSdLogScale <- log(0.5)
 fitReal$conf$keyLogScale <- keyLogScale
 fitReal$conf$keyVarLogScale <- rep(0, nAs)
+fitReal$conf$keyScaledYears <- (max(fitReal$data$years) - noScaledYears + 1) : max(fitReal$data$years)
 
 
 # Generate simulation replicates
@@ -94,34 +104,39 @@ for (i in 1:nRep) {
   setupOut[[i]] <- setupModel(conf = fitReal$conf, 
                               example_dir = example_dir, 
                               noScaledYears = noScaledYears)
-  #setupOut[[i]]$par$logFpar <- fitReal$pl$logFpar
+  # setupOut[[i]]$par$logFpar <- fitReal$pl$logFpar
+  # setupOut[[i]]$par$logSdLogObs <- fitReal$pl$logSdLogObs
+  # setupOut[[i]]$par$logSdLogN <- fitReal$pl$logSdLogN
   #setupOut[[i]]$par$logSdLogScale <- 1 #Set variable to particular value for debugging.
 }
 
 # Fit model to replicates in parallel
-fitSimTest <- sam.fit_cp(setupOut[[1]]$dat, setupOut[[1]]$conf, setupOut[[1]]$par,
-                         map = list(#"logFpar" = factor(rep(NA, length.out = length(setupOut[[1]]$par$logFpar))),
-                                    #"logSdLogScale" = factor(NA),
-                                    "logScale" = factor(cbind(matrix(data = NA,
-                                                                     nrow = nrow(setupOut[[1]]$par$logScale),
-                                                                     ncol = ncol(setupOut[[1]]$par$logScale) - setupOut[[1]]$conf$noScaledYears),
-                                                              matrix(data = 1:(nrow(setupOut[[1]]$par$logScale) * setupOut[[1]]$conf$noScaledYears),
-                                                                     nrow = nrow(setupOut[[1]]$par$logScale),
-                                                                     ncol = setupOut[[1]]$conf$noScaledYears)))))
+#fitSimTest <- sam.fit_cp(setupOut[[1]]$dat, setupOut[[1]]$conf, setupOut[[1]]$par)
+                         # map = list(#"logFpar" = factor(rep(NA, length.out = length(setupOut[[1]]$par$logFpar))),
+                         #            #"logSdLogObs" = factor(rep(NA, length.out = length(setupOut[[1]]$par$logSdLogObs))),
+                         #            #"logSdLogN" = factor(rep(NA, length.out = length(setupOut[[1]]$par$logSdLogN))),
+                         #            #"logSdLogScale" = factor(NA),
+                         #            "logScale" = factor(cbind(matrix(data = NA,
+                         #                                             nrow = nrow(setupOut[[1]]$par$logScale),
+                         #                                             ncol = ncol(setupOut[[1]]$par$logScale) - setupOut[[1]]$conf$noScaledYears),
+                         #                                      matrix(data = 1:(nrow(setupOut[[1]]$par$logScale) * setupOut[[1]]$conf$noScaledYears),
+                         #                                             nrow = nrow(setupOut[[1]]$par$logScale),
+                         #                                             ncol = setupOut[[1]]$conf$noScaledYears)))))
 
 
 cl <- makeCluster(detectCores() - 1) #setup nodes for parallel
 clusterEvalQ(cl, {library(stockassessment); source("1-functions.R")}) #load stockassessment to each node
 # Estimate with misreporting as random effect
 fitSim_random <- parLapply(cl, setupOut,
-                    function(x){try(sam.fit_cp(x$dat, x$conf, x$par,
-                                               map = list("logSdLogScale" = factor(NA),
-                                                          "logScale" = factor(cbind(matrix(data = NA,
-                                                                                           nrow = nrow(x$par$logScale),
-                                                                                           ncol = ncol(x$par$logScale) - x$conf$noScaledYears),
-                                                                                    matrix(data = 1:(nrow(x$par$logScale) * x$conf$noScaledYears),
-                                                                                           nrow = nrow(x$par$logScale),
-                                                                                           ncol = x$conf$noScaledYears))))))})
+                    function(x){try(sam.fit_cp(x$dat, x$conf, x$par))#,
+                                               # map = list(#"logSdLogScale" = factor(NA),
+                                               #            "logScale" = factor(cbind(matrix(data = NA,
+                                               #                                             nrow = nrow(x$par$logScale),
+                                               #                                             ncol = ncol(x$par$logScale) - x$conf$noScaledYears),
+                                               #                                      matrix(data = 1:(nrow(x$par$logScale) * x$conf$noScaledYears),
+                                               #                                             nrow = nrow(x$par$logScale),
+                                               #                                             ncol = x$conf$noScaledYears)))))
+                      })
 
 # Estimate with misreporting as fixed effect
 # start.time <- Sys.time()
@@ -132,7 +147,8 @@ fitSim_random <- parLapply(cl, setupOut,
 # Assume no misreporting
 # fitSim_noMis<- parLapply(cl, setupOut,
 #                          function(x){try(sam.fit_cp(x$dat, x$conf, x$par,
-#                                                     map = list("logScale" = factor(matrix(data = NA,
+#                                                     map = list("logSdLogScale" = factor(rep(NA, length.out = length(x$par$logSdLogScale))),
+#                                                                "logScale" = factor(matrix(data = NA,
 #                                                                                           nrow = nrow(x$par$logScale),
 #                                                                                           ncol = ncol(x$par$logScale))))))})
 stopCluster(cl) #shut down nodes
@@ -144,8 +160,8 @@ fitSimAccept_random <- fitSim_random[!(sapply(fitSim_random, class) == "try-erro
 simOutAccept_random <- simOut[!(sapply(fitSim_random, class) == "try-error")]
 #fitSimAccept_fixed <- fitSim_fixed[!(sapply(fitSim_fixed, class) == "try-error")]
 #simOutAccept_fixed <- simOut[!(sapply(fitSim_fixed, class) == "try-error")]
-fitSimAccept_noMis <- fitSim_noMis[!(sapply(fitSim_noMis, class) == "try-error")]
-simOutAccept_noMis <- simOut[!(sapply(fitSim_noMis, class) == "try-error")]
+# fitSimAccept_noMis <- fitSim_noMis[!(sapply(fitSim_noMis, class) == "try-error")]
+# simOutAccept_noMis <- simOut[!(sapply(fitSim_noMis, class) == "try-error")]
 # Exclude non-convergences
 x <- unlist(sapply(fitSimAccept_random, function (x) x[[6]][3]))
 fitSimAccept_random <- fitSimAccept_random[x != 1]
@@ -155,10 +171,10 @@ nRepAccept_random <- length(fitSimAccept_random)
 # fitSimAccept_fixed <- fitSimAccept_fixed[x != 1]
 # simOutAccept_fixed <- simOutAccept_fixed[x != 1]
 # nRepAccept_fixed <- length(fitSimAccept_fixed)
-x <- unlist(sapply(fitSimAccept_noMis, function (x) x[[6]][3]))
-fitSimAccept_noMis <- fitSimAccept_noMis[x != 1]
-simOutAccept_noMis <- simOutAccept_noMis[x != 1]  
-nRepAccept_noMis <- length(fitSimAccept_noMis)
+# x <- unlist(sapply(fitSimAccept_noMis, function (x) x[[6]][3]))
+# fitSimAccept_noMis <- fitSimAccept_noMis[x != 1]
+# simOutAccept_noMis <- simOutAccept_noMis[x != 1]  
+# nRepAccept_noMis <- length(fitSimAccept_noMis)
 
 # Save output
 # suffix <- paste0(Sys.time(), ".Rdata")
@@ -196,13 +212,13 @@ err_random <- rbind(errRe_random, errCSSB_random)
 # errCSSB_fixed  <- calcCSSBError(fitSimAccept_fixed, simOutAccept_fixed)
 # err_fixed <- rbind(errNF_fixed, errCSSB_fixed)
 
-errRe_noMis <- calcReTsError(fitSimAccept_noMis, simOutAccept_noMis)
-errCSSB_noMis  <- calcCSSBError(fitSimAccept_noMis, simOutAccept_noMis)
-err_noMis <- rbind(errRe_noMis, errCSSB_noMis)
+# errRe_noMis <- calcReTsError(fitSimAccept_noMis, simOutAccept_noMis)
+# errCSSB_noMis  <- calcCSSBError(fitSimAccept_noMis, simOutAccept_noMis)
+# err_noMis <- rbind(errRe_noMis, errCSSB_noMis)
 
 plotTsError(err_random, noYears = fitSimAccept_random[[1]]$data$noYears)
 #plotTsError(err_fixed, noYears = fitSimAccept_fixed[[1]]$data$noYears)
-plotTsError(err_noMis, noYears = fitSimAccept_noMis[[1]]$data$noYears)
+# plotTsError(err_noMis, noYears = fitSimAccept_noMis[[1]]$data$noYears)
 
 # plotTsMeanError(err_random, nRepAccept_random)
 # plotTsMeanError(err_fixed, nRepAccept_fixed)
@@ -211,7 +227,7 @@ plotTsError(err_noMis, noYears = fitSimAccept_noMis[[1]]$data$noYears)
 # Plot parameters true vs fit
 plotPars(fitSimAccept_random, simOutAccept_random)
 #plotPars(fitSimAccept_fixed, simOutAccept_fixed)
-plotPars(fitSimAccept_noMis, simOutAccept_noMis)
+# plotPars(fitSimAccept_noMis, simOutAccept_noMis)
 
 # Plot observed catch vs true catch vs estimated catch in N (not MT) because
 # the model fit is in N, and we want to check to see how well it estiamtes the
