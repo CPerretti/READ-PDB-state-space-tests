@@ -1,7 +1,7 @@
 # Functions for simulations
 
 ## Simulation model #######################################
-sim <- function(fit, noScaledYears, logScale) {
+sim <- function(fit, noScaledYears, logScale, keyLogScale) {
   nA <- ncol(fit$data$propF) # number of age-classes
   nT <- fit$data$noYears # length of time series
 
@@ -140,9 +140,10 @@ sim <- function(fit, noScaledYears, logScale) {
   logCobs_N <- logCobs_N0
   logScale_full <- cbind(matrix(data = 0, nrow = nrow(logScale), ncol = nT - noScaledYears),
                          logScale)
+  
   for (a in 1:nA){
     if (fit$conf$keyLogFsta[1, a] > -1) { # If there is fishing on an age
-      logCobs_N[a,] <- logCobs_N0[a,] - logScale_full[fit$conf$keyLogScale[1,a] + 1,] # Misreport catch
+      logCobs_N[a,] <- logCobs_N0[a,] - logScale_full[keyLogScale[1,a] + 1,] # Misreport catch
     }
   }
     
@@ -286,7 +287,7 @@ prepSimData <- function(Sobs_N, fit, Cobs_N) {
 }
 
 # Setup data and params for sam model #####################
-setupModel <- function(conf, example_dir, noScaledYears) {
+setupModel <- function(conf, example_dir, noScaledYears, confLogScale) {
   
   # Read in data
   cn <- read.ices("./sim_data/catch.dat") # catch abundace-at-age
@@ -322,7 +323,16 @@ setupModel <- function(conf, example_dir, noScaledYears) {
   conf <- conf
   
   # Try SAM misreported catch code
-  conf$noScaledYears <- noScaledYears
+  if (confLogScale$logScaleType == "random") {
+    conf$noScaledYears <- confLogScale$noScaledYears
+    conf$keyLogScale <- keyLogScale
+    conf$keyVarLogScale <- rep(0, nAs)
+    conf$keyScaledYears <- (max(dat$years) - confLogScale$noScaledYears + 1) : 
+                          max(dat$years)
+    
+  }
+  
+
   # conf$keyScaledYears <- (max(dat$years) - conf$noScaledYears + 1):max(dat$years)
   # # conf$keyParScaledYA <-  matrix(data = c(rep(0, conf$noScaledYears * 3), rep(-1, conf$noScaledYears * 3)),
   # #                                nrow = conf$noScaledYears) # 3 ages with parameter
@@ -331,7 +341,10 @@ setupModel <- function(conf, example_dir, noScaledYears) {
   # conf$keyParScaledYA <- matrix(data = 0:(noScaledYears*ncol(fitReal$data$propF)-1),
   #                               nrow = conf$noScaledYears) # New parameter each year x age
   
-  par <- defpar(dat, conf) # some default starting values
+  if (confLogScale$logScaleType == "random") {
+    par <- stockassessment2::defpar(dat, conf) # some default starting values  
+  } else {par <- stockassessment::defpar(dat, conf)}
+  
   
   return(list(dat = dat, conf = conf, par = par))
 }
@@ -1164,8 +1177,8 @@ plotTsMeanError <- function(err, nRepAccept) {
 sam.fit_cp <-
 function (data, conf, parameters, newtonsteps = 3, rm.unidentified = FALSE, 
           run = TRUE, 
-          lower = stockassessment:::getLowerBounds(parameters), 
-          upper = stockassessment:::getUpperBounds(parameters), 
+          lower = stockassessment2:::getLowerBounds(parameters), 
+          upper = stockassessment2:::getUpperBounds(parameters), 
           sim.condRE = TRUE, ignore.parm.uncertainty = FALSE, rel.tol = 1e-10,
           ...) 
 {
@@ -1175,7 +1188,7 @@ function (data, conf, parameters, newtonsteps = 3, rm.unidentified = FALSE,
   #   warning("Initial values are not consistent, so running with default init values from defpar()")
   #   parameters <- definit
   # }
-  data <- stockassessment:::clean.void.catches(data, conf)
+  data <- stockassessment2:::clean.void.catches(data, conf)
   tmball <- c(data, conf, simFlag = as.numeric(sim.condRE))
   if (is.null(tmball$resFlag)) {
     tmball$resFlag <- 0
@@ -1185,7 +1198,7 @@ function (data, conf, parameters, newtonsteps = 3, rm.unidentified = FALSE,
   ran <- c("logN", "logF", "logScale", "missing")
   
   
-  obj <- TMB::MakeADFun(tmball, parameters, random = ran, DLL = "stockassessment", 
+  obj <- TMB::MakeADFun(tmball, parameters, random = ran, DLL = "stockassessment2", 
                    ...)
   obj$env$tracepar <- TRUE
   if (rm.unidentified) {
@@ -1205,7 +1218,7 @@ function (data, conf, parameters, newtonsteps = 3, rm.unidentified = FALSE,
     }
     else {
       obj <- MakeADFun(tmball, parameters, random = ran, 
-                       map = safemap, DLL = "stockassessment", ...)
+                       map = safemap, DLL = "stockassessment2", ...)
     }
   }
   lower2 <- rep(-Inf, length(obj$par))
@@ -1243,9 +1256,9 @@ function (data, conf, parameters, newtonsteps = 3, rm.unidentified = FALSE,
   ret <- list(sdrep = sdrep, pl = pl, plsd = plsd, data = data, 
               conf = conf, opt = opt, obj = obj, rep = rep, low = lower, 
               hig = upper)
-  attr(ret, "RemoteSha") <- substr(packageDescription("stockassessment")$RemoteSha, 
+  attr(ret, "RemoteSha") <- substr(packageDescription("stockassessment2")$RemoteSha, 
                                    1, 12)
-  attr(ret, "Version") <- packageDescription("stockassessment")$Version
+  attr(ret, "Version") <- packageDescription("stockassessment2")$Version
   class(ret) <- "sam"
   return(ret)
 }

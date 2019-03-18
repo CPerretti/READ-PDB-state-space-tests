@@ -2,8 +2,10 @@
  
 # Install github version of package to use default package
 #devtools::install_github("fishfollower/SAM/stockassessment")
-# Install local version of package to make changes
+# Install local version of package with changes
 #devtools::install_local("../../SAM/stockassessment/", force = TRUE)
+
+# << CONTINUE TESTING stockassessment2 PACKAGE
 
 # (1) Fix plot of logScale error so that it works even when F is not 
 # applied to all ages.
@@ -13,7 +15,7 @@ library(plyr) # always load before dplyr
 library(dplyr)
 library(ggplot2)
 library(tidyr)
-library(stockassessment)
+library(stockassessment2)
 library(parallel)
 
 # Load user-defined functions
@@ -56,10 +58,12 @@ logScale <- #cbind(matrix(data = 0, nrow = nAs, ncol = nY - noScaledYears),
                            #log(2), 
                            rw_logScale_mat,
                          nrow = nAs, ncol = noScaledYears)#)
+
+
 fitReal$pl$logSdLogScale <- log(0.5)
-fitReal$conf$keyLogScale <- keyLogScale
-fitReal$conf$keyVarLogScale <- rep(0, nAs)
-fitReal$conf$keyScaledYears <- (max(fitReal$data$years) - noScaledYears + 1) : max(fitReal$data$years)
+#fitReal$conf$keyLogScale <- keyLogScale
+#fitReal$conf$keyVarLogScale <- rep(0, nAs)
+#fitReal$conf$keyScaledYears <- (max(fitReal$data$years) - noScaledYears + 1) : max(fitReal$data$years)
 
 
 # Generate simulation replicates
@@ -67,7 +71,8 @@ simOut <- list()
 for (i in 1:nRep) {
   simOut[[i]] <- sim(fit = fitReal, 
                      noScaledYears = noScaledYears, 
-                     logScale = logScale)  
+                     logScale = logScale,
+                     keyLogScale = keyLogScale)  
 }
 
 ## Plot an example true vs observed vs *real data* fit ########
@@ -93,7 +98,17 @@ for (i in 1:nRep) {
 
 
 ## Fit sam to a simulation ################################
+confLogScale_random <- 
+  list(logScaleType = "random",
+       keyLogScale = keyLogScale,
+       keyVarLogScale = rep(0, nAs),
+       noScaledYears = noScaledYears,
+       keyScaledYears = (max(fitReal$data$years) - noScaledYears + 1) : 
+                         max(fitReal$data$years))
+
+
 setupOut <- list()
+setupOut_random <- list()
 for (i in 1:nRep) {
   # Prep simulation data for read.ices()
   prepSimData(Sobs_N = simOut[[i]]$Sobs_N, 
@@ -101,9 +116,17 @@ for (i in 1:nRep) {
               Cobs_N = simOut[[i]]$Cobs_N) 
   
   # Read in data, set initial params and configuration
-  setupOut[[i]] <- setupModel(conf = fitReal$conf, 
-                              example_dir = example_dir, 
-                              noScaledYears = noScaledYears)
+  # setupOut[[i]] <- setupModel(conf = fitReal$conf, 
+  #                             example_dir = example_dir, 
+  #                             noScaledYears = noScaledYears,
+  #                             logScaleType = "fixed")
+  
+  setupOut_random[[i]] <- setupModel(conf = fitReal$conf, 
+                                     example_dir = example_dir, 
+                                     noScaledYears = noScaledYears,
+                                     confLogScale = confLogScale_random)
+  
+  
   # setupOut[[i]]$par$logFpar <- fitReal$pl$logFpar
   # setupOut[[i]]$par$logSdLogObs <- fitReal$pl$logSdLogObs
   # setupOut[[i]]$par$logSdLogN <- fitReal$pl$logSdLogN
@@ -111,39 +134,17 @@ for (i in 1:nRep) {
 }
 
 # Fit model to replicates in parallel
-#fitSimTest <- sam.fit_cp(setupOut[[1]]$dat, setupOut[[1]]$conf, setupOut[[1]]$par)
-                         # map = list(#"logFpar" = factor(rep(NA, length.out = length(setupOut[[1]]$par$logFpar))),
-                         #            #"logSdLogObs" = factor(rep(NA, length.out = length(setupOut[[1]]$par$logSdLogObs))),
-                         #            #"logSdLogN" = factor(rep(NA, length.out = length(setupOut[[1]]$par$logSdLogN))),
-                         #            #"logSdLogScale" = factor(NA),
-                         #            "logScale" = factor(cbind(matrix(data = NA,
-                         #                                             nrow = nrow(setupOut[[1]]$par$logScale),
-                         #                                             ncol = ncol(setupOut[[1]]$par$logScale) - setupOut[[1]]$conf$noScaledYears),
-                         #                                      matrix(data = 1:(nrow(setupOut[[1]]$par$logScale) * setupOut[[1]]$conf$noScaledYears),
-                         #                                             nrow = nrow(setupOut[[1]]$par$logScale),
-                         #                                             ncol = setupOut[[1]]$conf$noScaledYears)))))
+fitSimTest <- sam.fit_cp(setupOut_random[[1]]$dat, setupOut_random[[1]]$conf, setupOut_random[[1]]$par)
 
 
 cl <- makeCluster(detectCores() - 1) #setup nodes for parallel
 clusterEvalQ(cl, {library(stockassessment); source("1-functions.R")}) #load stockassessment to each node
 # Estimate with misreporting as random effect
-fitSim_random <- parLapply(cl, setupOut,
-                    function(x){try(sam.fit_cp(x$dat, x$conf, x$par))#,
-                                               # map = list(#"logSdLogScale" = factor(NA),
-                                               #            "logScale" = factor(cbind(matrix(data = NA,
-                                               #                                             nrow = nrow(x$par$logScale),
-                                               #                                             ncol = ncol(x$par$logScale) - x$conf$noScaledYears),
-                                               #                                      matrix(data = 1:(nrow(x$par$logScale) * x$conf$noScaledYears),
-                                               #                                             nrow = nrow(x$par$logScale),
-                                               #                                             ncol = x$conf$noScaledYears)))))
-                      })
+fitSim_random <- parLapply(cl, setupOut_random, function(x){try(sam.fit_cp(x$dat, x$conf, x$par))})
 
 # Estimate with misreporting as fixed effect
-# start.time <- Sys.time()
 # fitSim_fixed <- parLapply(cl, setupOut,
 #                     function(x){try(sam.fit_cp(x$dat, x$conf, x$par))})
-# end.time <- Sys.time()
-#time.taken_fixed <- end.time - start.time
 # Assume no misreporting
 # fitSim_noMis<- parLapply(cl, setupOut,
 #                          function(x){try(sam.fit_cp(x$dat, x$conf, x$par,
