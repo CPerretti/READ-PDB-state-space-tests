@@ -323,23 +323,26 @@ setupModel <- function(conf, example_dir, noScaledYears, confLogScale) {
   conf <- conf
   
   # Try SAM misreported catch code
-  if (confLogScale$logScaleType == "random") {
-    conf$noScaledYears <- confLogScale$noScaledYears
-    conf$keyLogScale <- keyLogScale
-    conf$keyVarLogScale <- rep(0, nAs)
-    conf$keyScaledYears <- (max(dat$years) - confLogScale$noScaledYears + 1) : 
-                          max(dat$years)
-    
-  }
-  
-
-  # conf$keyScaledYears <- (max(dat$years) - conf$noScaledYears + 1):max(dat$years)
-  # # conf$keyParScaledYA <-  matrix(data = c(rep(0, conf$noScaledYears * 3), rep(-1, conf$noScaledYears * 3)),
-  # #                                nrow = conf$noScaledYears) # 3 ages with parameter
-  # # conf$keyParScaledYA <-  matrix(data = c(rep(0, conf$noScaledYears * ncol(fitReal$data$propF))),
-  # #                                nrow = conf$noScaledYears) # One parameter all years
-  # conf$keyParScaledYA <- matrix(data = 0:(noScaledYears*ncol(fitReal$data$propF)-1),
-  #                               nrow = conf$noScaledYears) # New parameter each year x age
+  switch(confLogScale$logScaleType,
+         random = {
+           conf$noScaledYears  <- confLogScale$noScaledYears
+           conf$keyLogScale    <- confLogScale$keyLogScale
+           conf$keyVarLogScale <- rep(0, sum(confLogScale$keyLogScale[1,] > -1))
+           conf$keyScaledYears <- (max(dat$years) - confLogScale$noScaledYears + 1) : max(dat$years)
+         },
+         fixed = {
+           conf$noScaledYears  <- confLogScale$noScaledYears
+           conf$keyLogScale    <- confLogScale$keyLogScale
+           conf$keyScaledYears <- (max(dat$years) - confLogScale$noScaledYears + 1) : 
+                                   max(dat$years)
+           conf$keyParScaledYA <-  matrix(data = c(rep(0, confLogScale$noScaledYears * ncol(dat$propF))),
+                                          nrow = confLogScale$noScaledYears) 
+           conf$constRecBreaks <- numeric(0)
+         },
+         none = {
+           conf$constRecBreaks <- numeric(0)
+         }
+         )
   
   if (confLogScale$logScaleType == "random") {
     par <- stockassessment2::defpar(dat, conf) # some default starting values  
@@ -680,9 +683,9 @@ plotPars <- function(fitSim, simOut) {
 }
 
 ## Calculate random effect timeseries error #######################
-calcReTsError <- function(fitSim, simOut) {
+calcReTsError <- function(fitSim, simOut, confLogScale) {
   indRe <- which(names(fitSim[[1]]$pl) %in% c("logN", "logF"))
-  if (any(fitSim[[1]]$pl$logScale != 0)) { # if logScale was estimated
+  if (confLogScale$logScaleType == "random") {
     indRe <- c(indRe, which(names(fitSim[[1]]$pl) == "logScale"))
   }
   errRe <- data.frame()
@@ -1173,7 +1176,7 @@ plotTsMeanError <- function(err, nRepAccept) {
 
 
 
-## Customized sam.fit() ##############################
+## Customized sam.fit() used to fit random effect logScale #######
 sam.fit_cp <-
 function (data, conf, parameters, newtonsteps = 3, rm.unidentified = FALSE, 
           run = TRUE, 
@@ -1182,7 +1185,7 @@ function (data, conf, parameters, newtonsteps = 3, rm.unidentified = FALSE,
           sim.condRE = TRUE, ignore.parm.uncertainty = FALSE, rel.tol = 1e-10,
           ...) 
 {
-  definit <- defpar(data, conf)
+  definit <- stockassessment2::defpar(data, conf)
   
   # if (!identical(parameters, relist(unlist(parameters), skeleton = definit))) {
   #   warning("Initial values are not consistent, so running with default init values from defpar()")
