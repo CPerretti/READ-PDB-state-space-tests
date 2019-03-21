@@ -1,10 +1,34 @@
 # Functions for simulations
 
 ## Simulation model #######################################
-sim <- function(fit, noScaledYears, logScale, keyLogScale) {
+sim <- function(fit, keyLogScale, noScaledYears, container_i) {
   nA <- ncol(fit$data$propF) # number of age-classes
   nT <- fit$data$noYears # length of time series
-
+  
+  
+  # Setup keyLogScale to have unique logScale for each age that is fished
+  nAs <- sum(keyLogScale[1,] > -1)
+  
+  switch(container_i$scenario,
+         random = {
+           logSdLogScale <- log(0.5)
+           rw_logScale_mat <- matrix(data = NA, nrow = nAs, ncol = noScaledYears)
+           rw_logScale_mat[,1] <- 0
+           
+           for(i in 2:noScaledYears){
+             rw_logScale_mat[,i] <- rw_logScale_mat[,i-1] + rnorm(nAs, 0, logSdLogScale)
+           }
+           
+           logScale <- matrix(data = rw_logScale_mat, nrow = nAs, ncol = noScaledYears)
+         },
+         fixed = {
+           logScale <- matrix(data = log(runif(n = noScaledYears * nAs, min = 1, max = 3)),
+                              nrow = nAs, ncol = noScaledYears)
+         },
+         none = {
+           logScale <- matrix(data = 0, nrow = nAs, ncol = noScaledYears)
+         }
+  ) 
   
   # Set F (need to replicate some elements to match ModelConf)
   #f <- exp(fit$pl$logF[(fit$conf$keyLogFsta[1,] + 1),])
@@ -194,7 +218,8 @@ sim <- function(fit, noScaledYears, logScale, keyLogScale) {
   
   
   trueParams <- list(sdrep = fit$sdrep, pl = fit$pl)
-  if (exists("logScale")) trueParams$pl$logScale <- logScale
+  trueParams$pl$logScale <- logScale
+  if (container_i$scenario == "random") trueParams$pl$logSdLogScale <- logSdLogScale
   trueParams$pl$logN <- logN
   dimnames(f) <- list(paste0("tru.", c(1:nA)), fit$data$years)
   trueParams$pl$logF <- logF
@@ -569,8 +594,7 @@ plotS <- function(simOut, fit) {
   df_Sfit <-
     data.frame(year = fit$data$aux[idx,"year"], 
                #observed = exp(fit$data$logobs[idx]), 
-               value = exp(fit$obj$report(c(fit$sdrep$par.fixed,
-                                            fit$sdrep$par.random))$predObs[idx]), 
+               value = exp(fit$rep$predObs[idx]), 
                age = fit$data$aux[idx,"age"], 
                fleetNames = attr(fit$data,"fleetNames")[fit$data$aux[idx,"fleet"]],
                source = "fit")

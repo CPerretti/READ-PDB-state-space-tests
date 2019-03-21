@@ -30,61 +30,70 @@ example_dir <- "nscod_example"
 load(paste0("../", example_dir, "/fitNScod.Rdata"))
 fitReal <- fitNScod
 
+fitReal$conf$constRecBreaks <- numeric(0) # Needed for new SAM
+
 #set.seed(321) # for reproducibility
-
-nMod <- 3  # Number of models to compare
+scenarios <- c("random", "fixed", "none")
 nRep <- 10 # Number of simulation replicates
-
-
 noScaledYears <- 10
 
+# Study output container
+container <- expand.grid(replicate = 1:nRep, scenario = scenarios, stringsAsFactors = F)
+container$simOut          <- vector("list", length = nrow(container))
+container$setupMod_random <- vector("list", length = nrow(container))
+container$setupMod_fixed  <- vector("list", length = nrow(container))
+container$setupMod_none   <- vector("list", length = nrow(container))
 
-# Setup keyLogScale to have unique logScale for each age that is fished
+
+# Setup configurations for each model
 keyLogScale <- fitReal$conf$keyLogFsta
 keyLogScale[keyLogScale > -1] <- 0:(length(keyLogScale[keyLogScale > -1])-1)
 nAs <- sum(keyLogScale[1,] > -1)
-nY <- fitReal$data$noYears
-rw_logScale_mat <- matrix(data = NA, nrow = nAs, ncol = noScaledYears)
-rw_logScale_mat[,1] <- 0
-for(i in 2:noScaledYears){
-  rw_logScale_mat[,i] <- rw_logScale_mat[,i-1] + rnorm(nAs, 0, 0.5)
-}
 
-logScale <- matrix(data = #log(runif(n = noScaledYears * nAs, min = 1, max = 3)),
-                          #log(2), 
-                          rw_logScale_mat,
-                   nrow = nAs, ncol = noScaledYears)
+confLogScale_random <- 
+  list(logScaleType = "random",
+       keyLogScale = keyLogScale,
+       keyVarLogScale = rep(0, nAs),
+       noScaledYears = noScaledYears,
+       keyScaledYears = (max(fitReal$data$years) - noScaledYears + 1) : 
+         max(fitReal$data$years))
 
-fitReal$pl$logSdLogScale <- log(0.5)
+confLogScale_fixed <-
+  list(logScaleType = "fixed",
+       keyLogScale = keyLogScale,
+       noScaledYears = noScaledYears,
+       keyScaledYears = (max(fitReal$data$years) - noScaledYears + 1) : 
+         max(fitReal$data$years),
+       keyParScaledYA =  matrix(data = rep(0, noScaledYears * ncol(fitReal$data$propF)),
+                                nrow = noScaledYears)) # One parameter all years
 
-
+confLogScale_none <- list(logScaleType = "none")
 
 
 # Generate simulation replicates
-simOut <- list()
-for (i in 1:nRep) {
-  simOut[[i]] <- sim(fit = fitReal, 
-                     noScaledYears = noScaledYears, 
-                     logScale = logScale,
-                     keyLogScale = keyLogScale)  
+for (i in 1:nrow(container)) {
+  container$simOut[[i]] <- sim(fit = fitReal,
+                               keyLogScale = keyLogScale,
+                               noScaledYears = noScaledYears,
+                               container_i = container[i,])
 }
 
 ## Plot an example true vs observed vs *real data* fit ########
 
 # ## (1) N-at-age (1000s)
-# plotN(simOut = simOut[[1]],
+# plotN(simOut = container$simOut[[1]],
 #       fit = fitReal)
 # 
 # ## (2) F-at-age
-# plotF(simOut = simOut[[1]],
-#       fit = fitReal) 
+# plotF(simOut = container$simOut[[1]],
+#       fit = fitReal)
 # 
 # ## (3) Catch (mt)
-# plotC(simOut = simOut[[1]],
+# plotC(simOut = container$simOut[[1]],
 #       fit = fitReal)
 # 
 # ## (4) Survey (1000s)
-# plotS(simOut = simOut[[1]],
+# plotS(simOut = container$simOut[[1]],
 #       fit = fitReal)
 
 ## Plot some simulations from simulate.sam()
@@ -92,49 +101,28 @@ for (i in 1:nRep) {
 
 
 ## Fit sam to a simulation ################################
-confLogScale_random <- 
-  list(logScaleType = "random",
-       keyLogScale = keyLogScale,
-       keyVarLogScale = rep(0, nAs),
-       noScaledYears = noScaledYears,
-       keyScaledYears = (max(fitReal$data$years) - noScaledYears + 1) : 
-                         max(fitReal$data$years))
 
-confLogScale_fixed <-
-  list(logScaleType = "fixed",
-       keyLogScale = keyLogScale,
-       noScaledYears = noScaledYears,
-       keyScaledYears = (max(fitReal$data$years) - noScaledYears + 1) : 
-                        max(fitReal$data$years),
-       keyParScaledYA =  matrix(data = rep(0, noScaledYears * ncol(fitReal$data$propF)),
-                                nrow = noScaledYears)) # One parameter all years
-
-confLogScale_none <- list(logScaleType = "none")
-
-setupOut_random <- list()
-setupOut_fixed <- list()
-setupOut_none <- list()
-for (i in 1:nRep) {
+for (i in 1:nrow(container)) {
   # Prep simulation data for read.ices()
-  prepSimData(Sobs_N = simOut[[i]]$Sobs_N, 
+  prepSimData(Sobs_N = container$simOut[[i]]$Sobs_N, 
               fit = fitReal, 
-              Cobs_N = simOut[[i]]$Cobs_N) 
+              Cobs_N = container$simOut[[i]]$Cobs_N) 
   
   # Read in data, set initial params and configuration
-  setupOut_random[[i]] <- setupModel(conf = fitReal$conf, 
-                                     example_dir = example_dir, 
-                                     noScaledYears = noScaledYears,
-                                     confLogScale = confLogScale_random)
+  container$setupMod_random[[i]] <- setupModel(conf = fitReal$conf, 
+                                               example_dir = example_dir, 
+                                               noScaledYears = noScaledYears,
+                                               confLogScale = confLogScale_random)
   
-  setupOut_fixed[[i]] <- setupModel(conf = fitReal$conf,
-                                    example_dir = example_dir,
-                                    noScaledYears = noScaledYears,
-                                    confLogScale = confLogScale_fixed)
+  container$setupMod_fixed[[i]] <- setupModel(conf = fitReal$conf,
+                                              example_dir = example_dir,
+                                              noScaledYears = noScaledYears,
+                                              confLogScale = confLogScale_fixed)
   
-  setupOut_none[[i]] <- setupModel(conf = fitReal$conf,
-                                   example_dir = example_dir,
-                                   noScaledYears = noScaledYears,
-                                   confLogScale = confLogScale_none)
+  container$setupMod_none[[i]] <- setupModel(conf = fitReal$conf,
+                                             example_dir = example_dir,
+                                             noScaledYears = noScaledYears,
+                                             confLogScale = confLogScale_none)
   
   # setupOut[[i]]$par$logFpar <- fitReal$pl$logFpar # For debugging
   
@@ -150,7 +138,7 @@ for (i in 1:nRep) {
 #                           setupOut_random[[1]]$par)
 
 
-cl <- makeCluster(detectCores() - 1) #setup nodes for parallel
+cl <- makeCluster(detectCores() - 1) #setup nodes for parallel <<<CONTIUE HERE<<<<<<
 #load stockassessment and functions to each node
 clusterEvalQ(cl, {library(stockassessment); source("1-functions.R")}) 
 
