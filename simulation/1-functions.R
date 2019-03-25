@@ -13,10 +13,10 @@ sim <- function(fit, keyLogScale, noScaledYears, container_i) {
          random = {
            logSdLogScale <- log(0.5)
            rw_logScale_mat <- matrix(data = NA, nrow = nAs, ncol = noScaledYears)
-           rw_logScale_mat[,1] <- 0
+           rw_logScale_mat[,1] <- rnorm(nAs, 0, exp(logSdLogScale))
            
            for(i in 2:noScaledYears){
-             rw_logScale_mat[,i] <- rw_logScale_mat[,i-1] + rnorm(nAs, 0, logSdLogScale)
+             rw_logScale_mat[,i] <- rw_logScale_mat[,i-1] + rnorm(nAs, 0, exp(logSdLogScale))
            }
            
            logScale <- matrix(data = rw_logScale_mat, nrow = nAs, ncol = noScaledYears)
@@ -708,49 +708,49 @@ plotPars <- function(fitSim, simOut) {
 
 ## Calculate random effect timeseries error #######################
 calcReTsError <- function(fitSim, simOut, confLogScale) {
-  indRe <- which(names(fitSim[[1]]$pl) %in% c("logN", "logF"))
+  indRe <- which(names(fitSim$pl) %in% c("logN", "logF"))
   if (confLogScale$logScaleType == "random") {
-    indRe <- c(indRe, which(names(fitSim[[1]]$pl) == "logScale"))
+    indRe <- c(indRe, which(names(fitSim$pl) == "logScale"))
   }
   errRe <- data.frame()
-  nRepAccept <- length(fitSim)
+  #nRepAccept <- length(fitSim)
   for (h in indRe) {
-    varName <- substr(names(fitSim[[1]]$pl[h]), 4, 999)
+    varName <- substr(names(fitSim$pl[h]), 4, 999)
     year <- if (varName == "Scale") {
-      as.numeric(fitSim[[1]]$conf$keyScaledYears)
-    } else {as.numeric(fitSim[[1]]$data$years)}
+      as.numeric(fitSim$conf$keyScaledYears)
+    } else {as.numeric(fitSim$data$years)}
 
-    for (i in 1:nRepAccept) {
-      rownames(fitSim[[i]]$pl[[h]]) <- paste0("fit.", 1:nrow(fitSim[[i]]$pl[[h]]))
-      sdLog <- fitSim[[i]]$plsd[[h]]
-      rownames(sdLog) <- paste0("sdLog.", 1:nrow(fitSim[[i]]$pl[[h]]))
-      h_tru <- which(names(simOut[[i]]$trueParams$pl) == names(fitSim[[i]]$pl[h]))
+    #for (i in 1:nRepAccept) {
+      rownames(fitSim$pl[[h]]) <- paste0("fit.", 1:nrow(fitSim$pl[[h]]))
+      sdLog <- fitSim$plsd[[h]]
+      rownames(sdLog) <- paste0("sdLog.", 1:nrow(fitSim$pl[[h]]))
+      h_tru <- which(names(simOut$trueParams$pl) == names(fitSim$pl[h]))
+      
       errRe <-
         rbind(errRe,
-              fitSim[[i]]$pl[[h]] %>%
-                t() %>%
-                exp %>%
-                as.data.frame() %>%
-                cbind(sdLog %>%
-                        t() %>%
-                        as.data.frame()) %>%
-                cbind(data.frame(simOut[[i]]$trueParams$pl[[h_tru]] %>% t %>% exp)) %>%
-                dplyr::mutate(year = year) %>%
-                tidyr::gather(variable, N, -year) %>%
-                dplyr::mutate(variable = gsub(x = variable, 
-                                              pattern = "X", 
-                                              replacement = "tru.")) %>%
-                tidyr::separate(variable, c("source", "age")) %>%
-                tidyr::spread(source, N) %>%
-                dplyr::mutate(age = as.numeric(age),
-                              error = (fit - tru),
-                              error_pc = 100 * (fit - tru) / tru,
-                              decile = ceiling(10 * pnorm(q    = log(tru), 
-                                                          mean = log(fit), 
-                                                          sd   = sdLog)),
-                              replicate = i,
-                              variable = varName))
-    }
+              fitSim$pl[[h]] %>%
+              t() %>%
+              exp %>%
+              as.data.frame() %>%
+              cbind(sdLog %>%
+                      t() %>%
+                      as.data.frame()) %>%
+              cbind(data.frame(simOut$trueParams$pl[[h_tru]] %>% t %>% exp)) %>%
+              dplyr::mutate(year = year) %>%
+              tidyr::gather(variable, N, -year) %>%
+              dplyr::mutate(variable = gsub(x = variable, 
+                                            pattern = "X", 
+                                            replacement = "tru.")) %>%
+              tidyr::separate(variable, c("source", "age")) %>%
+              tidyr::spread(source, N) %>%
+              dplyr::mutate(age = as.numeric(age),
+                            error = (fit - tru),
+                            error_pc = 100 * (fit - tru) / tru,
+                            decile = ceiling(10 * pnorm(q    = log(tru), 
+                                                        mean = log(fit), 
+                                                        sd   = sdLog)),
+                            variable = varName))
+    #}
   }
   return(errRe)
 }

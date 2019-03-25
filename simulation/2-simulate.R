@@ -33,8 +33,8 @@ fitReal <- fitNScod
 fitReal$conf$constRecBreaks <- numeric(0) # Needed for new SAM
 
 #set.seed(321) # for reproducibility
-scenarios <- c("random", "fixed", "none")
-nRep <- 10 # Number of simulation replicates
+scenarios <- c("random", "fixed", "none") # Right now "fixed" is uniform random <<<
+nRep <- 4#10 # Number of simulation replicates
 noScaledYears <- 10
 
 # Study output container
@@ -129,91 +129,93 @@ for (i in 1:nrow(container)) {
 }
 
 # Fit model to replicates in parallel
-# fitSimTest1 <- sam.fit(setupOut_fixed[[1]]$dat,
-#                       setupOut_fixed[[1]]$conf,
-#                       setupOut_fixed[[1]]$par)
+# fitSimTest1 <- sam.fit(container$setupMod_fixed[[1]]$dat,
+#                        container$setupMod_fixed[[1]]$conf,
+#                        container$setupMod_fixed[[1]]$par)
 
-# fitSimTest2 <- sam.fit_cp(setupOut_random[[1]]$dat,
-#                           setupOut_random[[1]]$conf,
-#                           setupOut_random[[1]]$par)
+# fitSimTest2 <- sam.fit_cp(container$setupMod_random[[1]]$dat,
+#                           container$setupMod_random[[1]]$conf,
+#                           container$setupMod_random[[1]]$par)
 
 
-cl <- makeCluster(detectCores() - 1) #setup nodes for parallel <<<CONTIUE HERE<<<<<<
+cl <- makeCluster(detectCores() - 1) #setup nodes for parallel
 #load stockassessment and functions to each node
 clusterEvalQ(cl, {library(stockassessment); source("1-functions.R")}) 
 
 # Estimate with misreporting as random effect
-fitSim_random <- parLapply(cl, 
-                           setupOut_random, 
-                           function(x){try(sam.fit_cp(x$dat, x$conf, x$par))})
+container$fitSim_random <- parLapply(cl, 
+                                     container$setupMod_random, 
+                                     function(x){try(sam.fit_cp(x$dat, x$conf, x$par))})
 
 # Estimate with misreporting as fixed effect
-fitSim_fixed <- parLapply(cl, 
-                          setupOut_fixed, 
-                          function(x){try(sam.fit(x$dat, x$conf, x$par))})
+container$fitSim_fixed <- parLapply(cl, 
+                                    container$setupMod_fixed, 
+                                    function(x){try(sam.fit(x$dat, x$conf, x$par))})
 
 # Assume no misreporting
-fitSim_none <- parLapply(cl, 
-                         setupOut_none, 
-                         function(x){try(sam.fit(x$dat, x$conf, x$par))})
+container$fitSim_none <- parLapply(cl, 
+                                   container$setupMod_none, 
+                                   function(x){try(sam.fit(x$dat, x$conf, x$par))})
 
 stopCluster(cl) #shut down nodes
 
 
 ## Error handling #####
-# Exclude TMB fails
-fitSimAccept_random <- fitSim_random[!(sapply(fitSim_random, class) == "try-error")]
-simOutAccept_random <- simOut[!(sapply(fitSim_random, class) == "try-error")]
-fitSimAccept_fixed <- fitSim_fixed[!(sapply(fitSim_fixed, class) == "try-error")]
-simOutAccept_fixed <- simOut[!(sapply(fitSim_fixed, class) == "try-error")]
-fitSimAccept_none <- fitSim_none[!(sapply(fitSim_none, class) == "try-error")]
-simOutAccept_none <- simOut[!(sapply(fitSim_none, class) == "try-error")]
-# Exclude non-convergences
-x <- unlist(sapply(fitSimAccept_random, function (x) x[[6]][3]))
-fitSimAccept_random <- fitSimAccept_random[x != 1]
-simOutAccept_random <- simOutAccept_random[x != 1]  
-nRepAccept_random <- length(fitSimAccept_random)
-x <- unlist(sapply(fitSimAccept_fixed, function (x) x[[6]][3]))
-fitSimAccept_fixed <- fitSimAccept_fixed[x != 1]
-simOutAccept_fixed <- simOutAccept_fixed[x != 1]
-nRepAccept_fixed <- length(fitSimAccept_fixed)
-x <- unlist(sapply(fitSimAccept_none, function (x) x[[6]][3]))
-fitSimAccept_none <- fitSimAccept_none[x != 1]
-simOutAccept_none <- simOutAccept_none[x != 1]
-nRepAccept_none <- length(fitSimAccept_none)
+# Only include replicates where all three models fit successfully
+containerAccept <- # Exclude TMB fails
+  container[sapply(container$fitSim_random, class) != "try-error" &
+            sapply(container$fitSim_fixed, class)  != "try-error" &
+            sapply(container$fitSim_none, class)   != "try-error", ]
+
+containerAccept <- # Also exclude non-covergences
+  containerAccept[unlist(sapply(containerAccept$fitSim_random, 
+                                function (x) x[[6]][3])) != 1 &
+                  unlist(sapply(containerAccept$fitSim_fixed, 
+                                function (x) x[[6]][3])) != 1 &
+                  unlist(sapply(containerAccept$fitSim_none, 
+                                function (x) x[[6]][3])) != 1, ]
 
 # Save output
 # suffix <- paste0(Sys.time(), ".Rdata")
-# save(list = "fitSim", file = paste0("./output/fitSim", suffix))
-# save(list = "fitSimAccept", file = paste0("./output/fitSimAccept", suffix))
-# save(list = "simOut", file = paste0("./output/simOut", suffix))
-# save(list = "simOutAccept", file = paste0("./output/simOutAccept", suffix))
+# save(list = "container", file = paste0("./output/container", suffix))
+# save(list = "containerAccept", file = paste0("./output/containerAccept", suffix))
 
 ## Plot example true vs observed vs fit to observed ########
 ## (1) N-at-age (1000s)
-plotN(simOut = simOutAccept_random[[1]],
-      fit = fitSimAccept_random[[1]])
+plotN(simOut = containerAccept$simOut[[1]],
+      fit = containerAccept$fitSim_random[[1]])
 
 ## (2) F-at-age
-plotF(simOut = simOutAccept_random[[1]],
-      fit = fitSimAccept_random[[1]])
+plotF(simOut = containerAccept$simOut[[1]],
+      fit = containerAccept$fitSim_random[[1]])
 
 ## (3) Catch (mt)
-plotC(simOut = simOutAccept_random[[1]],
-      fit = fitSimAccept_random[[1]])
+plotC(simOut = containerAccept$simOut[[1]],
+      fit = containerAccept$fitSim_random[[1]])
 
 ## (4) Survey (1000s)
-plotS(simOut = simOutAccept_random[[1]],
-      fit = fitSimAccept_random[[1]])
+plotS(simOut = containerAccept$simOut[[1]],
+      fit = containerAccept$fitSim_random[[1]])
 
 
 ## Plot fit vs true parameter values #######################
 
-# Plot error of time series estimates
-errRe_random    <- calcReTsError(fitSimAccept_random, 
-                                 simOutAccept_random,
+# Calculate fit error
+errRe_random    <- calcReTsError(containerAccept$fitSim_random[[1]], 
+                                 containerAccept$simOut[[1]],
                                  confLogScale_random)
-errCSSB_random  <- calcCSSBError(fitSimAccept_random, simOutAccept_random)
+
+# <<< CONTIUE HERE by combining both types of errors and all models into a single error matrix
+containerAccept$errRe_random <- vector("list", length = nrow(containerAccept))
+for (i in 1:length(containerAccept)) {
+  containerAccept[i, "errRe_random"] <- calcReTsError(containerAccept$fitSim_random[[i]], 
+                                                      containerAccept$simOut[[i]],
+                                                      confLogScale_random)  
+}
+
+
+errCSSB_random  <- calcCSSBError(containerAccept$fitSim_random, 
+                                 containerAccept$simOut)
 err_random      <- rbind(errRe_random, errCSSB_random)
 
 errRe_fixed <- calcReTsError(fitSimAccept_fixed, 
@@ -228,7 +230,8 @@ errRe_none <- calcReTsError(fitSimAccept_none,
 errCSSB_none <- calcCSSBError(fitSimAccept_none, simOutAccept_none)
 err_none <- rbind(errRe_none, errCSSB_none)
 
-plotTsError(err_random, noYears = fitSimAccept_random[[1]]$data$noYears)
+# Plot time series error
+plotTsError(err_random, noYears = containerAccept$fitSim_random[[1]]$data$noYears)
 plotTsError(err_fixed, noYears = fitSimAccept_fixed[[1]]$data$noYears)
 plotTsError(err_none, noYears = fitSimAccept_none[[1]]$data$noYears)
 
