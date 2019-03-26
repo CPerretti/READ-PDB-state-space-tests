@@ -34,7 +34,7 @@ fitReal$conf$constRecBreaks <- numeric(0) # Needed for new SAM
 
 #set.seed(321) # for reproducibility
 scenarios <- c("random", "fixed", "none") # Right now "fixed" is uniform random <<<
-nRep <- 4#10 # Number of simulation replicates
+nRep <- 30 # Number of simulation replicates
 noScaledYears <- 10
 
 # Study output container
@@ -64,8 +64,9 @@ confLogScale_fixed <-
        noScaledYears = noScaledYears,
        keyScaledYears = (max(fitReal$data$years) - noScaledYears + 1) : 
          max(fitReal$data$years),
-       keyParScaledYA =  matrix(data = rep(0, noScaledYears * ncol(fitReal$data$propF)),
-                                nrow = noScaledYears)) # One parameter all years
+       keyParScaledYA =  matrix(data = rep(0, length = noScaledYears * ncol(fitReal$data$propF)),
+                                nrow = noScaledYears,
+                                byrow = TRUE)) # One parameter all years
 
 confLogScale_none <- list(logScaleType = "none")
 
@@ -201,47 +202,41 @@ plotS(simOut = containerAccept$simOut[[1]],
 ## Plot fit vs true parameter values #######################
 
 # Calculate fit error
-errRe_random    <- calcReTsError(containerAccept$fitSim_random[[1]], 
-                                 containerAccept$simOut[[1]],
-                                 confLogScale_random)
-
-# <<< CONTIUE HERE by combining both types of errors and all models into a single error matrix
-containerAccept$errRe_random <- vector("list", length = nrow(containerAccept))
-for (i in 1:length(containerAccept)) {
-  containerAccept[i, "errRe_random"] <- calcReTsError(containerAccept$fitSim_random[[i]], 
-                                                      containerAccept$simOut[[i]],
-                                                      confLogScale_random)  
+containerAccept$err_random <- vector("list", length = nrow(containerAccept))
+containerAccept$err_fixed  <- vector("list", length = nrow(containerAccept))
+containerAccept$err_none   <- vector("list", length = nrow(containerAccept))
+for (i in 1:nrow(containerAccept)) {
+  errRe_random <- calcReTsError(containerAccept$fitSim_random[[i]], 
+                                containerAccept$simOut[[i]],
+                                confLogScale_random)
+  errRe_fixed <- calcReTsError(containerAccept$fitSim_fixed[[i]],
+                                containerAccept$simOut[[i]],
+                                confLogScale_fixed)
+  errRe_none <- calcReTsError(containerAccept$fitSim_none[[i]], 
+                                containerAccept$simOut[[i]],
+                                confLogScale_none)
+  
+  errCSSB_random <- calcCSSBError(containerAccept$fitSim_random[[i]], 
+                                  containerAccept$simOut[[i]])
+  errCSSB_fixed <- calcCSSBError(containerAccept$fitSim_fixed[[i]], 
+                                  containerAccept$simOut[[i]])
+  errCSSB_none <- calcCSSBError(containerAccept$fitSim_none[[i]], 
+                                  containerAccept$simOut[[i]])
+  
+  containerAccept$err_random[[i]] <- rbind(errRe_random, errCSSB_random)
+  containerAccept$err_fixed[[i]]  <- rbind(errRe_fixed, errCSSB_fixed)
+  containerAccept$err_none[[i]]   <- rbind(errRe_none, errCSSB_none)
 }
 
 
-errCSSB_random  <- calcCSSBError(containerAccept$fitSim_random, 
-                                 containerAccept$simOut)
-err_random      <- rbind(errRe_random, errCSSB_random)
-
-errRe_fixed <- calcReTsError(fitSimAccept_fixed, 
-                             simOutAccept_fixed, 
-                             confLogScale_fixed)
-errCSSB_fixed  <- calcCSSBError(fitSimAccept_fixed, simOutAccept_fixed)
-err_fixed <- rbind(errRe_fixed, errCSSB_fixed)
-
-errRe_none <- calcReTsError(fitSimAccept_none, 
-                            simOutAccept_none,
-                            confLogScale_none)
-errCSSB_none <- calcCSSBError(fitSimAccept_none, simOutAccept_none)
-err_none <- rbind(errRe_none, errCSSB_none)
-
 # Plot time series error
-plotTsError(err_random, noYears = containerAccept$fitSim_random[[1]]$data$noYears)
-plotTsError(err_fixed, noYears = fitSimAccept_fixed[[1]]$data$noYears)
-plotTsError(err_none, noYears = fitSimAccept_none[[1]]$data$noYears)
-
-# plotTsMeanError(err_random, nRepAccept_random)
-# plotTsMeanError(err_fixed, nRepAccept_fixed)
-# plotTsMeanError(err_none, nRepAccept_none)
+plotTsError(containerAccept, model = "random")
+plotTsError(containerAccept, model = "fixed")
+plotTsError(containerAccept, model = "none")
 
 # Plot parameters true vs fit
-plotPars(fitSimAccept_random, simOutAccept_random)
-plotPars(fitSimAccept_fixed, simOutAccept_fixed)
-plotPars(fitSimAccept_none, simOutAccept_none)
+plotPars(containerAccept, model = "random")
+plotPars(containerAccept, model = "fixed")
+plotPars(containerAccept, model = "none")
 
 

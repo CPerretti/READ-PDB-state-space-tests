@@ -22,7 +22,7 @@ sim <- function(fit, keyLogScale, noScaledYears, container_i) {
            logScale <- matrix(data = rw_logScale_mat, nrow = nAs, ncol = noScaledYears)
          },
          fixed = {
-           logScale <- matrix(data = log(runif(n = noScaledYears * nAs, min = 1, max = 3)),
+           logScale <- matrix(data = log(0.5),
                               nrow = nAs, ncol = noScaledYears)
          },
          none = {
@@ -360,8 +360,7 @@ setupModel <- function(conf, example_dir, noScaledYears, confLogScale) {
            conf$keyLogScale    <- confLogScale$keyLogScale
            conf$keyScaledYears <- (max(dat$years) - confLogScale$noScaledYears + 1) : 
                                    max(dat$years)
-           conf$keyParScaledYA <-  matrix(data = c(rep(0, confLogScale$noScaledYears * ncol(dat$propF))),
-                                          nrow = confLogScale$noScaledYears) 
+           conf$keyParScaledYA <- confLogScale$keyParScaledYA
            conf$constRecBreaks <- numeric(0)
          },
          none = {
@@ -649,71 +648,77 @@ plotSimSAM <- function(fit, nsim = 1, seed = NULL) {
 
 
 ## Plot parameters fit vs true ############################
-plotPars <- function(fitSim, simOut) {
-  nRepAccept <- length(simOut)
+plotPars <- function(container, model) {
+  switch(model,
+         random = {
+           fitSim <- container$fitSim_random
+         },
+         fixed = {
+           fitSim <- container$fitSim_fixed
+         },
+         none = {
+           fitSim <- container$fitSim_none
+         }
+  )
+
   pars2plot <- which(names(fitSim[[1]]$pl) %in% names(fitSim[[1]]$obj$par))
-  #parsFixed <- which(names(fitSim[[1]]$pl) %in% c("logSdLogN", "logSdLogFsta"))
+
   df_parsOut <- data.frame()
   for (h in pars2plot) {
-    for (i in 1:nRepAccept) {
-      h_tru <- which(names(simOut[[i]]$trueParams$pl) == names(fitSim[[i]]$pl[h]))
+    for (i in 1:nrow(container)) {
+      h_tru <- which(names(container$simOut[[i]]$trueParams$pl) == names(fitSim[[i]]$pl[h]))
       df_parsOut <-
         rbind(df_parsOut,
               data.frame(variable = paste(names(fitSim[[1]]$pl)[h], 
                                           1:length(fitSim[[1]]$pl[[h]]), sep = "."),
                          # Don't plot tru if it isn't the same length as estimated
                          # becuase it means the values don't match up.
-                         tru = (if ((length(h_tru) >0) && length(simOut[[i]]$trueParams$pl[[h_tru]]) == length(fitSim[[i]]$pl[[h]])) {
-                                    simOut[[i]]$trueParams$pl[[h_tru]] 
+                         tru = (if ((length(h_tru) >0) && 
+                                    length(container$simOut[[i]]$trueParams$pl[[h_tru]]) == 
+                                    length(fitSim[[i]]$pl[[h]])) {
+                                    container$simOut[[i]]$trueParams$pl[[h_tru]] 
                                 } else {NA}),
                          est = fitSim[[i]]$pl[[h]],
                          sd  = fitSim[[i]]$plsd[[h]],
-                         replicate = i))
+                         replicate = container$replicate[[i]],
+                         scenario  = paste(container$scenario[[i]], "scenario")))
     }  
   }
   
-
-  # if ("logScale" %in% names(fitSim[[1]]$sdrep$par.random)) {
-  #   for (i in 1:nRepAccept) {
-  #   h <- which(names(fitSim[[1]]$sdrep$par.random) == "logScale")
-  #   df_parsOut <- rbind(df_parsOut,
-  #                       data.frame(variable = paste(names(fitSim[[i]]$sdrep$par.random)[h], 
-  #                                                   1:length(fitSim[[i]]$sdrep$par.random[h]),
-  #                                                   sep = "."),
-  #                                  tru = simOut[[i]]$trueParams$pl$logScale,
-  #                                  est = fitSim[[i]]$sdrep$par.random[h],
-  #                                  sd =  fitSim[[i]]$sdrep$diag.cov.random[h],
-  #                                  replicate = i))
-  #   }
-  # }
-  
   df2plot <-
     df_parsOut %>%
-    dplyr::group_by(variable) %>%
+    dplyr::group_by(scenario, variable) %>%
     dplyr::summarise(tru = unique(tru),
                      est_mean = mean(est),
-                     est_se = sd(est)/sqrt(nRepAccept))
+                     est_se = sd(est)/sqrt(length(unique(replicate))))
   
-  ggplot(df2plot, aes(y = variable)) +
-    geom_point( aes(x = tru), color = "red", size  = 3) +
-    geom_point( aes(x = est_mean), color = "blue", size = 3) +
-    geom_errorbarh(aes(xmin = est_mean - 1.96*est_se,
-                       xmax = est_mean + 1.96*est_se), color = "blue") +
-    theme_bw() +
-    ylab("") +
-    xlab("Value") +
-    theme(axis.title = element_text(size = 16),
-          axis.text = element_text(size = 14))
+  scenarios2plot <- unique(df2plot$scenario)
+  for (i in 1:length(scenarios2plot)) {
+    p <-
+      ggplot(df2plot %>% dplyr::filter(scenario == scenarios2plot[i]),
+             aes(y = variable)) +
+        geom_point( aes(x = tru), color = "red", size  = 3) +
+        geom_point( aes(x = est_mean), color = "blue", size = 3) +
+        geom_errorbarh(aes(xmin = est_mean - 1.96*est_se,
+                           xmax = est_mean + 1.96*est_se), color = "blue") +
+        theme_bw() +
+        ylab("") +
+        xlab("Value") +
+        theme(axis.title = element_text(size = 16),
+              axis.text = element_text(size = 14)) + 
+        ggtitle(paste(model, "model,", scenarios2plot[i]))
+    print(p)
+  }
 }
 
 ## Calculate random effect timeseries error #######################
 calcReTsError <- function(fitSim, simOut, confLogScale) {
   indRe <- which(names(fitSim$pl) %in% c("logN", "logF"))
-  if (confLogScale$logScaleType == "random") {
+  if (confLogScale$logScaleType %in% c("random", "fixed")) {
     indRe <- c(indRe, which(names(fitSim$pl) == "logScale"))
   }
   errRe <- data.frame()
-  #nRepAccept <- length(fitSim)
+
   for (h in indRe) {
     varName <- substr(names(fitSim$pl[h]), 4, 999)
     year <- if (varName == "Scale") {
@@ -721,6 +726,12 @@ calcReTsError <- function(fitSim, simOut, confLogScale) {
     } else {as.numeric(fitSim$data$years)}
 
     #for (i in 1:nRepAccept) {
+    if (confLogScale$logScaleType == "fixed" & varName == "Scale") {
+      fitSim$pl[[h]] <- matrix(fitSim$pl[[h]][confLogScale$keyParScaledYA + 1],
+                               nrow = nrow(confLogScale$keyParScaledYA)) %>% t()
+      fitSim$plsd[[h]] <- matrix(fitSim$plsd[[h]][confLogScale$keyParScaledYA + 1],
+                                 nrow = nrow(confLogScale$keyParScaledYA)) %>% t()
+    }
       rownames(fitSim$pl[[h]]) <- paste0("fit.", 1:nrow(fitSim$pl[[h]]))
       sdLog <- fitSim$plsd[[h]]
       rownames(sdLog) <- paste0("sdLog.", 1:nrow(fitSim$pl[[h]]))
@@ -799,17 +810,17 @@ calcNFTsErrorSAM <- function(fitSimSAM, simOutSAM4error) {
 ## Calculate observed time series error ###################
 calcCSSBError <- function(fitSim, simOut) {
   
-  errCSSB <- data.frame()
-  for (i in 1:length(fitSim)) {
+  #errCSSB <- data.frame()
+  #for (i in 1:length(fitSim)) {
     # Fit catch and SSB
     df_CSSBfit <- 
-      data.frame(variable = names(fitSim[[i]]$sdrep$value),
-                 value = fitSim[[i]]$sdrep$value,
-                 sd    = fitSim[[i]]$sdrep$sd) %>%
+      data.frame(variable = names(fitSim$sdrep$value),
+                 value = fitSim$sdrep$value,
+                 sd    = fitSim$sdrep$sd) %>%
       dplyr::filter(variable %in% c("logCatch", "logssb")) %>%
       dplyr::rename(sdLog = sd) %>%
       dplyr::mutate(fit = exp(value),
-                    year = rep(fitSim[[i]]$data$years, 2),
+                    year = rep(fitSim$data$years, 2),
                     age = "total",
                     variable = as.character(variable),
                     variable = ifelse(variable == "logCatch", "catch", variable),
@@ -818,43 +829,39 @@ calcCSSBError <- function(fitSim, simOut) {
     
     # True catch and SSB
     df_CSSBtru <- 
-      simOut[[i]]$Ctru_mt %>%
+      simOut$Ctru_mt %>%
       t() %>%
       as.data.frame() %>%
       dplyr::mutate(total = rowSums(.),
-                    year = fitSim[[1]]$data$years) %>%
+                    year = fitSim$data$years) %>%
       tidyr::gather(age, Catch_mt, -year) %>%
       dplyr::rename(tru = Catch_mt) %>%
       dplyr::filter(age == "total") %>%
       dplyr::mutate(variable = "catch") %>%
-      rbind(data.frame(tru = simOut[[i]]$SSB,
-                       year = names(simOut[[i]]$SSB),
+      rbind(data.frame(tru = simOut$SSB,
+                       year = names(simOut$SSB),
                        age = "total",
                        variable = "ssb")) %>%
       dplyr::mutate(year = as.integer(year))
      
     
     errCSSB <-
-      rbind(errCSSB,
             df_CSSBfit %>%
               dplyr::left_join(df_CSSBtru) %>%
               dplyr::mutate(error = fit - tru,
                             error_pc = 100 * (fit - tru) / tru,
                             decile = ceiling(10 * pnorm(q    = log(tru),
                                                         mean = log(fit),
-                                                        sd   = sdLog)),
-                            replicate = i))
-  }  
+                                                        sd   = sdLog)))
+  #}  
   
   
   return(errCSSB)
 }
 
 ## Plot timeseries error ##################################
-plotTsError <- function(err, noYears) {
-  
-  nRepAccept <- length(unique(err$replicate))
-  
+plotTsError <- function(container, model) {
+
   # # Calculate median error
   # errAnnual <-
   #   err %>%
@@ -966,24 +973,46 @@ plotTsError <- function(err, noYears) {
   #     ggtitle("Percent error vs true value")
   # print(p)
   
+  # Choose model to plot
+  switch(model,
+         random = {
+           err_col <- container$err_random
+         },
+         fixed = {
+           err_col <- container$err_fixed
+         },
+         none = {
+           err_col <- container$err_none
+         }
+  ) 
+    
+  err <- data.frame()
+  for (i in 1:nrow(container)) {
+    err <-
+      rbind(err, 
+            {err_col[[i]] %>%
+                dplyr::mutate(replicate = container$replicate[i],
+                              scenario  = paste(container$scenario[i], 
+                                                "scenario"))})
+  }
   
   err2plot <-
     err %>%  
     dplyr::filter(variable %in% c("N")) %>%
-    dplyr::select(year, age, replicate, tru, fit) %>%
+    dplyr::select(scenario, year, age, replicate, tru, fit) %>%
     dplyr::rename(N_tru = tru,
                   N_fit = fit) %>%
     dplyr::left_join({err %>%  
         dplyr::filter(variable %in% c("F")) %>%
-        dplyr::select(year, age, replicate, error_pc) %>%
+        dplyr::select(scenario, year, age, replicate, error_pc) %>%
         dplyr::rename(F_error_pc = error_pc)}) %>%
     dplyr::left_join({err %>%  
         dplyr::filter(variable %in% c("N")) %>%
-        dplyr::select(year, age, replicate, error_pc) %>%
+        dplyr::select(scenario, year, age, replicate, error_pc) %>%
         dplyr::rename(N_error_pc = error_pc)}) %>%
     dplyr::left_join({err %>%  
         dplyr::filter(variable %in% c("Scale")) %>%
-        dplyr::select(year, age, replicate, error_pc) %>%
+        dplyr::select(scenario, year, age, replicate, error_pc) %>%
         dplyr::rename(Scale_error_pc = error_pc)})
   
   
@@ -1017,9 +1046,9 @@ plotTsError <- function(err, noYears) {
   # Plot mean percent error vs percentile of N_tru
   err2plot_percentile <-
     err2plot %>%
-    dplyr::group_by(age) %>%
+    dplyr::group_by(scenario, age) %>%
     dplyr::mutate(N_percentile = ntile(N_tru, 100)) %>%
-    dplyr::group_by(age, N_percentile) %>%
+    dplyr::group_by(scenario, age, N_percentile) %>%
     dplyr::summarise(F_error_pc_mean = mean(F_error_pc),
                      N_error_pc_mean = mean(N_error_pc),
                      nObsF = length(F_error_pc),
@@ -1076,8 +1105,8 @@ plotTsError <- function(err, noYears) {
   err2plot_CSSB <-
     err %>%  
     dplyr::filter(variable %in% c("catch", "ssb")) %>%
-    dplyr::select(year, variable, age, replicate, error_pc) %>%
-    dplyr::group_by(year, variable) %>%
+    dplyr::select(scenario, year, variable, age, replicate, error_pc) %>%
+    dplyr::group_by(scenario, year, variable) %>%
     dplyr::summarise(error_pc_mean = mean(error_pc),
                      nObs = length(error_pc),
                      error_pc_hi   = error_pc_mean + 1.96 * sd(error_pc)/sqrt(nObs),
@@ -1087,34 +1116,41 @@ plotTsError <- function(err, noYears) {
     geom_line(aes(y = error_pc_mean)) +
     geom_ribbon(aes(ymin = error_pc_lo, ymax = error_pc_hi), alpha = 0.3) +
     geom_hline(yintercept = 0) +
-    facet_wrap(~variable) +
+    facet_grid(scenario~variable) +
     theme_bw() +
     xlab("Year") +
-    ylab("Mean percent error of estimate")
+    ylab("Mean percent error of estimate") +
+    ggtitle(paste(model, "model"))
   print(p)
   
-  # Plot mean error in Scale vs year
+  # Plot example error fit vs observed Scale
   if (any(err$variable == "Scale")) {
     err2plot_Scale <-
-      err %>%  
+      err %>%
+      dplyr::mutate(fit_975 = exp(log(fit) + 1.96 * sdLog),
+                    fit_025 = exp(log(fit) - 1.96 * sdLog),
+                    replicate = paste("replicate", replicate)) %>%
       dplyr::filter(variable %in% c("Scale")) %>%
-      dplyr::group_by(year, age) %>%
-      dplyr::summarise(fit_median = median(fit),
-                       tru = unique(tru),
-                       nObs = length(fit),
-                       fit_95 = quantile(fit, probs = 0.95),
-                       fit_05 = quantile(fit, probs = 0.05))
-    p <-
-      ggplot(err2plot_Scale, aes(x = year)) +
-      geom_line(aes(y = fit_median), color = "red") +
-      geom_line(aes(y = tru), color = "black") +
-      geom_ribbon(aes(ymin = fit_05, ymax = fit_95), alpha = 0.3, fill = "red") +
-      geom_hline(yintercept = 0) +
-      facet_wrap(~ age) +
-      theme_bw() +
-      xlab("Year") +
-      ylab("Fit vs True scale parameter value")
-    print(p)
+      dplyr::filter(replicate %in% unique(replicate)[1:4]) # choose replicates to plot
+    
+    
+    scenarios2plot <- unique(err2plot_Scale$scenario)
+    for (i in 1:length(scenarios2plot)) {
+      p <-
+        ggplot(err2plot_Scale %>% dplyr::filter(scenario == scenarios2plot[i]), 
+               aes(x = year)) +
+        geom_line(aes(y = fit), color = "red") +
+        geom_line(aes(y = tru), color = "black") +
+        geom_ribbon(aes(ymin = fit_975, ymax = fit_025), alpha = 0.3, fill = "red") +
+        geom_hline(yintercept = 0) +
+        facet_grid(replicate ~ age) +
+        theme_bw() +
+        xlab("Year") +
+        ylab("Fit vs True scale parameter value") +
+        ggtitle(paste(model, "model,", scenarios2plot[i]))
+      print(p)
+    }
+
   }
   
   

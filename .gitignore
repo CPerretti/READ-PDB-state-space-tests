@@ -5,3 +5,5 @@
 simulation/output
 simulation/sim_data/surveys.dat
 simulation/sim_data/catch.dat
+simulation/sim_data/catch.dat
+*.dat
