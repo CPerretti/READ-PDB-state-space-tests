@@ -33,8 +33,8 @@ fitReal <- fitNScod
 fitReal$conf$constRecBreaks <- numeric(0) # Needed for new SAM
 
 #set.seed(321) # for reproducibility
-scenarios <- c("random", "fixed", "none") # Right now "fixed" is uniform random <<<
-nRep <- 30 # Number of simulation replicates
+scenarios <- c("random", "fixed", "none")
+nRep <- 100 # Number of simulation replicates
 noScaledYears <- 10
 
 # Study output container
@@ -82,20 +82,20 @@ for (i in 1:nrow(container)) {
 ## Plot an example true vs observed vs *real data* fit ########
 
 # ## (1) N-at-age (1000s)
-# plotN(simOut = container$simOut[[1]],
-#       fit = fitReal)
-# 
-# ## (2) F-at-age
-# plotF(simOut = container$simOut[[1]],
-#       fit = fitReal)
-# 
-# ## (3) Catch (mt)
-# plotC(simOut = container$simOut[[1]],
-#       fit = fitReal)
-# 
-# ## (4) Survey (1000s)
-# plotS(simOut = container$simOut[[1]],
-#       fit = fitReal)
+plotN(simOut = container$simOut[[201]],
+      fit = fitReal)
+
+## (2) F-at-age
+plotF(simOut = container$simOut[[201]],
+      fit = fitReal)
+
+## (3) Catch (mt)
+plotC(simOut = container$simOut[[201]],
+      fit = fitReal)
+
+## (4) Survey (1000s)
+plotS(simOut = container$simOut[[201]],
+      fit = fitReal)
 
 ## Plot some simulations from simulate.sam()
 #plotSimSAM(fitReal, nsim = 10, seed = NULL)
@@ -171,9 +171,9 @@ containerAccept <- # Exclude TMB fails
 containerAccept <- # Also exclude non-covergences
   containerAccept[unlist(sapply(containerAccept$fitSim_random, 
                                 function (x) x[[6]][3])) != 1 &
-                  unlist(sapply(containerAccept$fitSim_fixed, 
+                   unlist(sapply(containerAccept$fitSim_fixed, 
                                 function (x) x[[6]][3])) != 1 &
-                  unlist(sapply(containerAccept$fitSim_none, 
+                   unlist(sapply(containerAccept$fitSim_none, 
                                 function (x) x[[6]][3])) != 1, ]
 
 # Save output
@@ -230,9 +230,9 @@ for (i in 1:nrow(containerAccept)) {
 
 
 # Plot time series error
-plotTsError(containerAccept, model = "random")
-plotTsError(containerAccept, model = "fixed")
 plotTsError(containerAccept, model = "none")
+plotTsError(containerAccept, model = "fixed")
+plotTsError(containerAccept, model = "random")
 
 # Plot parameters true vs fit
 plotPars(containerAccept, model = "random")

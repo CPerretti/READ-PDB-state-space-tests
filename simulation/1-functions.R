@@ -11,7 +11,7 @@ sim <- function(fit, keyLogScale, noScaledYears, container_i) {
   
   switch(container_i$scenario,
          random = {
-           logSdLogScale <- log(0.5)
+           logSdLogScale <- log(0.3)
            rw_logScale_mat <- matrix(data = NA, nrow = nAs, ncol = noScaledYears)
            rw_logScale_mat[,1] <- rnorm(nAs, 0, exp(logSdLogScale))
            
@@ -22,11 +22,11 @@ sim <- function(fit, keyLogScale, noScaledYears, container_i) {
            logScale <- matrix(data = rw_logScale_mat, nrow = nAs, ncol = noScaledYears)
          },
          fixed = {
-           logScale <- matrix(data = log(0.5),
+           logScale <- matrix(data = log(runif(1, 1, 3)),
                               nrow = nAs, ncol = noScaledYears)
          },
          none = {
-           logScale <- matrix(data = 0, nrow = nAs, ncol = noScaledYears)
+           logScale <- matrix(data = log(1), nrow = nAs, ncol = noScaledYears)
          }
   ) 
   
@@ -1130,14 +1130,15 @@ plotTsError <- function(container, model) {
       dplyr::mutate(fit_975 = exp(log(fit) + 1.96 * sdLog),
                     fit_025 = exp(log(fit) - 1.96 * sdLog),
                     replicate = paste("replicate", replicate)) %>%
-      dplyr::filter(variable %in% c("Scale")) %>%
-      dplyr::filter(replicate %in% unique(replicate)[1:4]) # choose replicates to plot
+      dplyr::filter(variable %in% c("Scale"))
     
     
     scenarios2plot <- unique(err2plot_Scale$scenario)
     for (i in 1:length(scenarios2plot)) {
       p <-
-        ggplot(err2plot_Scale %>% dplyr::filter(scenario == scenarios2plot[i]), 
+        ggplot(err2plot_Scale %>% 
+                 dplyr::filter(scenario == scenarios2plot[i]) %>%
+                 dplyr::filter(replicate %in% unique(replicate)[1:4]), 
                aes(x = year)) +
         geom_line(aes(y = fit), color = "red") +
         geom_line(aes(y = tru), color = "black") +
