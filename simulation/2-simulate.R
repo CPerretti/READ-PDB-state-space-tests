@@ -5,6 +5,8 @@
 # Install local version of package with changes
 #devtools::install_local("../../SAM/stockassessment/", force = TRUE)
 
+# () Look into fixed scale = 1 in results
+# () Reflecting boundary for log-scale rw
 
 # Required packages
 library(plyr) # always load before dplyr
@@ -14,6 +16,7 @@ library(tidyr)
 library(stockassessment2) # with changes
 library(stockassessment)  # default
 library(parallel)
+library(RColorBrewer)
 
 # Load user-defined functions
 source("1-functions.R")
@@ -34,7 +37,7 @@ fitReal$conf$constRecBreaks <- numeric(0) # Needed for new SAM
 
 #set.seed(321) # for reproducibility
 scenarios <- c("random", "fixed", "none")
-nRep <- 100 # Number of simulation replicates
+nRep <- 10#0 # Number of simulation replicates
 noScaledYears <- 10
 
 # Study output container
@@ -81,21 +84,21 @@ for (i in 1:nrow(container)) {
 
 ## Plot an example true vs observed vs *real data* fit ########
 
-# ## (1) N-at-age (1000s)
-plotN(simOut = container$simOut[[201]],
-      fit = fitReal)
-
-## (2) F-at-age
-plotF(simOut = container$simOut[[201]],
-      fit = fitReal)
-
-## (3) Catch (mt)
-plotC(simOut = container$simOut[[201]],
-      fit = fitReal)
-
-## (4) Survey (1000s)
-plotS(simOut = container$simOut[[201]],
-      fit = fitReal)
+# # ## (1) N-at-age (1000s)
+# plotN(simOut = container$simOut[[1]],
+#       fit = fitReal)
+# 
+# ## (2) F-at-age
+# plotF(simOut = container$simOut[[1]],
+#       fit = fitReal)
+# 
+# ## (3) Catch (mt)
+# plotC(simOut = container$simOut[[1]],
+#       fit = fitReal)
+# 
+# ## (4) Survey (1000s)
+# plotS(simOut = container$simOut[[1]],
+#       fit = fitReal)
 
 ## Plot some simulations from simulate.sam()
 #plotSimSAM(fitReal, nsim = 10, seed = NULL)
@@ -230,9 +233,7 @@ for (i in 1:nrow(containerAccept)) {
 
 
 # Plot time series error
-plotTsError(containerAccept, model = "none")
-plotTsError(containerAccept, model = "fixed")
-plotTsError(containerAccept, model = "random")
+plotTsError(containerAccept)
 
 # Plot parameters true vs fit
 plotPars(containerAccept, model = "random")

@@ -10,13 +10,17 @@ sim <- function(fit, keyLogScale, noScaledYears, container_i) {
   nAs <- sum(keyLogScale[1,] > -1)
   
   switch(container_i$scenario,
-         random = {
+         random = { # RW from 1 with reflecting boundary at 1
            logSdLogScale <- log(0.3)
            rw_logScale_mat <- matrix(data = NA, nrow = nAs, ncol = noScaledYears)
-           rw_logScale_mat[,1] <- rnorm(nAs, 0, exp(logSdLogScale))
-           
+           errS <- matrix(data = rnorm(nAs * noScaledYears, 0, exp(logSdLogScale)),
+                          nrow = nAs, ncol = noScaledYears) #uncorrelated error
+           errS[errS[,1] < 0, 1] <- -errS[errS[,1] < 0, 1] #reflecting boundary
+           rw_logScale_mat[,1] <- 1 + errS[,1]
            for(i in 2:noScaledYears){
-             rw_logScale_mat[,i] <- rw_logScale_mat[,i-1] + rnorm(nAs, 0, exp(logSdLogScale))
+             rw_logScale_mat[,i] <- rw_logScale_mat[,i-1] + errS[,i]
+             ind <- rw_logScale_mat[,i] < 1 # index to reflect
+             rw_logScale_mat[ind, i] <- rw_logScale_mat[ind, i-1] - errS[ind,i]
            }
            
            logScale <- matrix(data = rw_logScale_mat, nrow = nAs, ncol = noScaledYears)
@@ -860,8 +864,10 @@ calcCSSBError <- function(fitSim, simOut) {
 }
 
 ## Plot timeseries error ##################################
-plotTsError <- function(container, model) {
-
+plotTsError <- function(container) {
+  
+  colors2use <- RColorBrewer::brewer.pal(3, "Dark2")
+    
   # # Calculate median error
   # errAnnual <-
   #   err %>%
@@ -972,47 +978,43 @@ plotTsError <- function(container, model) {
   #     ylab("Percent error") +
   #     ggtitle("Percent error vs true value")
   # print(p)
-  
-  # Choose model to plot
-  switch(model,
-         random = {
-           err_col <- container$err_random
-         },
-         fixed = {
-           err_col <- container$err_fixed
-         },
-         none = {
-           err_col <- container$err_none
-         }
-  ) 
     
   err <- data.frame()
   for (i in 1:nrow(container)) {
     err <-
       rbind(err, 
-            {err_col[[i]] %>%
+            {rbind(data.frame(container$err_random[[i]], model = "random"),
+                   data.frame(container$err_fixed[[i]],  model = "fixed"),
+                   data.frame(container$err_none[[i]],   model = "none")) %>%
                 dplyr::mutate(replicate = container$replicate[i],
-                              scenario  = paste(container$scenario[i], 
-                                                "scenario"))})
+                              scenario  = as.factor(paste(container$scenario[i], 
+                                                    "scenario")),
+                              scenario  = factor(scenario, 
+                                                 levels = c("none scenario",
+                                                            "fixed scenario",
+                                                            "random scenario")),
+                              model     = factor(model,
+                                                 levels = c("none", "fixed",
+                                                            "random")))})
   }
   
   err2plot <-
     err %>%  
     dplyr::filter(variable %in% c("N")) %>%
-    dplyr::select(scenario, year, age, replicate, tru, fit) %>%
+    dplyr::select(model, scenario, year, age, replicate, tru, fit) %>%
     dplyr::rename(N_tru = tru,
                   N_fit = fit) %>%
     dplyr::left_join({err %>%  
         dplyr::filter(variable %in% c("F")) %>%
-        dplyr::select(scenario, year, age, replicate, error_pc) %>%
+        dplyr::select(model, scenario, year, age, replicate, error_pc) %>%
         dplyr::rename(F_error_pc = error_pc)}) %>%
     dplyr::left_join({err %>%  
         dplyr::filter(variable %in% c("N")) %>%
-        dplyr::select(scenario, year, age, replicate, error_pc) %>%
+        dplyr::select(model, scenario, year, age, replicate, error_pc) %>%
         dplyr::rename(N_error_pc = error_pc)}) %>%
     dplyr::left_join({err %>%  
         dplyr::filter(variable %in% c("Scale")) %>%
-        dplyr::select(scenario, year, age, replicate, error_pc) %>%
+        dplyr::select(model, scenario, year, age, replicate, error_pc) %>%
         dplyr::rename(Scale_error_pc = error_pc)})
   
   
@@ -1044,22 +1046,22 @@ plotTsError <- function(container, model) {
   
   
   # Plot mean percent error vs percentile of N_tru
-  err2plot_percentile <-
-    err2plot %>%
-    dplyr::group_by(scenario, age) %>%
-    dplyr::mutate(N_percentile = ntile(N_tru, 100)) %>%
-    dplyr::group_by(scenario, age, N_percentile) %>%
-    dplyr::summarise(F_error_pc_mean = mean(F_error_pc),
-                     N_error_pc_mean = mean(N_error_pc),
-                     nObsF = length(F_error_pc),
-                     nObsN = length(N_error_pc),
-                     F_error_pc_hi   = F_error_pc_mean + 1.96 * sd(F_error_pc)/sqrt(nObsF),
-                     F_error_pc_lo  = F_error_pc_mean - 1.96 * sd(F_error_pc)/sqrt(nObsF),
-                     N_error_pc_hi  = N_error_pc_mean + 1.96 * sd(N_error_pc)/sqrt(nObsN),
-                     N_error_pc_lo  = N_error_pc_mean - 1.96 * sd(N_error_pc)/sqrt(nObsN),
-                     N_tru_value     = mean(N_tru),
-                     N_fit_max       = quantile(N_fit, .95),
-                     N_fit_min       = quantile(N_fit, .05))
+  # err2plot_percentile <-
+  #   err2plot %>%
+  #   dplyr::group_by(model, scenario, age) %>%
+  #   dplyr::mutate(N_percentile = ntile(N_tru, 100)) %>%
+  #   dplyr::group_by(model, scenario, age, N_percentile) %>%
+  #   dplyr::summarise(F_error_pc_mean = mean(F_error_pc),
+  #                    N_error_pc_mean = mean(N_error_pc),
+  #                    nObsF = length(F_error_pc),
+  #                    nObsN = length(N_error_pc),
+  #                    F_error_pc_hi   = F_error_pc_mean + 1.96 * sd(F_error_pc)/sqrt(nObsF),
+  #                    F_error_pc_lo  = F_error_pc_mean - 1.96 * sd(F_error_pc)/sqrt(nObsF),
+  #                    N_error_pc_hi  = N_error_pc_mean + 1.96 * sd(N_error_pc)/sqrt(nObsN),
+  #                    N_error_pc_lo  = N_error_pc_mean - 1.96 * sd(N_error_pc)/sqrt(nObsN),
+  #                    N_tru_value     = mean(N_tru),
+  #                    N_fit_max       = quantile(N_fit, .95),
+  #                    N_fit_min       = quantile(N_fit, .05))
   
   
   # N
@@ -1105,22 +1107,25 @@ plotTsError <- function(container, model) {
   err2plot_CSSB <-
     err %>%  
     dplyr::filter(variable %in% c("catch", "ssb")) %>%
-    dplyr::select(scenario, year, variable, age, replicate, error_pc) %>%
-    dplyr::group_by(scenario, year, variable) %>%
+    dplyr::select(model, scenario, year, variable, age, replicate, error_pc) %>%
+    dplyr::group_by(model, scenario, year, variable) %>%
     dplyr::summarise(error_pc_mean = mean(error_pc),
                      nObs = length(error_pc),
                      error_pc_hi   = error_pc_mean + 1.96 * sd(error_pc)/sqrt(nObs),
                      error_pc_lo  = error_pc_mean - 1.96 * sd(error_pc)/sqrt(nObs))
   p <-
-    ggplot(err2plot_CSSB, aes(x = year)) +
+    ggplot(err2plot_CSSB, aes(x = year, color = model, fill = model)) +
     geom_line(aes(y = error_pc_mean)) +
-    geom_ribbon(aes(ymin = error_pc_lo, ymax = error_pc_hi), alpha = 0.3) +
+    geom_ribbon(aes(ymin = error_pc_lo, ymax = error_pc_hi), color = NA, alpha = 0.3) +
     geom_hline(yintercept = 0) +
-    facet_grid(scenario~variable) +
+    facet_wrap(scenario~variable, ncol = 2, scales = "free_y") +
     theme_bw() +
     xlab("Year") +
     ylab("Mean percent error of estimate") +
-    ggtitle(paste(model, "model"))
+    scale_color_manual(values = colors2use) +
+    scale_fill_manual(values = colors2use) +
+    ggtitle("Estimation error")
+  
   print(p)
   
   # Plot example error fit vs observed Scale
@@ -1140,15 +1145,18 @@ plotTsError <- function(container, model) {
                  dplyr::filter(scenario == scenarios2plot[i]) %>%
                  dplyr::filter(replicate %in% unique(replicate)[1:4]), 
                aes(x = year)) +
-        geom_line(aes(y = fit), color = "red") +
+        geom_line(aes(y = fit, color = model)) +
         geom_line(aes(y = tru), color = "black") +
-        geom_ribbon(aes(ymin = fit_975, ymax = fit_025), alpha = 0.3, fill = "red") +
-        geom_hline(yintercept = 0) +
+        geom_ribbon(aes(ymin = fit_975, ymax = fit_025, fill = model), 
+                    alpha = 0.3, color = NA) +
         facet_grid(replicate ~ age) +
         theme_bw() +
         xlab("Year") +
-        ylab("Fit vs True scale parameter value") +
-        ggtitle(paste(model, "model,", scenarios2plot[i]))
+        ylab("Estimated and True scale parameter value") +
+        scale_color_manual(values = colors2use[c(2,3)]) +
+        scale_fill_manual(values = colors2use[c(2,3)]) +
+        ggtitle(paste0("Scale parameter error (", 
+                       scenarios2plot[i], ")"))
       print(p)
     }
 
