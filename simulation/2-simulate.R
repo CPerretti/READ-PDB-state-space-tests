@@ -36,8 +36,8 @@ fitReal <- fitNScod
 fitReal$conf$constRecBreaks <- numeric(0) # Needed for new SAM
 
 #set.seed(321) # for reproducibility
-scenarios <- c("random", "fixed", "none")
-nRep <- 10#0 # Number of simulation replicates
+scenarios <- c("uniform", "random", "fixed", "none")
+nRep <- 100 # Number of simulation replicates
 noScaledYears <- 10
 
 # Study output container

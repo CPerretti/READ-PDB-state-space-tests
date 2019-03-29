@@ -10,8 +10,12 @@ sim <- function(fit, keyLogScale, noScaledYears, container_i) {
   nAs <- sum(keyLogScale[1,] > -1)
   
   switch(container_i$scenario,
+         uniform = {
+           logScale <- matrix(data = log(runif(nAs * noScaledYears, 1.5, 5)),
+                              nrow = nAs, ncol = noScaledYears)
+         },
          random = { # RW from 1 with reflecting boundary at 1
-           logSdLogScale <- log(0.3)
+           logSdLogScale <- log(0.2)
            rw_logScale_mat <- matrix(data = NA, nrow = nAs, ncol = noScaledYears)
            errS <- matrix(data = rnorm(nAs * noScaledYears, 0, exp(logSdLogScale)),
                           nrow = nAs, ncol = noScaledYears) #uncorrelated error
@@ -26,7 +30,7 @@ sim <- function(fit, keyLogScale, noScaledYears, container_i) {
            logScale <- matrix(data = rw_logScale_mat, nrow = nAs, ncol = noScaledYears)
          },
          fixed = {
-           logScale <- matrix(data = log(runif(1, 1, 3)),
+           logScale <- matrix(data = log(c(runif(1, 1.5, 5), runif(1, 1.5, 5))),
                               nrow = nAs, ncol = noScaledYears)
          },
          none = {
@@ -866,7 +870,7 @@ calcCSSBError <- function(fitSim, simOut) {
 ## Plot timeseries error ##################################
 plotTsError <- function(container) {
   
-  colors2use <- RColorBrewer::brewer.pal(3, "Dark2")
+  colors2use <- RColorBrewer::brewer.pal(4, "Dark2")
     
   # # Calculate median error
   # errAnnual <-
@@ -987,15 +991,14 @@ plotTsError <- function(container) {
                    data.frame(container$err_fixed[[i]],  model = "fixed"),
                    data.frame(container$err_none[[i]],   model = "none")) %>%
                 dplyr::mutate(replicate = container$replicate[i],
-                              scenario  = as.factor(paste(container$scenario[i], 
-                                                    "scenario")),
-                              scenario  = factor(scenario, 
-                                                 levels = c("none scenario",
-                                                            "fixed scenario",
-                                                            "random scenario")),
-                              model     = factor(model,
-                                                 levels = c("none", "fixed",
-                                                            "random")))})
+                              scenario  = as.factor(paste(container$scenario[i], "scenario")),
+                              scenario  = factor(scenario, levels = c("none scenario",
+                                                                      "fixed scenario",
+                                                                      "random scenario",
+                                                                      "uniform scenario")),
+                              model     = factor(model, levels = c("none", 
+                                                                   "fixed",
+                                                                   "random")))})
   }
   
   err2plot <-
