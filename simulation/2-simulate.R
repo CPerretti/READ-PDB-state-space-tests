@@ -5,8 +5,6 @@
 # Install local version of package with changes
 #devtools::install_local("../../SAM/stockassessment/", force = TRUE)
 
-# () Look into fixed scale = 1 in results
-# () Reflecting boundary for log-scale rw
 
 # Required packages
 library(plyr) # always load before dplyr
@@ -36,8 +34,11 @@ fitReal <- fitNScod
 fitReal$conf$constRecBreaks <- numeric(0) # Needed for new SAM
 
 #set.seed(321) # for reproducibility
-scenarios <- c("uniform", "random", "fixed", "none")
-nRep <- 100 # Number of simulation replicates
+scenarios <- c("uniform random", 
+               "random walk", 
+               "fixed", 
+               "no misreporting")
+nRep <- 6#100 # Number of simulation replicates
 noScaledYears <- 10
 
 # Study output container
@@ -54,7 +55,7 @@ keyLogScale[keyLogScale > -1] <- 0:(length(keyLogScale[keyLogScale > -1])-1)
 nAs <- sum(keyLogScale[1,] > -1)
 
 confLogScale_random <- 
-  list(logScaleType = "random",
+  list(logScaleType = "random walk",
        keyLogScale = keyLogScale,
        keyVarLogScale = rep(0, nAs),
        noScaledYears = noScaledYears,
@@ -71,7 +72,7 @@ confLogScale_fixed <-
                                 nrow = noScaledYears,
                                 byrow = TRUE)) # One parameter all years
 
-confLogScale_none <- list(logScaleType = "none")
+confLogScale_none <- list(logScaleType = "no misreporting")
 
 
 # Generate simulation replicates
@@ -236,8 +237,9 @@ for (i in 1:nrow(containerAccept)) {
 plotTsError(containerAccept)
 
 # Plot parameters true vs fit
-plotPars(containerAccept, model = "random")
-plotPars(containerAccept, model = "fixed")
-plotPars(containerAccept, model = "none")
+plotPars(containerAccept, models2plot = c("random walk", 
+                                          "fixed", 
+                                          "no misreporting"))
+
 
 

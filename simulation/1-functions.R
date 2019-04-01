@@ -10,11 +10,11 @@ sim <- function(fit, keyLogScale, noScaledYears, container_i) {
   nAs <- sum(keyLogScale[1,] > -1)
   
   switch(container_i$scenario,
-         uniform = {
+         `uniform random` = {
            logScale <- matrix(data = log(runif(nAs * noScaledYears, 1.5, 5)),
                               nrow = nAs, ncol = noScaledYears)
          },
-         random = { # RW from 1 with reflecting boundary at 1
+         `random walk` = { # RW from 1 with reflecting boundary at 1
            logSdLogScale <- log(0.2)
            rw_logScale_mat <- matrix(data = NA, nrow = nAs, ncol = noScaledYears)
            errS <- matrix(data = rnorm(nAs * noScaledYears, 0, exp(logSdLogScale)),
@@ -30,10 +30,10 @@ sim <- function(fit, keyLogScale, noScaledYears, container_i) {
            logScale <- matrix(data = rw_logScale_mat, nrow = nAs, ncol = noScaledYears)
          },
          fixed = {
-           logScale <- matrix(data = log(c(runif(1, 1.5, 5), runif(1, 1.5, 5))),
+           logScale <- matrix(data = log(c(runif(1, 1.5, 10), runif(1, 1.5, 10))),
                               nrow = nAs, ncol = noScaledYears)
          },
-         none = {
+         `no misreporting` = {
            logScale <- matrix(data = log(1), nrow = nAs, ncol = noScaledYears)
          }
   ) 
@@ -227,7 +227,7 @@ sim <- function(fit, keyLogScale, noScaledYears, container_i) {
   
   trueParams <- list(sdrep = fit$sdrep, pl = fit$pl)
   trueParams$pl$logScale <- logScale
-  if (container_i$scenario == "random") trueParams$pl$logSdLogScale <- logSdLogScale
+  if (container_i$scenario == "random walk") trueParams$pl$logSdLogScale <- logSdLogScale
   trueParams$pl$logN <- logN
   dimnames(f) <- list(paste0("tru.", c(1:nA)), fit$data$years)
   trueParams$pl$logF <- logF
@@ -357,7 +357,7 @@ setupModel <- function(conf, example_dir, noScaledYears, confLogScale) {
   
   # Try SAM misreported catch code
   switch(confLogScale$logScaleType,
-         random = {
+         `random walk` = {
            conf$noScaledYears  <- confLogScale$noScaledYears
            conf$keyLogScale    <- confLogScale$keyLogScale
            conf$keyVarLogScale <- rep(0, sum(confLogScale$keyLogScale[1,] > -1))
@@ -371,12 +371,12 @@ setupModel <- function(conf, example_dir, noScaledYears, confLogScale) {
            conf$keyParScaledYA <- confLogScale$keyParScaledYA
            conf$constRecBreaks <- numeric(0)
          },
-         none = {
+         `no misreporting` = {
            conf$constRecBreaks <- numeric(0)
          }
          )
   
-  if (confLogScale$logScaleType == "random") {
+  if (confLogScale$logScaleType == "random walk") {
     par <- stockassessment2::defpar(dat, conf) # some default starting values  
   } else {par <- stockassessment::defpar(dat, conf)}
   
@@ -656,46 +656,54 @@ plotSimSAM <- function(fit, nsim = 1, seed = NULL) {
 
 
 ## Plot parameters fit vs true ############################
-plotPars <- function(container, model) {
-  switch(model,
-         random = {
-           fitSim <- container$fitSim_random
-         },
-         fixed = {
-           fitSim <- container$fitSim_fixed
-         },
-         none = {
-           fitSim <- container$fitSim_none
-         }
-  )
-
-  pars2plot <- which(names(fitSim[[1]]$pl) %in% names(fitSim[[1]]$obj$par))
-
-  df_parsOut <- data.frame()
-  for (h in pars2plot) {
-    for (i in 1:nrow(container)) {
-      h_tru <- which(names(container$simOut[[i]]$trueParams$pl) == names(fitSim[[i]]$pl[h]))
-      df_parsOut <-
-        rbind(df_parsOut,
-              data.frame(variable = paste(names(fitSim[[1]]$pl)[h], 
-                                          1:length(fitSim[[1]]$pl[[h]]), sep = "."),
-                         # Don't plot tru if it isn't the same length as estimated
-                         # becuase it means the values don't match up.
-                         tru = (if ((length(h_tru) >0) && 
-                                    length(container$simOut[[i]]$trueParams$pl[[h_tru]]) == 
-                                    length(fitSim[[i]]$pl[[h]])) {
-                                    container$simOut[[i]]$trueParams$pl[[h_tru]] 
-                                } else {NA}),
-                         est = fitSim[[i]]$pl[[h]],
-                         sd  = fitSim[[i]]$plsd[[h]],
-                         replicate = container$replicate[[i]],
-                         scenario  = paste(container$scenario[[i]], "scenario")))
-    }  
-  }
+plotPars <- function(container, models2plot) {
+colors2use <- RColorBrewer::brewer.pal(3, "Dark2")
+  
+df_parsOut <- data.frame()
+  for (model in models2plot) {
+    switch(model,
+           `random walk` = {
+             fitSim <- container$fitSim_random
+           },
+           fixed = {
+             fitSim <- container$fitSim_fixed
+           },
+           `no misreporting` = {
+             fitSim <- container$fitSim_none
+           }
+    )
+    pars2plot <- which(names(fitSim[[1]]$pl) %in% names(fitSim[[1]]$obj$par))
+    
+    for (h in pars2plot) {
+      for (i in 1:nrow(container)) {
+        h_tru <- which(names(container$simOut[[i]]$trueParams$pl) == names(fitSim[[i]]$pl[h]))
+        df_parsOut <-
+          rbind(df_parsOut,
+                data.frame(variable = paste(names(fitSim[[1]]$pl)[h], 
+                                            1:length(fitSim[[1]]$pl[[h]]), sep = "."),
+                           # Don't plot tru if it isn't the same length as estimated
+                           # becuase it means the values don't match up.
+                           tru = (if ((length(h_tru) >0) && 
+                                      length(container$simOut[[i]]$trueParams$pl[[h_tru]]) == 
+                                      length(fitSim[[i]]$pl[[h]])) {
+                             container$simOut[[i]]$trueParams$pl[[h_tru]] 
+                           } else {NA}),
+                           est = fitSim[[i]]$pl[[h]],
+                           sd  = fitSim[[i]]$plsd[[h]],
+                           replicate = container$replicate[[i]],
+                           scenario  = paste(container$scenario[[i]], "scenario"),
+                           model = model))
+      }  
+    }
+  }  
+    
   
   df2plot <-
     df_parsOut %>%
-    dplyr::group_by(scenario, variable) %>%
+    dplyr::mutate(model  = factor(model, levels = c("no misreporting", 
+                                                    "fixed",
+                                                    "random walk"))) %>%
+    dplyr::group_by(model, scenario, variable) %>%
     dplyr::summarise(tru = unique(tru),
                      est_mean = mean(est),
                      est_se = sd(est)/sqrt(length(unique(replicate))))
@@ -703,18 +711,22 @@ plotPars <- function(container, model) {
   scenarios2plot <- unique(df2plot$scenario)
   for (i in 1:length(scenarios2plot)) {
     p <-
-      ggplot(df2plot %>% dplyr::filter(scenario == scenarios2plot[i]),
+      ggplot(df2plot %>% 
+               dplyr::filter(scenario == scenarios2plot[i]),
              aes(y = variable)) +
-        geom_point( aes(x = tru), color = "red", size  = 3) +
-        geom_point( aes(x = est_mean), color = "blue", size = 3) +
+        geom_point( aes(x = tru), shape = 124, 
+                    color = "black", size  = 12) +
+        geom_point( aes(x = est_mean, color = model), size = 3) +
         geom_errorbarh(aes(xmin = est_mean - 1.96*est_se,
-                           xmax = est_mean + 1.96*est_se), color = "blue") +
+                           xmax = est_mean + 1.96*est_se,
+                           color = model)) +
         theme_bw() +
         ylab("") +
         xlab("Value") +
         theme(axis.title = element_text(size = 16),
-              axis.text = element_text(size = 14)) + 
-        ggtitle(paste(model, "model,", scenarios2plot[i]))
+              axis.text = element_text(size = 14)) +
+        scale_color_manual(values = colors2use) +
+        ggtitle(scenarios2plot[i])
     print(p)
   }
 }
@@ -722,7 +734,7 @@ plotPars <- function(container, model) {
 ## Calculate random effect timeseries error #######################
 calcReTsError <- function(fitSim, simOut, confLogScale) {
   indRe <- which(names(fitSim$pl) %in% c("logN", "logF"))
-  if (confLogScale$logScaleType %in% c("random", "fixed")) {
+  if (confLogScale$logScaleType %in% c("random walk", "fixed")) {
     indRe <- c(indRe, which(names(fitSim$pl) == "logScale"))
   }
   errRe <- data.frame()
@@ -870,7 +882,7 @@ calcCSSBError <- function(fitSim, simOut) {
 ## Plot timeseries error ##################################
 plotTsError <- function(container) {
   
-  colors2use <- RColorBrewer::brewer.pal(4, "Dark2")
+  colors2use <- RColorBrewer::brewer.pal(3, "Dark2")
     
   # # Calculate median error
   # errAnnual <-
@@ -987,18 +999,18 @@ plotTsError <- function(container) {
   for (i in 1:nrow(container)) {
     err <-
       rbind(err, 
-            {rbind(data.frame(container$err_random[[i]], model = "random"),
+            {rbind(data.frame(container$err_random[[i]], model = "random walk"),
                    data.frame(container$err_fixed[[i]],  model = "fixed"),
-                   data.frame(container$err_none[[i]],   model = "none")) %>%
+                   data.frame(container$err_none[[i]],   model = "no misreporting")) %>%
                 dplyr::mutate(replicate = container$replicate[i],
                               scenario  = as.factor(paste(container$scenario[i], "scenario")),
-                              scenario  = factor(scenario, levels = c("none scenario",
+                              scenario  = factor(scenario, levels = c("no misreporting scenario",
                                                                       "fixed scenario",
-                                                                      "random scenario",
-                                                                      "uniform scenario")),
-                              model     = factor(model, levels = c("none", 
+                                                                      "random walk scenario",
+                                                                      "uniform random scenario")),
+                              model     = factor(model, levels = c("no misreporting", 
                                                                    "fixed",
-                                                                   "random")))})
+                                                                   "random walk")))})
   }
   
   err2plot <-
@@ -1117,7 +1129,8 @@ plotTsError <- function(container) {
                      error_pc_hi   = error_pc_mean + 1.96 * sd(error_pc)/sqrt(nObs),
                      error_pc_lo  = error_pc_mean - 1.96 * sd(error_pc)/sqrt(nObs))
   p <-
-    ggplot(err2plot_CSSB, aes(x = year, color = model, fill = model)) +
+    ggplot(err2plot_CSSB %>% dplyr::filter(model != "no misreporting"), #<< DONT PLOT NONE RIGHT NOW
+           aes(x = year, color = model, fill = model)) +
     geom_line(aes(y = error_pc_mean)) +
     geom_ribbon(aes(ymin = error_pc_lo, ymax = error_pc_hi), color = NA, alpha = 0.3) +
     geom_hline(yintercept = 0) +
@@ -1125,8 +1138,8 @@ plotTsError <- function(container) {
     theme_bw() +
     xlab("Year") +
     ylab("Mean percent error of estimate") +
-    scale_color_manual(values = colors2use) +
-    scale_fill_manual(values = colors2use) +
+    scale_color_manual(values = colors2use[2:3]) +
+    scale_fill_manual(values = colors2use[2:3]) +
     ggtitle("Estimation error")
   
   print(p)
@@ -1156,8 +1169,8 @@ plotTsError <- function(container) {
         theme_bw() +
         xlab("Year") +
         ylab("Estimated and True scale parameter value") +
-        scale_color_manual(values = colors2use[c(2,3)]) +
-        scale_fill_manual(values = colors2use[c(2,3)]) +
+        scale_color_manual(values = colors2use[2:3]) +
+        scale_fill_manual(values = colors2use[2:3]) +
         ggtitle(paste0("Scale parameter error (", 
                        scenarios2plot[i], ")"))
       print(p)
