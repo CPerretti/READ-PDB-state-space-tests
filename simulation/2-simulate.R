@@ -1,5 +1,8 @@
 ## Perform SAM simulation tests
  
+#() fbar as a metric of success
+#() Catch advice metric
+
 # Install github version of package to use default package
 #devtools::install_github("fishfollower/SAM/stockassessment")
 # Install local version of package with changes
@@ -41,7 +44,7 @@ scenarios <- c("uniform random",
 nRep <- 6#100 # Number of simulation replicates
 noScaledYears <- 10
 
-# Study output container
+# Output container
 container <- expand.grid(replicate = 1:nRep, scenario = scenarios, stringsAsFactors = F)
 container$simOut          <- vector("list", length = nrow(container))
 container$setupMod_random <- vector("list", length = nrow(container))
@@ -115,19 +118,19 @@ for (i in 1:nrow(container)) {
   
   # Read in data, set initial params and configuration
   container$setupMod_random[[i]] <- setupModel(conf = fitReal$conf, 
-                                               example_dir = example_dir, 
-                                               noScaledYears = noScaledYears,
-                                               confLogScale = confLogScale_random)
+                                                    example_dir = example_dir, 
+                                                    noScaledYears = noScaledYears,
+                                                    confLogScale = confLogScale_random)
   
   container$setupMod_fixed[[i]] <- setupModel(conf = fitReal$conf,
-                                              example_dir = example_dir,
-                                              noScaledYears = noScaledYears,
-                                              confLogScale = confLogScale_fixed)
+                                                   example_dir = example_dir,
+                                                   noScaledYears = noScaledYears,
+                                                   confLogScale = confLogScale_fixed)
   
   container$setupMod_none[[i]] <- setupModel(conf = fitReal$conf,
-                                             example_dir = example_dir,
-                                             noScaledYears = noScaledYears,
-                                             confLogScale = confLogScale_none)
+                                                  example_dir = example_dir,
+                                                  noScaledYears = noScaledYears,
+                                                  confLogScale = confLogScale_none)
   
   # setupOut[[i]]$par$logFpar <- fitReal$pl$logFpar # For debugging
   
@@ -158,7 +161,7 @@ container$fitSim_fixed <- parLapply(cl,
                                     function(x){try(sam.fit(x$dat, x$conf, x$par))})
 
 # Assume no misreporting
-container$fitSim_none <- parLapply(cl, 
+container$fitSim_none <- parLapply(cl,
                                    container$setupMod_none, 
                                    function(x){try(sam.fit(x$dat, x$conf, x$par))})
 
@@ -173,12 +176,27 @@ containerAccept <- # Exclude TMB fails
             sapply(container$fitSim_none, class)   != "try-error", ]
 
 containerAccept <- # Also exclude non-covergences
-  containerAccept[unlist(sapply(containerAccept$fitSim_random, 
+  containerAccept[unlist(sapply(containerAccept$fitSim_random,
                                 function (x) x[[6]][3])) != 1 &
-                   unlist(sapply(containerAccept$fitSim_fixed, 
+                   unlist(sapply(containerAccept$fitSim_fixed,
                                 function (x) x[[6]][3])) != 1 &
-                   unlist(sapply(containerAccept$fitSim_none, 
+                   unlist(sapply(containerAccept$fitSim_none,
                                 function (x) x[[6]][3])) != 1, ]
+## Perform retro runs
+# For accepted runs only. This is already parallelized over peels ("year") so
+# it needs to be looped over simulations.
+containerAccept$retro_random <- vector("list", length = nrow(containerAccept))
+containerAccept$retro_fixed  <- vector("list", length = nrow(containerAccept))
+containerAccept$retro_none   <- vector("list", length = nrow(containerAccept))
+containerAccet$converged_retro <- vector("list", length = nrow(containerAccept))
+for (i in 1:3){#nrow(containerAccept)) {
+  containerAccept$retro_random[[i]] <- tryCatch(retro_cp(containerAccept$fitSim_random[[i]], year = 5), 
+                                                error = function(e) e, warning=function(w) "non-converge")
+  containerAccept$retro_fixed[[i]]  <- tryCatch(retro_cp(containerAccept$fitSim_fixed[[i]], year = 5), 
+                                                error = function(e) e, warning=function(w) w)
+  containerAccept$retro_none[[i]]   <- tryCatch(retro_cp(containerAccept$fitSim_none[[i]], year = 5), 
+                                                error = function(e) e, warning=function(w) w)
+}
 
 # Save output
 # suffix <- paste0(Sys.time(), ".Rdata")
@@ -203,7 +221,44 @@ plotS(simOut = containerAccept$simOut[[1]],
       fit = containerAccept$fitSim_random[[1]])
 
 
-## Plot fit vs true parameter values #######################
+## Plot error statistics #######################
+
+# Calculate Mohn's rho
+# Exclude replicates where any peel didn't converge
+# Dimensions are number of models * number of rows in containerAccept
+df_mohn_random <- data.frame(`R(age 1)` = numeric(length = nrow(containerAccept)), 
+                             `SSB` = numeric(length = nrow(containerAccept)), 
+                             `Fbar(4-6)` = numeric(length = nrow(containerAccept)))
+df_mohn_fixed <- data.frame(`R(age 1)` = numeric(length = nrow(containerAccept)), 
+                             `SSB` = numeric(length = nrow(containerAccept)), 
+                             `Fbar(4-6)` = numeric(length = nrow(containerAccept)))
+df_mohn_none <- data.frame(`R(age 1)` = numeric(length = nrow(containerAccept)), 
+                           `SSB` = numeric(length = nrow(containerAccept)), 
+                           `Fbar(4-6)` = numeric(length = nrow(containerAccept)))
+df_mohn_random$scenario <- containerAccept$scenario
+df_mohn_fixed$scenario  <- containerAccept$scenario
+df_mohn_none$scenario   <- containerAccept$scenario
+df_mohn_random$replicate <- containerAccept$replicate
+df_mohn_fixed$replicate <- containerAccept$replicate
+df_mohn_none$replicate <- containerAccept$replicate
+
+for(i in 1:nrow(containerAccept)) {
+  if (containerAccept$retro_random[[i]] == "non-converge" ||
+      containerAccept$retro_random[[i]] == "non-converge" ||
+      containerAccept$retro_random[[i]] == "non-converge"){
+    df_mohn_random[i,c("R(age 1)", "SSB", "Fbar(4-6)")] <- rep(NA,3) #<< FIX THIS
+    df_mohn_fixed[i,]  <- rep(NA,3)
+    df_mohn_none[i,] <- rep(NA,3)
+  } else {
+    df_mohn_random[i,] <- stockassessment::mohn(containerAccept$retro_random[[i]])
+    df_mohn_fixed[i,] <- stockassessment::mohn(containerAccept$retro_fixed[[i]])
+    df_mohn_none[i,] <- stockassessment::mohn(containerAccept$retro_none[[i]])
+  }
+}
+
+
+# Use mohn() here
+
 
 # Calculate fit error
 containerAccept$err_random <- vector("list", length = nrow(containerAccept))
@@ -240,6 +295,12 @@ plotTsError(containerAccept)
 plotPars(containerAccept, models2plot = c("random walk", 
                                           "fixed", 
                                           "no misreporting"))
+
+
+# fit_retro <- retro(container$fitSim_none_2014[[1]], year = 2)
+# str(fit_retro)
+# 
+# x <- container$fitSim_none_2014[[1]]
 
 
 
