@@ -41,7 +41,7 @@ scenarios <- c("uniform random",
                "random walk", 
                "fixed", 
                "no misreporting")
-nRep <- 6#100 # Number of simulation replicates
+nRep <- 100 # Number of simulation replicates
 noScaledYears <- 10
 
 # Output container
@@ -188,14 +188,13 @@ containerAccept <- # Also exclude non-covergences
 containerAccept$retro_random <- vector("list", length = nrow(containerAccept))
 containerAccept$retro_fixed  <- vector("list", length = nrow(containerAccept))
 containerAccept$retro_none   <- vector("list", length = nrow(containerAccept))
-containerAccet$converged_retro <- vector("list", length = nrow(containerAccept))
-for (i in 1:3){#nrow(containerAccept)) {
-  containerAccept$retro_random[[i]] <- tryCatch(retro_cp(containerAccept$fitSim_random[[i]], year = 5), 
+for (i in 1:nrow(containerAccept)) {
+  containerAccept$retro_random[[i]] <- tryCatch(retro_cp(containerAccept$fitSim_random[[i]], year = 5),
                                                 error = function(e) e, warning=function(w) "non-converge")
-  containerAccept$retro_fixed[[i]]  <- tryCatch(retro_cp(containerAccept$fitSim_fixed[[i]], year = 5), 
-                                                error = function(e) e, warning=function(w) w)
-  containerAccept$retro_none[[i]]   <- tryCatch(retro_cp(containerAccept$fitSim_none[[i]], year = 5), 
-                                                error = function(e) e, warning=function(w) w)
+  containerAccept$retro_fixed[[i]]  <- tryCatch(retro(containerAccept$fitSim_fixed[[i]], year = 5), 
+                                                error = function(e) e, warning=function(w) "non-converge")
+  containerAccept$retro_none[[i]]   <- tryCatch(retro(containerAccept$fitSim_none[[i]], year = 5), 
+                                                error = function(e) e, warning=function(w) "non-converge")
 }
 
 # Save output
@@ -235,6 +234,9 @@ df_mohn_fixed <- data.frame(`R(age 1)` = numeric(length = nrow(containerAccept))
 df_mohn_none <- data.frame(`R(age 1)` = numeric(length = nrow(containerAccept)), 
                            `SSB` = numeric(length = nrow(containerAccept)), 
                            `Fbar(4-6)` = numeric(length = nrow(containerAccept)))
+df_mohn_random$model <- "random walk"
+df_mohn_fixed$model <- "fixed"
+df_mohn_none$model <- "no misreporting"
 df_mohn_random$scenario <- containerAccept$scenario
 df_mohn_fixed$scenario  <- containerAccept$scenario
 df_mohn_none$scenario   <- containerAccept$scenario
@@ -243,22 +245,42 @@ df_mohn_fixed$replicate <- containerAccept$replicate
 df_mohn_none$replicate <- containerAccept$replicate
 
 for(i in 1:nrow(containerAccept)) {
-  if (containerAccept$retro_random[[i]] == "non-converge" ||
-      containerAccept$retro_random[[i]] == "non-converge" ||
-      containerAccept$retro_random[[i]] == "non-converge"){
-    df_mohn_random[i,c("R(age 1)", "SSB", "Fbar(4-6)")] <- rep(NA,3) #<< FIX THIS
-    df_mohn_fixed[i,]  <- rep(NA,3)
-    df_mohn_none[i,] <- rep(NA,3)
+  if (is.character(containerAccept$retro_random[[i]]) ||
+      is.character(containerAccept$retro_fixed[[i]]) ||
+      is.character(containerAccept$retro_fixed[[i]])){
+    df_mohn_random[i,1:3] <- NA
+    df_mohn_fixed[i,1:3]  <- NA
+    df_mohn_none[i,1:3]   <- NA
   } else {
-    df_mohn_random[i,] <- stockassessment::mohn(containerAccept$retro_random[[i]])
-    df_mohn_fixed[i,] <- stockassessment::mohn(containerAccept$retro_fixed[[i]])
-    df_mohn_none[i,] <- stockassessment::mohn(containerAccept$retro_none[[i]])
+    df_mohn_random[i,1:3] <- stockassessment::mohn(containerAccept$retro_random[[i]])
+    df_mohn_fixed[i,1:3] <- stockassessment::mohn(containerAccept$retro_fixed[[i]])
+    df_mohn_none[i,1:3] <- stockassessment::mohn(containerAccept$retro_none[[i]])
   }
 }
+df_mohn <- 
+  rbind(df_mohn_random, df_mohn_fixed, df_mohn_none) %>%
+  tidyr::gather(variable, mohn_rho, -scenario, -replicate, -model) %>%
+  dplyr::mutate(model  = factor(model, levels = c("no misreporting", 
+                                                  "fixed",
+                                                  "random walk"))) %>%
+  dplyr::group_by(model, scenario, variable) %>%
+  dplyr::summarise(mohn_mean = mean(mohn_rho, na.rm = T),
+                   mohn_se   = sd(mohn_rho, na.rm = T)/sum(!is.na(mohn_rho)))
 
-
-# Use mohn() here
-
+# Plot Mohn's rho results
+#plotMohn(df_mohn)
+colors2use <- RColorBrewer::brewer.pal(3, "Dark2")
+ggplot(df_mohn,# %>% dplyr::filter(model != "no misreporting"),
+       aes(x = model, y = mohn_mean, color = model)) +
+  geom_point() +
+  geom_errorbar(aes(ymin = mohn_mean - 1.96 * mohn_se,
+                    ymax = mohn_mean + 1.96 * mohn_se),
+                width = 0.2) +
+  geom_hline(aes(yintercept = 0), size = 0.2) +
+  facet_grid(scenario~variable, scales = "free_y") +
+  theme_bw() +
+  scale_color_manual(values = colors2use[1:2])
+  
 
 # Calculate fit error
 containerAccept$err_random <- vector("list", length = nrow(containerAccept))
