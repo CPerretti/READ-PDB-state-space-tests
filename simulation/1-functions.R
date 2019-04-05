@@ -11,7 +11,7 @@ sim <- function(fit, keyLogScale, noScaledYears, container_i) {
   
   switch(container_i$scenario,
          `uniform random` = {
-           logScale <- matrix(data = log(runif(nAs * noScaledYears, 1.5, 5)),
+           logScale <- matrix(data = log(runif(nAs * noScaledYears, 1.5, 10)),
                               nrow = nAs, ncol = noScaledYears)
          },
          `random walk` = { # RW from 1 with reflecting boundary at 1
@@ -19,18 +19,18 @@ sim <- function(fit, keyLogScale, noScaledYears, container_i) {
            rw_logScale_mat <- matrix(data = NA, nrow = nAs, ncol = noScaledYears)
            errS <- matrix(data = rnorm(nAs * noScaledYears, 0, exp(logSdLogScale)),
                           nrow = nAs, ncol = noScaledYears) #uncorrelated error
-           errS[errS[,1] < 0, 1] <- -errS[errS[,1] < 0, 1] #reflecting boundary
+           #errS[errS[,1] < 0, 1] <- -errS[errS[,1] < 0, 1] #reflecting boundary
            rw_logScale_mat[,1] <- 1 + errS[,1]
            for(i in 2:noScaledYears){
              rw_logScale_mat[,i] <- rw_logScale_mat[,i-1] + errS[,i]
-             ind <- rw_logScale_mat[,i] < 1 # index to reflect
-             rw_logScale_mat[ind, i] <- rw_logScale_mat[ind, i-1] - errS[ind,i]
+             #ind <- rw_logScale_mat[,i] < 1 # index to reflect
+             #rw_logScale_mat[ind, i] <- rw_logScale_mat[ind, i-1] - errS[ind,i]
            }
            
            logScale <- matrix(data = rw_logScale_mat, nrow = nAs, ncol = noScaledYears)
          },
          fixed = {
-           logScale <- matrix(data = log(c(runif(1, 1.5, 10), runif(1, 1.5, 10))),
+           logScale <- matrix(data = log(c(runif(1, 1.5, 10))),# runif(1, 1.5, 10))),
                               nrow = nAs, ncol = noScaledYears)
          },
          `no misreporting` = {
@@ -777,6 +777,7 @@ calcReTsError <- function(fitSim, simOut, confLogScale) {
               dplyr::mutate(age = as.numeric(age),
                             error = (fit - tru),
                             error_pc = 100 * (fit - tru) / tru,
+                            abs_error_pc = abs(error_pc),
                             decile = ceiling(10 * pnorm(q    = log(tru), 
                                                         mean = log(fit), 
                                                         sd   = sdLog)),
@@ -816,6 +817,7 @@ calcNFTsErrorSAM <- function(fitSimSAM, simOutSAM4error) {
                 dplyr::mutate(age = as.numeric(age),
                               error = (fit - tru),
                               error_pc = 100 * (fit - tru) / tru,
+                              abs_error_pc = abs(error_pc),
                               decile = ceiling(10 * pnorm(q    = log(tru), 
                                                           mean = log(fit), 
                                                           sd   = sdLog)),
@@ -870,6 +872,7 @@ calcCSSBError <- function(fitSim, simOut) {
               dplyr::left_join(df_CSSBtru) %>%
               dplyr::mutate(error = fit - tru,
                             error_pc = 100 * (fit - tru) / tru,
+                            abs_error_pc = abs(error_pc),
                             decile = ceiling(10 * pnorm(q    = log(tru),
                                                         mean = log(fit),
                                                         sd   = sdLog)))
@@ -1013,24 +1016,27 @@ plotTsError <- function(container) {
                                                                    "random walk")))})
   }
   
-  err2plot <-
-    err %>%  
-    dplyr::filter(variable %in% c("N")) %>%
-    dplyr::select(model, scenario, year, age, replicate, tru, fit) %>%
-    dplyr::rename(N_tru = tru,
-                  N_fit = fit) %>%
-    dplyr::left_join({err %>%  
-        dplyr::filter(variable %in% c("F")) %>%
-        dplyr::select(model, scenario, year, age, replicate, error_pc) %>%
-        dplyr::rename(F_error_pc = error_pc)}) %>%
-    dplyr::left_join({err %>%  
-        dplyr::filter(variable %in% c("N")) %>%
-        dplyr::select(model, scenario, year, age, replicate, error_pc) %>%
-        dplyr::rename(N_error_pc = error_pc)}) %>%
-    dplyr::left_join({err %>%  
-        dplyr::filter(variable %in% c("Scale")) %>%
-        dplyr::select(model, scenario, year, age, replicate, error_pc) %>%
-        dplyr::rename(Scale_error_pc = error_pc)})
+  # err2plot <-
+  #   err %>%  
+  #   dplyr::filter(variable %in% c("N")) %>%
+  #   dplyr::select(model, scenario, year, age, replicate, tru, fit) %>%
+  #   dplyr::rename(N_tru = tru,
+  #                 N_fit = fit) %>%
+  #   dplyr::left_join({err %>%  
+  #       dplyr::filter(variable %in% c("F")) %>%
+  #       dplyr::select(model, scenario, year, age, replicate, error_pc, abs_error) %>%
+  #       dplyr::rename(F_error_pc = error_pc,
+  #                     F_abs_error = abs_error)}) %>%
+  #   dplyr::left_join({err %>%  
+  #       dplyr::filter(variable %in% c("N")) %>%
+  #       dplyr::select(model, scenario, year, age, replicate, error_pc, abs_error) %>%
+  #       dplyr::rename(N_error_pc = error_pc,
+  #                     N_abs_error = abs_error)}) %>%
+  #   dplyr::left_join({err %>%  
+  #       dplyr::filter(variable %in% c("Scale")) %>%
+  #       dplyr::select(model, scenario, year, age, replicate, error_pc, abs_error) %>%
+  #       dplyr::rename(Scale_error_pc = error_pc,
+  #                     Scale_abs_error = abs_error)})
   
   
   # N
@@ -1121,25 +1127,28 @@ plotTsError <- function(container) {
   # Plot mean error in catch and ssb vs year
   err2plot_CSSB <-
     err %>%  
-    dplyr::filter(variable %in% c("catch", "ssb")) %>%
-    dplyr::select(model, scenario, year, variable, age, replicate, error_pc) %>%
+    dplyr::filter(variable %in% c("catch", "ssb", "F", "N")) %>%
+    dplyr::select(model, scenario, year, variable, age, replicate, error_pc, abs_error_pc) %>%
     dplyr::group_by(model, scenario, year, variable) %>%
-    dplyr::summarise(error_pc_mean = mean(error_pc),
-                     nObs = length(error_pc),
-                     error_pc_hi   = error_pc_mean + 1.96 * sd(error_pc)/sqrt(nObs),
-                     error_pc_lo  = error_pc_mean - 1.96 * sd(error_pc)/sqrt(nObs))
+    dplyr::summarise(error_pc_mean = mean(error_pc, na.rm = T),
+                     mape  = mean(abs_error_pc, na.rm = T),
+                     nObs = length(abs_error_pc),
+                     error_pc_hi   = error_pc_mean + 1.96 * sd(error_pc, na.rm = T)/sqrt(nObs),
+                     error_pc_lo  = error_pc_mean - 1.96 * sd(error_pc, na.rm = T)/sqrt(nObs),
+                     mape_hi   = mape + 1.96 * sd(abs_error_pc, na.rm = T)/sqrt(nObs),
+                     mape_lo   = mape - 1.96 * sd(abs_error_pc, na.rm = T)/sqrt(nObs))
   p <-
-    ggplot(err2plot_CSSB %>% dplyr::filter(model != "no misreporting"), #<< DONT PLOT NONE RIGHT NOW
+    ggplot(err2plot_CSSB,# %>% dplyr::filter(model != "no misreporting"),
            aes(x = year, color = model, fill = model)) +
-    geom_line(aes(y = error_pc_mean)) +
-    geom_ribbon(aes(ymin = error_pc_lo, ymax = error_pc_hi), color = NA, alpha = 0.3) +
+    geom_line(aes(y = mape)) +
+    geom_ribbon(aes(ymin = mape_lo, ymax = mape_hi), color = NA, alpha = 0.3) +
     geom_hline(yintercept = 0) +
-    facet_wrap(scenario~variable, ncol = 2, scales = "free_y") +
+    facet_grid(scenario~variable, scales = "free_y") +
     theme_bw() +
     xlab("Year") +
-    ylab("Mean percent error of estimate") +
-    scale_color_manual(values = colors2use[2:3]) +
-    scale_fill_manual(values = colors2use[2:3]) +
+    ylab("Mean absolute percent error") +
+    scale_color_manual(values = colors2use) +
+    scale_fill_manual(values = colors2use) +
     ggtitle("Estimation error")
   
   print(p)

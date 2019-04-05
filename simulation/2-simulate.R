@@ -1,8 +1,7 @@
 ## Perform SAM simulation tests
  
-#() fbar as a metric of success
 #() Catch advice metric
-
+#() Add a trap to retro calc that skips all others if one doesn't converge
 # Install github version of package to use default package
 #devtools::install_github("fishfollower/SAM/stockassessment")
 # Install local version of package with changes
@@ -188,7 +187,7 @@ containerAccept <- # Also exclude non-covergences
 containerAccept$retro_random <- vector("list", length = nrow(containerAccept))
 containerAccept$retro_fixed  <- vector("list", length = nrow(containerAccept))
 containerAccept$retro_none   <- vector("list", length = nrow(containerAccept))
-for (i in 1:nrow(containerAccept)) {
+for (i in 1:nrow(containerAccept)) { # << Add a trap that skips if one model doesn't converge
   containerAccept$retro_random[[i]] <- tryCatch(retro_cp(containerAccept$fitSim_random[[i]], year = 5),
                                                 error = function(e) e, warning=function(w) "non-converge")
   containerAccept$retro_fixed[[i]]  <- tryCatch(retro(containerAccept$fitSim_fixed[[i]], year = 5), 
@@ -247,7 +246,7 @@ df_mohn_none$replicate <- containerAccept$replicate
 for(i in 1:nrow(containerAccept)) {
   if (is.character(containerAccept$retro_random[[i]]) ||
       is.character(containerAccept$retro_fixed[[i]]) ||
-      is.character(containerAccept$retro_fixed[[i]])){
+      is.character(containerAccept$retro_none[[i]])){
     df_mohn_random[i,1:3] <- NA
     df_mohn_fixed[i,1:3]  <- NA
     df_mohn_none[i,1:3]   <- NA
@@ -262,24 +261,25 @@ df_mohn <-
   tidyr::gather(variable, mohn_rho, -scenario, -replicate, -model) %>%
   dplyr::mutate(model  = factor(model, levels = c("no misreporting", 
                                                   "fixed",
-                                                  "random walk"))) %>%
+                                                  "random walk")),
+                abs_mohn = abs(mohn_rho)) %>%
   dplyr::group_by(model, scenario, variable) %>%
-  dplyr::summarise(mohn_mean = mean(mohn_rho, na.rm = T),
-                   mohn_se   = sd(mohn_rho, na.rm = T)/sum(!is.na(mohn_rho)))
+  dplyr::summarise(abs_mohn_mean = mean(abs_mohn, na.rm = T),
+                   abs_mohn_se   = sd(abs_mohn, na.rm = T)/sum(!is.na(abs_mohn)))
 
 # Plot Mohn's rho results
 #plotMohn(df_mohn)
 colors2use <- RColorBrewer::brewer.pal(3, "Dark2")
 ggplot(df_mohn,# %>% dplyr::filter(model != "no misreporting"),
-       aes(x = model, y = mohn_mean, color = model)) +
+       aes(x = model, y = abs_mohn_mean, color = model)) +
   geom_point() +
-  geom_errorbar(aes(ymin = mohn_mean - 1.96 * mohn_se,
-                    ymax = mohn_mean + 1.96 * mohn_se),
+  geom_errorbar(aes(ymin = abs_mohn_mean - 1.96 * abs_mohn_se,
+                    ymax = abs_mohn_mean + 1.96 * abs_mohn_se),
                 width = 0.2) +
   geom_hline(aes(yintercept = 0), size = 0.2) +
   facet_grid(scenario~variable, scales = "free_y") +
   theme_bw() +
-  scale_color_manual(values = colors2use[1:2])
+  scale_color_manual(values = colors2use)
   
 
 # Calculate fit error
