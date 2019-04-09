@@ -1138,7 +1138,7 @@ plotTsError <- function(container) {
                      mape_hi   = mape + 1.96 * sd(abs_error_pc, na.rm = T)/sqrt(nObs),
                      mape_lo   = mape - 1.96 * sd(abs_error_pc, na.rm = T)/sqrt(nObs))
   p <-
-    ggplot(err2plot_CSSB,# %>% dplyr::filter(model != "no misreporting"),
+    ggplot(err2plot_CSSB %>% dplyr::filter(model != "no misreporting"),
            aes(x = year, color = model, fill = model)) +
     geom_line(aes(y = mape)) +
     geom_ribbon(aes(ymin = mape_lo, ymax = mape_hi), color = NA, alpha = 0.3) +
@@ -1147,8 +1147,8 @@ plotTsError <- function(container) {
     theme_bw() +
     xlab("Year") +
     ylab("Mean absolute percent error") +
-    scale_color_manual(values = colors2use) +
-    scale_fill_manual(values = colors2use) +
+    scale_color_manual(values = colors2use[2:3]) +
+    scale_fill_manual(values = colors2use[2:3]) +
     ggtitle("Estimation error")
   
   print(p)
@@ -1174,7 +1174,7 @@ plotTsError <- function(container) {
         geom_line(aes(y = tru), color = "black") +
         geom_ribbon(aes(ymin = fit_975, ymax = fit_025, fill = model), 
                     alpha = 0.3, color = NA) +
-        facet_grid(replicate ~ age) +
+        facet_grid(replicate ~ age, scales = "free_y") +
         theme_bw() +
         xlab("Year") +
         ylab("Estimated and True scale parameter value") +
