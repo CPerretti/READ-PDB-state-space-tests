@@ -29,9 +29,10 @@ sim <- function(fit, keyLogScale, noScaledYears, container_i) {
            
            logScale <- matrix(data = rw_logScale_mat, nrow = nAs, ncol = noScaledYears)
          },
-         fixed = {
-           logScale <- matrix(data = log(c(runif(1, 1.5, 10))),# runif(1, 1.5, 10))),
-                              nrow = nAs, ncol = noScaledYears)
+         fixed = { # Misreporting only on ages 1-3
+           logScale <- matrix(data = rep(c(log(runif(1, 1.5, 10)), 0), 
+                                         each = nAs * noScaledYears / 2),
+                              nrow = nAs, ncol = noScaledYears, byrow = T)
          },
          `no misreporting` = {
            logScale <- matrix(data = log(1), nrow = nAs, ncol = noScaledYears)
@@ -1138,7 +1139,7 @@ plotTsError <- function(container) {
                      mape_hi   = mape + 1.96 * sd(abs_error_pc, na.rm = T)/sqrt(nObs),
                      mape_lo   = mape - 1.96 * sd(abs_error_pc, na.rm = T)/sqrt(nObs))
   p <-
-    ggplot(err2plot_CSSB %>% dplyr::filter(model != "no misreporting"),
+    ggplot(err2plot_CSSB,#%>% dplyr::filter(model != "no misreporting"),
            aes(x = year, color = model, fill = model)) +
     geom_line(aes(y = mape)) +
     geom_ribbon(aes(ymin = mape_lo, ymax = mape_hi), color = NA, alpha = 0.3) +
@@ -1147,8 +1148,8 @@ plotTsError <- function(container) {
     theme_bw() +
     xlab("Year") +
     ylab("Mean absolute percent error") +
-    scale_color_manual(values = colors2use[2:3]) +
-    scale_fill_manual(values = colors2use[2:3]) +
+    scale_color_manual(values = colors2use)+#[2:3]) +
+    scale_fill_manual(values = colors2use)+#[2:3]) +
     ggtitle("Estimation error")
   
   print(p)
