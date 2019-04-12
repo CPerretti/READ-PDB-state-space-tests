@@ -35,11 +35,11 @@ fitReal <- fitNScod
 fitReal$conf$constRecBreaks <- numeric(0) # Needed for new SAM
 
 #set.seed(321) # for reproducibility
-scenarios <- c(#"uniform random", 
-               #"random walk", 
-               "fixed")#, 
-               #"no misreporting")
-nRep <- 100 # Number of simulation replicates
+scenarios <- c("uniform random", 
+               "random walk",
+               "fixed",
+               "no misreporting")
+nRep <- 10#0 # Number of simulation replicates
 noScaledYears <- 10
 
 # Output container
@@ -68,10 +68,10 @@ confLogScale_fixed <-
        keyLogScale = keyLogScale,
        noScaledYears = noScaledYears,
        keyScaledYears = (max(fitReal$data$years) - noScaledYears + 1) : 
-         max(fitReal$data$years),
-       keyParScaledYA =  matrix(data = rep(c(0,1), 
-                                           each = noScaledYears/2 * ncol(fitReal$data$propF)),
-                                nrow = noScaledYears)) # two params all years
+                        max(fitReal$data$years),
+       keyParScaledYA =  matrix(data = rep(c(0), 
+                                           each = noScaledYears * ncol(fitReal$data$propF)),
+                                nrow = noScaledYears)) # one param all years
 
 confLogScale_none <- list(logScaleType = "no misreporting")
 
@@ -182,23 +182,29 @@ containerAccept <- # Also exclude non-covergences
                                 function (x) x[[6]][3])) != 1 &
                    unlist(sapply(containerAccept$fitSim_none,
                                 function (x) x[[6]][3])) != 1, ]
+non_converged_random <- which(unlist(sapply(container$fitSim_random,
+                            function (x) x[[6]][3])) == 1)
+non_converged_fixed <- which(unlist(sapply(container$fitSim_fixed,
+                  function (x) x[[6]][3])) == 1)
+non_converged_none <- which(unlist(sapply(container$fitSim_none,
+                  function (x) x[[6]][3])) == 1)
 
 # Also exclude runs with unrealistic N estimates 
 # (fit N 1000 times true N). This occurs because occasionaly high N,
 # low F, low Q, results in a decent fit, but this would be rejected
 # by an analyst given the large scale difference.
-i2exclude <- vector()
+i2include <- vector()
 for (i in 1:nrow(containerAccept)) {
   if (mean(exp(containerAccept$fitSim_random[[i]]$pl$logN) / 
-       exp(containerAccept$simOut[[i]]$trueParams$pl$logN)) > 1000 |
+       exp(containerAccept$simOut[[i]]$trueParams$pl$logN)) < 1000 |
       mean(exp(containerAccept$fitSim_fixed[[i]]$pl$logN) / 
-           exp(containerAccept$simOut[[i]]$trueParams$pl$logN)) > 1000 |
+           exp(containerAccept$simOut[[i]]$trueParams$pl$logN)) < 1000 |
       mean(exp(containerAccept$fitSim_none[[i]]$pl$logN) / 
-           exp(containerAccept$simOut[[i]]$trueParams$pl$logN)) > 1000) {
-    i2exclude <- c(i2exclude, i)
+           exp(containerAccept$simOut[[i]]$trueParams$pl$logN)) < 1000) {
+    i2include <- c(i2include, i)
   }
 }
-containerAccept <- containerAccept[-i2exclude,]
+containerAccept <- containerAccept[i2include,]
  
 
 ## Perform retro runs
@@ -207,7 +213,7 @@ containerAccept <- containerAccept[-i2exclude,]
 containerAccept$retro_random <- vector("list", length = nrow(containerAccept))
 containerAccept$retro_fixed  <- vector("list", length = nrow(containerAccept))
 containerAccept$retro_none   <- vector("list", length = nrow(containerAccept))
-for (i in 1:nrow(containerAccept)) { # << Add a trap that skips if one model doesn't converge
+for (i in 1:nrow(containerAccept)) {
   containerAccept$retro_random[[i]] <- tryCatch(retro_cp(containerAccept$fitSim_random[[i]], year = 5),
                                                 error = function(e) "error", 
                                                 warning=function(w) "non-converge")
@@ -222,36 +228,23 @@ for (i in 1:nrow(containerAccept)) { # << Add a trap that skips if one model doe
   if (is.character(containerAccept$retro_none[[i]])) next
 }
 
-# Save output
-# suffix <- paste0(Sys.time(), ".Rdata")
-# save(list = "container", file = paste0("./output/container", suffix))
-# save(list = "containerAccept", file = paste0("./output/containerAccept", suffix))
 
 ## Plot example true vs observed vs fit to observed ########
 ## (1) N-at-age (1000s)
-  plotN(simOut = containerAccept$simOut[[1]],
-        fit = containerAccept$fitSim_none[[1]])
-
-# x <- data.frame()
-# for (i in which(containerAccept$scenario == "fixed")) {
-#   x <- rbind(x, cbind(containerAccept$err_none[[i]],
-#                       containerAccept$replicate[i],
-#                       i))
-# }
-# x2 <-  x %>% dplyr::filter(!(i %in% c(238, 244, 258)))
-# c(43, 53, 67)
+  # plotN(simOut = containerAccept$simOut[[1]],
+  #       fit = containerAccept$fitSim_none[[1]])
 
 ## (2) F-at-age
-plotF(simOut = containerAccept$simOut[[1]],
-      fit = containerAccept$fitSim_none[[1]])
+# plotF(simOut = containerAccept$simOut[[1]],
+#       fit = containerAccept$fitSim_none[[1]])
 
 ## (3) Catch (mt)
-plotC(simOut = containerAccept$simOut[[1]],
-      fit = containerAccept$fitSim_random[[1]])
+# plotC(simOut = containerAccept$simOut[[1]],
+#       fit = containerAccept$fitSim_random[[1]])
 
 ## (4) Survey (1000s)
-plotS(simOut = containerAccept$simOut[[1]],
-      fit = containerAccept$fitSim_random[[1]])
+# plotS(simOut = containerAccept$simOut[[1]],
+#       fit = containerAccept$fitSim_random[[1]])
 
 
 ## Plot error statistics #######################
@@ -294,7 +287,6 @@ for(i in 1:nrow(containerAccept)) {
 
 df_mohn <- 
   rbind(df_mohn_random, df_mohn_fixed, df_mohn_none) %>%
-  #dplyr::filter(!(replicate %in% c(43, 53, 67))) %>% #<< REMOVE LATER
   tidyr::gather(variable, mohn_rho, -scenario, -replicate, -model) %>%
   dplyr::mutate(model  = factor(model, levels = c("no misreporting", 
                                                   "fixed",
@@ -354,18 +346,17 @@ for (i in 1:nrow(containerAccept)) {
 }
 
 
+# Save output
+suffix <- paste0(Sys.time(), ".Rdata")
+save(list = "container", file = paste0("./output/container", suffix))
+save(list = "containerAccept", file = paste0("./output/containerAccept", suffix))
+
 # Plot time series error
-plotTsError(containerAccept)# %>% dplyr::filter(!(replicate %in% c(5,1)))) #<< REMOVE FILTER LATER 
+plotTsError(containerAccept) #<< CONTINUE TO FIGURE OUT WHY THE LAST PLOT IS TRUE
 
 # Plot parameters true vs fit
 plotPars(containerAccept,
          models2plot = c("random walk", "fixed", "no misreporting"))
-
-
-# fit_retro <- retro(container$fitSim_none_2014[[1]], year = 2)
-# str(fit_retro)
-# 
-# x <- container$fitSim_none_2014[[1]]
 
 
 

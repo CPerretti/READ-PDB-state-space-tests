@@ -29,10 +29,15 @@ sim <- function(fit, keyLogScale, noScaledYears, container_i) {
            
            logScale <- matrix(data = rw_logScale_mat, nrow = nAs, ncol = noScaledYears)
          },
-         fixed = { # Misreporting only on ages 1-3
-           logScale <- matrix(data = rep(c(log(runif(1, 1.5, 10)), 0), 
-                                         each = nAs * noScaledYears / 2),
-                              nrow = nAs, ncol = noScaledYears, byrow = T)
+         fixed = { 
+           # Misreporting on all ages
+           logScale <- matrix(data = rep(log(runif(1, 1.5, 10)),
+                                         times = nAs * noScaledYears),
+                              nrow = nAs, ncol = noScaledYears)
+           # Misreporting only on ages 1-3
+           # logScale <- matrix(data = rep(c(log(runif(1, 1.5, 10)), 0), 
+           #                               each = nAs * noScaledYears / 2),
+           #                    nrow = nAs, ncol = noScaledYears, byrow = T)
          },
          `no misreporting` = {
            logScale <- matrix(data = log(1), nrow = nAs, ncol = noScaledYears)
@@ -777,6 +782,7 @@ calcReTsError <- function(fitSim, simOut, confLogScale) {
               tidyr::spread(source, N) %>%
               dplyr::mutate(age = as.numeric(age),
                             error = (fit - tru),
+                            abs_error = abs(error),
                             error_pc = 100 * (fit - tru) / tru,
                             abs_error_pc = abs(error_pc),
                             decile = ceiling(10 * pnorm(q    = log(tru), 
@@ -872,6 +878,7 @@ calcCSSBError <- function(fitSim, simOut) {
             df_CSSBfit %>%
               dplyr::left_join(df_CSSBtru) %>%
               dplyr::mutate(error = fit - tru,
+                            abs_error = abs(error),
                             error_pc = 100 * (fit - tru) / tru,
                             abs_error_pc = abs(error_pc),
                             decile = ceiling(10 * pnorm(q    = log(tru),
@@ -1139,7 +1146,7 @@ plotTsError <- function(container) {
                      mape_hi   = mape + 1.96 * sd(abs_error_pc, na.rm = T)/sqrt(nObs),
                      mape_lo   = mape - 1.96 * sd(abs_error_pc, na.rm = T)/sqrt(nObs))
   p <-
-    ggplot(err2plot_CSSB,#%>% dplyr::filter(model != "no misreporting"),
+    ggplot(err2plot_CSSB %>% dplyr::filter(model != "no misreporting"),
            aes(x = year, color = model, fill = model)) +
     geom_line(aes(y = mape)) +
     geom_ribbon(aes(ymin = mape_lo, ymax = mape_hi), color = NA, alpha = 0.3) +
@@ -1148,22 +1155,57 @@ plotTsError <- function(container) {
     theme_bw() +
     xlab("Year") +
     ylab("Mean absolute percent error") +
-    scale_color_manual(values = colors2use)+#[2:3]) +
-    scale_fill_manual(values = colors2use)+#[2:3]) +
+    scale_color_manual(values = colors2use[2:3]) +
+    scale_fill_manual(values = colors2use[2:3]) +
     ggtitle("Estimation error")
   
   print(p)
   
-  # Plot example error fit vs observed Scale
+  # Plot error of Scale estimates
   if (any(err$variable == "Scale")) {
+    
+    # Plot average error for each scenario
+    err2plot_Scale_overall <-
+      err %>%  
+      dplyr::filter(variable %in% c("Scale")) %>%
+      dplyr::select(model, scenario, year, variable, age, replicate, 
+                    error_pc, abs_error_pc, abs_error) %>%
+      dplyr::group_by(model, scenario, year, variable) %>%
+      dplyr::summarise(error_pc_mean = mean(error_pc, na.rm = T),
+                       mape  = mean(abs_error_pc, na.rm = T),
+                       mae   = mean(abs_error),
+                       nObs  = length(abs_error_pc),
+                       error_pc_hi = error_pc_mean + 1.96 * sd(error_pc, na.rm = T)/sqrt(nObs),
+                       error_pc_lo = error_pc_mean - 1.96 * sd(error_pc, na.rm = T)/sqrt(nObs),
+                       mape_hi   = mape + 1.96 * sd(abs_error_pc, na.rm = T)/sqrt(nObs),
+                       mape_lo   = mape - 1.96 * sd(abs_error_pc, na.rm = T)/sqrt(nObs),
+                       mae_hi   = mae + 1.96 * sd(mae, na.rm = T)/sqrt(nObs),
+                       mae_lo   = mae - 1.96 * sd(mae, na.rm = T)/sqrt(nObs))
+    
+    p <-
+      ggplot(err2plot_Scale_overall,
+             aes(x = year, color = model, fill = model)) +
+      geom_line(aes(y = mape)) +
+      geom_ribbon(aes(ymin = mape_lo, ymax = mape_hi), color = NA, alpha = 0.3) +
+      geom_hline(yintercept = 0) +
+      facet_grid(~scenario) +
+      theme_bw() +
+      xlab("Year") +
+      ylab("Mean absolute percent error") +
+      scale_color_manual(values = colors2use[2:3]) +
+      scale_fill_manual(values = colors2use[2:3]) +
+      ggtitle("Scale estimation error")
+    
+    print(p)
+    
+    
+    # Plot example fit vs true scale
     err2plot_Scale <-
       err %>%
       dplyr::mutate(fit_975 = exp(log(fit) + 1.96 * sdLog),
                     fit_025 = exp(log(fit) - 1.96 * sdLog),
                     replicate = paste("replicate", replicate)) %>%
       dplyr::filter(variable %in% c("Scale"))
-    
-    
     scenarios2plot <- unique(err2plot_Scale$scenario)
     for (i in 1:length(scenarios2plot)) {
       p <-
@@ -1225,6 +1267,21 @@ plotTsError <- function(container) {
   #   print(p)
   # }
   
+  
+  # Plot pairs of F error vs Scale error for uniform scenario
+  errPairs <- 
+    err %>%
+    dplyr::filter(year %in% container$setupMod_fixed[[1]]$conf$keyScaledYears) %>%
+    dplyr::group_by(model, scenario, replicate, age, variable) %>%
+    dplyr::summarise(mean_abs_error_pc = mean(abs_error_pc)) %>%
+    tidyr::spread(variable, mean_abs_error_pc)
+  
+  ggplot(errPairs %>% dplyr::filter(scenario == "uniform random scenario",
+                                    model %in% c("fixed", "random walk"),
+                                    age != "total"), 
+         aes(x = Scale, y = `F`, color = model)) +
+    geom_point(alpha = 0.4) +
+    facet_wrap(~age, scales = "free")
   
 }
 
