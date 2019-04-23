@@ -39,7 +39,7 @@ scenarios <- c("uniform random",
                "random walk",
                "fixed",
                "no misreporting")
-nRep <- 10#0 # Number of simulation replicates
+nRep <- 100 # Number of simulation replicates
 noScaledYears <- 10
 
 # Output container
@@ -68,7 +68,7 @@ confLogScale_fixed <-
        keyLogScale = keyLogScale,
        noScaledYears = noScaledYears,
        keyScaledYears = (max(fitReal$data$years) - noScaledYears + 1) : 
-                        max(fitReal$data$years),
+         max(fitReal$data$years),
        keyParScaledYA =  matrix(data = rep(c(0), 
                                            each = noScaledYears * ncol(fitReal$data$propF)),
                                 nrow = noScaledYears)) # one param all years
@@ -182,12 +182,12 @@ containerAccept <- # Also exclude non-covergences
                                 function (x) x[[6]][3])) != 1 &
                    unlist(sapply(containerAccept$fitSim_none,
                                 function (x) x[[6]][3])) != 1, ]
-non_converged_random <- which(unlist(sapply(container$fitSim_random,
-                            function (x) x[[6]][3])) == 1)
-non_converged_fixed <- which(unlist(sapply(container$fitSim_fixed,
-                  function (x) x[[6]][3])) == 1)
-non_converged_none <- which(unlist(sapply(container$fitSim_none,
-                  function (x) x[[6]][3])) == 1)
+# non_converged_random <- which(unlist(sapply(container$fitSim_random,
+#                             function (x) x[[6]][3])) == 1)
+# non_converged_fixed <- which(unlist(sapply(container$fitSim_fixed,
+#                   function (x) x[[6]][3])) == 1)
+# non_converged_none <- which(unlist(sapply(container$fitSim_none,
+#                   function (x) x[[6]][3])) == 1)
 
 # Also exclude runs with unrealistic N estimates 
 # (fit N 1000 times true N). This occurs because occasionaly high N,
@@ -317,6 +317,11 @@ ggplot(df_mohn,
   ylab("Mean absolute mohn's rho") +
   xlab("Estimation model")
   
+# Calculate F40% for fitted models and true models
+# F40% is the F that results in the SSB/R being 40% of the
+# unfished SSB/R.
+ypr_cp(containerAccept$fitSim_none[[1]])
+
 
 # Calculate fit error
 containerAccept$err_random <- vector("list", length = nrow(containerAccept))
