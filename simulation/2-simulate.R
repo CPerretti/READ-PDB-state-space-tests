@@ -320,7 +320,21 @@ ggplot(df_mohn,
 # Calculate F40% for fitted models and true models
 # F40% is the F that results in the SSB/R being 40% of the
 # unfished SSB/R.
-ypr_cp(containerAccept$fitSim_none[[1]])
+#ypr_cp(containerAccept$fitSim_none[[1]])
+ave.sw<-colMeans(fit$data$stockMeanWeight[(idxno-aveYears+1):idxno,,drop=FALSE])
+ave.cw<-colMeans(fit$data$catchMeanWeight[(idxno-aveYears+1):(idxno-1),,drop=FALSE])
+ave.pm<-colMeans(fit$data$propMat[(idxno-aveYears+1):idxno,,drop=FALSE])
+ave.nm<-colMeans(fit$data$natMor[(idxno-aveYears+1):idxno,,drop=FALSE])
+ave.lf<-colMeans(fit$data$landFrac[(idxno-aveYears+1):(idxno-1),,drop=FALSE])
+ave.cw.land<-colMeans(fit$data$landMeanWeight[(idxno-aveYears+1):(idxno-1),,drop=FALSE])
+
+naa <- vector("numeric", length(fitReal$conf$minAge:fitReal$conf$maxAge))
+naa[1] <- 1
+for (2:fitReal$conf$maxAge)  { # <<deal with plus group next
+  naa[i] <- naa[i-1] * exp(-(F+ ave.nm)) # << How to calculate "F" here
+}
+eq_ssbr <- naa * ave.sw * ave.pm
+
 
 
 # Calculate fit error
