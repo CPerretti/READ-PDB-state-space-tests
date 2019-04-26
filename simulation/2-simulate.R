@@ -321,22 +321,56 @@ ggplot(df_mohn,
 # F40% is the F that results in the SSB/R being 40% of the
 # unfished SSB/R.
 #ypr_cp(containerAccept$fitSim_none[[1]])
+
+fit <- containerAccept$fitSim_none[[1]]
+simOut <- containerAccept$simOut[[1]]
+idxno <- which(fit$data$years==max(fit$data$years))
+aveYears <- 5
 ave.sw<-colMeans(fit$data$stockMeanWeight[(idxno-aveYears+1):idxno,,drop=FALSE])
 ave.cw<-colMeans(fit$data$catchMeanWeight[(idxno-aveYears+1):(idxno-1),,drop=FALSE])
 ave.pm<-colMeans(fit$data$propMat[(idxno-aveYears+1):idxno,,drop=FALSE])
 ave.nm<-colMeans(fit$data$natMor[(idxno-aveYears+1):idxno,,drop=FALSE])
-ave.lf<-colMeans(fit$data$landFrac[(idxno-aveYears+1):(idxno-1),,drop=FALSE])
-ave.cw.land<-colMeans(fit$data$landMeanWeight[(idxno-aveYears+1):(idxno-1),,drop=FALSE])
+ave.sel_est <- colMeans(faytable(fit)[(idxno-aveYears+1):idxno,,drop=FALSE]/
+                         apply(faytable(fit)[(idxno-aveYears+1):idxno,,drop=FALSE],1,max))
+ave.sel_tru <- colMeans(t(exp(simOut$trueParams$pl$logF))[(idxno-aveYears+1):idxno,,drop=FALSE]/
+                         apply(t(exp(simOut$trueParams$pl$logF))[(idxno-aveYears+1):idxno,,drop=FALSE],1,max) )
 
-naa <- vector("numeric", length(fitReal$conf$minAge:fitReal$conf$maxAge))
-naa[1] <- 1
-for (2:fitReal$conf$maxAge)  { # <<deal with plus group next
-  naa[i] <- naa[i-1] * exp(-(F+ ave.nm)) # << How to calculate "F" here
+naa_est <- vector("numeric", length(fitReal$conf$minAge:fitReal$conf$maxAge))
+naa_est[1] <- 1
+naa_tru <- vector("numeric", length(fitReal$conf$minAge:fitReal$conf$maxAge))
+naa_tru[1] <- 1
+full_f <- seq(0, 10, 0.01)
+maxFage_est <- which(ave.sel == 1)
+maxFage_tru <- which(ave.sel == 1)
+ssbr_est <- vector("numeric", length = length(full_f))
+ssbr_tru <- vector("numeric", length = length(full_f))
+for (h in 1:length(full_f)) {
+  for (i in 2:fit$conf$maxAge)  {
+    naa_est[i] <- naa_est[i-1] * exp(-(full_f[h] * ave.sel_est[i-1] + ave.nm[i-1]))
+    naa_tru[i] <- naa_tru[i-1] * exp(-(full_f[h] * ave.sel_tru[i-1] + ave.nm[i-1]))
+    if (i == fit$conf$maxAge & fit$conf$maxAgePlusGroup) { # if plus group
+      naa_est[i] <- naa_est[i] * 1/(1-exp(-(full_f[h] * ave.sel[maxFage] + ave.nm[maxFage_est])))
+      naa_tru[i] <- naa_tru[i] * 1/(1-exp(-(full_f[h] * ave.sel[maxFage] + ave.nm[maxFage_tru])))
+    }
+  }
+  ssbr_est[h] <- sum(naa_est * ave.sw * ave.pm)
+  ssbr_tru[h] <- sum(naa_tru * ave.sw * ave.pm)
 }
-eq_ssbr <- naa * ave.sw * ave.pm
 
+plot(full_f, abs(ssbr_tru/ssbr_tru[1] - .4), type = "l", col ="black")
+lines(full_f, abs(ssbr_est/ssbr_est[1] - .4), type = "l", col ="blue")
+f40ind_tru <- which.min(abs(ssbr_tru/ssbr_tru[1] - .4))
+f40ind_est <- which.min(abs(ssbr_est/ssbr_est[1] - .4))
+f40_tru <- full_f[f40ind_tru] * ave.sel_tru
+f40_est <- full_f[f40ind_est] * ave.sel_est
+z40_tru <- f40_tru + ave.nm
+z40_est <- f40_est + ave.nm
 
-
+catch40_mt_tru <- exp(simOut$trueParams$pl$logN[,idxno]) * 
+                    (1 - exp(-z40_tru)) * f40_tru/z40_tru * ave.cw
+catch40_mt_est <- exp(fit$pl$logN[,idxno]) * 
+                    (1 - exp(-z40_est)) * f40_est/z40_est * ave.cw #<< MAKE INTO A FUNCTION
+  
 # Calculate fit error
 containerAccept$err_random <- vector("list", length = nrow(containerAccept))
 containerAccept$err_fixed  <- vector("list", length = nrow(containerAccept))
