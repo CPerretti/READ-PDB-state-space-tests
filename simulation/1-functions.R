@@ -432,7 +432,8 @@ plotN <- function(simOut, fit) {
     dplyr::mutate(year = fit$data$years) %>%
     tidyr::gather(variable, N, -year) %>%
     tidyr::separate(variable, c("source", "age")) %>%
-    dplyr::mutate(age = paste0("age-", age))
+    dplyr::mutate(age = paste0("age-", age)) #%>%
+    #dplyr::mutate(source = ifelse(source == "fit", "NS cod fit", "Simulated"))
   
   # Plot N-at-age (all ages should match exactly when using errPro_exact)
   ggplot(data = df2plotN,
@@ -519,6 +520,7 @@ plotC <- function(simOut, fit) {
                   year = fit$data$years,
                   age = "total",
                   source = "fit") %>%
+    dplyr::mutate(source = "Fit") %>%
     dplyr::select(year, age, Catch_mt, source)
   
   # Pull out simulated observations
@@ -529,7 +531,8 @@ plotC <- function(simOut, fit) {
     dplyr::mutate(total = rowSums(.),
                   year = fit$data$years) %>%
     tidyr::gather(age, Catch_mt, -year) %>%
-    dplyr::mutate(source = "observed")
+    #dplyr::mutate(source = "observed")
+    dplyr::mutate(source = "Observed")
   
   # Pull out simulated truth
   df_Ctru_mt <- 
@@ -539,7 +542,8 @@ plotC <- function(simOut, fit) {
     dplyr::mutate(total = rowSums(.),
                   year = fit$data$years) %>%
     tidyr::gather(age, Catch_mt, -year) %>%
-    dplyr::mutate(source = "tru")  
+    #dplyr::mutate(source = "tru")  
+    dplyr::mutate(source = "True")
   
   # Put them together
   df2plot <- 
@@ -549,19 +553,21 @@ plotC <- function(simOut, fit) {
     dplyr::mutate(age = paste0("age-", age))
   
   # Plot Catch (should exactly match in total subplot when using errPro_exact)
-  ggplot(data = df2plot,
+  ggplot(data = df2plot %>% 
+           dplyr::filter(age == "age-total",
+                         source != "Fit"),
          aes(x = year, y = Catch_mt, color = source)) +
     geom_line() +
-    facet_wrap(~age, scales = "free") +
+    #facet_wrap(~age, scales = "free") +
     ylab("Catch (MT)") +
-    ggtitle("Fishery catch-at-age") +
+    ggtitle("Fishery catch") + #-at-age") +
     theme_bw() +
     theme(legend.title = element_blank(),
           legend.text = element_text(size = 12))
   
 }
 
-## Plot C_N-at-age simulated vs fit ####################### <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+## Plot C_N-at-age simulated vs fit ####################### 
 # Numbers at age *not* MT.
 # fitSim[[1]]$data$aux #<-- Use to tell which is commerical catch, and which age
 # fitSim[[1]]$data$logobs #<-- Use to pull out observations

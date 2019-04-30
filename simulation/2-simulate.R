@@ -86,21 +86,21 @@ for (i in 1:nrow(container)) {
 
 ## Plot an example true vs observed vs *real data* fit ########
 
-# # ## (1) N-at-age (1000s)
-# plotN(simOut = container$simOut[[1]],
-#       fit = fitReal)
-# 
-# ## (2) F-at-age
-# plotF(simOut = container$simOut[[1]],
-#       fit = fitReal)
-# 
-# ## (3) Catch (mt)
-# plotC(simOut = container$simOut[[1]],
-#       fit = fitReal)
-# 
-# ## (4) Survey (1000s)
-# plotS(simOut = container$simOut[[1]],
-#       fit = fitReal)
+# ## (1) N-at-age (1000s)
+plotN(simOut = container$simOut[[2]],
+      fit = fitReal)
+
+## (2) F-at-age
+plotF(simOut = container$simOut[[2]],
+      fit = fitReal)
+
+## (3) Catch (mt)
+plotC(simOut = container$simOut[[2]],
+      fit = fitReal)
+
+## (4) Survey (1000s)
+plotS(simOut = container$simOut[[2]],
+      fit = fitReal)
 
 ## Plot some simulations from simulate.sam()
 #plotSimSAM(fitReal, nsim = 10, seed = NULL)
@@ -230,21 +230,21 @@ for (i in 1:nrow(containerAccept)) {
 
 
 ## Plot example true vs observed vs fit to observed ########
-## (1) N-at-age (1000s)
-  # plotN(simOut = containerAccept$simOut[[1]],
-  #       fit = containerAccept$fitSim_none[[1]])
+# (1) N-at-age (1000s)
+plotN(simOut = containerAccept$simOut[[2]],
+      fit = containerAccept$fitSim_none[[2]])
 
-## (2) F-at-age
-# plotF(simOut = containerAccept$simOut[[1]],
-#       fit = containerAccept$fitSim_none[[1]])
+# (2) F-at-age
+plotF(simOut = containerAccept$simOut[[1]],
+      fit = containerAccept$fitSim_none[[1]])
 
-## (3) Catch (mt)
-# plotC(simOut = containerAccept$simOut[[1]],
-#       fit = containerAccept$fitSim_random[[1]])
+# (3) Catch (mt)
+plotC(simOut = containerAccept$simOut[[2]],
+      fit = containerAccept$fitSim_random[[2]])
 
-## (4) Survey (1000s)
-# plotS(simOut = containerAccept$simOut[[1]],
-#       fit = containerAccept$fitSim_random[[1]])
+# (4) Survey (1000s)
+plotS(simOut = containerAccept$simOut[[1]],
+      fit = containerAccept$fitSim_random[[1]])
 
 
 ## Plot error statistics #######################
@@ -374,7 +374,7 @@ ggplot(df_errCatchAdvice %>%
   ggtitle("Catch advice error (recommended catch @ F40%)")
 
 # histogram
-ggplot(df_errCatchAdvice %>% dplyr::filter(abs(error) < quantile(abs(error), 0.60)),
+ggplot(df_errCatchAdvice %>% dplyr::filter(abs(error) < quantile(abs(error), 0.80)),
        aes(x = error, color = model, fill = model)) +
   geom_histogram(alpha=.5, position="identity") +
   facet_wrap(~scenario, scales = "free_y") +
