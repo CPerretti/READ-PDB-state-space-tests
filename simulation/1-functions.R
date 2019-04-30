@@ -1477,13 +1477,13 @@ runwithout_cp <- function (fit, year = NULL, fleet = NULL, map = fit$obj$env$map
   par <- stockassessment2::defpar(data, conf)
   par[!names(par) %in% c("logN", "logF", "logScale")] <- fit$pl[!names(fit$pl) %in%
                                                       c("missing", "logN", "logF", "logScale")]
-  ret <- sam.fit_cp(data, conf, par, rm.unidentified = TRUE, #<< This too
+  ret <- sam.fit_cp(data, conf, par, rm.unidentified = TRUE,
                     map = map, lower = fit$low, upper = fit$hig, ...)
   return(ret)
 }
 
 
-### And another ####
+### And another need to run retros ####
 reduce_cp <- function (data, year = NULL, fleet = NULL, age = NULL, conf = NULL) 
 {
   nam <- c("year", "fleet", "age")[c(length(year) > 0, length(fleet) > 
@@ -1543,7 +1543,7 @@ reduce_cp <- function (data, year = NULL, fleet = NULL, age = NULL, conf = NULL)
   data$maxAgePerFleet <- tapply(as.integer(data$aux[, "age"]), 
                                 INDEX = data$aux[, "fleet"], FUN = max)
   attr(data, "fleetNames") <- attr(data, "fleetNames")[suf]
-  if (!missing(conf)) { #<< CONTINUE FROM HERE
+  if (!missing(conf)) {
     .reidx <- function(x) {
       if (any(x >= (-0.5))) {
         xx <- x[x >= (-0.5)]
@@ -1574,94 +1574,6 @@ reduce_cp <- function (data, year = NULL, fleet = NULL, age = NULL, conf = NULL)
   data
 }
 
-#### Custom ypr function ####
-ypr_cp <- function(fit, Flimit=2, Fdelta=0.01, aveYears=min(15,length(fit$data$years)), 
-                   ageLimit=100,...){
-  
-  # Ages used to calculate fbar
-  barAges <- do.call(":",as.list(fit$conf$fbarRange))+(1-fit$conf$minAge) 
-  
-  last.year.used = max(fit$data$years)
-  
-  # Index of last year
-  idxno<-which(fit$data$years==last.year.used)
-  
-  #dim<-fit.current$stateDim
-  #idxN<-1:ncol(stock.mean.weight) 
-  
-  # Extract F-at-age for all years
-  F <- t(faytable(fit))
-  F[is.na(F)]<-0
-  
-  # not sure 
-  sel<-function(){
-    Sa<-rep(0,nrow(F))
-    K<-0
-    for(i in 0:(aveYears-1)){
-      thisF<-F[,idxno-i]
-      Sa<-Sa+thisF
-      K<-K+fbartable(fit)[idxno-i]
-    }
-    return(Sa/K)
-  }
-  # << CONTINUE HERE
-  extend<-function(x,len=100){
-    ret<-numeric(len)
-    ret[1:length(x)]<-x
-    ret[-c(1:length(x))]<-x[length(x)]
-    ret
-  }
-  
-  ave.sl<-sel()
-  ave.sw<-colMeans(fit$data$stockMeanWeight[(idxno-aveYears+1):idxno,,drop=FALSE])
-  ave.cw<-colMeans(fit$data$catchMeanWeight[(idxno-aveYears+1):(idxno-1),,drop=FALSE])
-  ave.pm<-colMeans(fit$data$propMat[(idxno-aveYears+1):idxno,,drop=FALSE])
-  ave.nm<-colMeans(fit$data$natMor[(idxno-aveYears+1):idxno,,drop=FALSE])
-  ave.lf<-colMeans(fit$data$landFrac[(idxno-aveYears+1):(idxno-1),,drop=FALSE])
-  ave.cw.land<-colMeans(fit$data$landMeanWeight[(idxno-aveYears+1):(idxno-1),,drop=FALSE])
-  
-  N<-numeric(ageLimit)
-  N[1]<-1.0
-  M<-extend(ave.nm)
-  sw<-extend(ave.sw)
-  cw<-extend(ave.cw.land)
-  pm<-extend(ave.pm)
-  lf<-extend(ave.lf)
-  
-  deltafirst <- 0.00001
-  delta <- Fdelta
-  scales<-c(0, deltafirst, seq(0.01, Flimit, by=delta))
-  yields<-numeric(length(scales))
-  ssbs<-numeric(length(scales))
-  for(i in 1:length(scales)){
-    scale<-scales[i]
-    F<-extend(ave.sl*scale)
-    Z<-M+F
-    for(a in 2:length(N)){
-      N[a]<-N[a-1]*exp(-Z[a-1])  
-    }
-    C<-F/Z*(1-exp(-Z))*N*lf  
-    Y<-sum(C*cw)
-    yields[i]<-Y
-    ssbs[i]<-sum(N*pm*sw)
-  }
-  
-  fmaxidx<-which.max(yields)
-  fmax<-scales[fmaxidx]
-  
-  deltaY<-diff(yields)
-  f01idx<-which.min((deltaY/delta-0.1*deltaY[1]/deltafirst)^2)+1
-  f01<-scales[f01idx]
-  
-  f35spridx<-which.min((ssbs-0.35*ssbs[1])^2)+1
-  f35<-scales[f35spridx]
-  
-  fbarlab <- substitute(bar(F)[X - Y], list(X = fit$conf$fbarRange[1], Y = fit$conf$fbarRange[2]))
-  ret<-list(fbar=scales, ssb=ssbs, yield=yields, fbarlab=fbarlab, f35=f35, f01=f01, fmax=fmax, 
-            f35Idx=f35spridx, f01Idx=f01idx, fmaxIdx=fmaxidx)
-  class(ret)<-"samypr"
-  return(ret)
-}
 
 calcCatchAdviceError <- function(fit, simOut, confLogScale){
 
@@ -1681,8 +1593,8 @@ calcCatchAdviceError <- function(fit, simOut, confLogScale){
   naa_tru <- vector("numeric", length(fitReal$conf$minAge:fitReal$conf$maxAge))
   naa_tru[1] <- 1
   full_f <- seq(0, 10, 0.01)
-  maxFage_est <- which(ave.sel == 1)
-  maxFage_tru <- which(ave.sel == 1)
+  maxFage_est <- which.max(ave.sel)
+  maxFage_tru <- which.max(ave.sel)
   ssbr_est <- vector("numeric", length = length(full_f))
   ssbr_tru <- vector("numeric", length = length(full_f))
   for (h in 1:length(full_f)) {
@@ -1690,8 +1602,8 @@ calcCatchAdviceError <- function(fit, simOut, confLogScale){
       naa_est[i] <- naa_est[i-1] * exp(-(full_f[h] * ave.sel_est[i-1] + ave.nm[i-1]))
       naa_tru[i] <- naa_tru[i-1] * exp(-(full_f[h] * ave.sel_tru[i-1] + ave.nm[i-1]))
       if (i == fit$conf$maxAge & fit$conf$maxAgePlusGroup) { # if plus group
-        naa_est[i] <- naa_est[i] * 1/(1-exp(-(full_f[h] * ave.sel[maxFage] + ave.nm[maxFage_est])))
-        naa_tru[i] <- naa_tru[i] * 1/(1-exp(-(full_f[h] * ave.sel[maxFage] + ave.nm[maxFage_tru])))
+        naa_est[i] <- naa_est[i] * 1/(1-exp(-(full_f[h] * ave.sel[maxFage_est] + ave.nm[maxFage_est])))
+        naa_tru[i] <- naa_tru[i] * 1/(1-exp(-(full_f[h] * ave.sel[maxFage_tru] + ave.nm[maxFage_tru])))
       }
     }
     ssbr_est[h] <- sum(naa_est * ave.sw * ave.pm)
@@ -1708,9 +1620,9 @@ calcCatchAdviceError <- function(fit, simOut, confLogScale){
   z40_est <- f40_est + ave.nm
   
   catch40_mt_tru <- exp(simOut$trueParams$pl$logN[,idxno]) * 
-    (1 - exp(-z40_tru)) * f40_tru/z40_tru * ave.cw
+                      (1 - exp(-z40_tru)) * (f40_tru/z40_tru) * ave.cw
   catch40_mt_est <- exp(fit$pl$logN[,idxno]) * 
-    (1 - exp(-z40_est)) * f40_est/z40_est * ave.cw
+                      (1 - exp(-z40_est)) * (f40_est/z40_est) * ave.cw
   
 
   return(data.frame(model = confLogScale$logScaleType,

@@ -1,6 +1,6 @@
 ## Perform SAM simulation tests
  
-#() Catch advice metric
+
 # Install github version of package to use default package
 #devtools::install_github("fishfollower/SAM/stockassessment")
 # Install local version of package with changes
@@ -365,17 +365,17 @@ ggplot(df_errCatchAdvice %>%
                     ymax = mape + 1.96 * mape_se),
                 width = 0.2) +
   geom_hline(aes(yintercept = 0), size = 0.2) +
-  facet_wrap(~scenario, scales = "free_y") +
+  facet_wrap(~scenario) +
   theme_bw() +
   guides(color=guide_legend(title="Estimation model")) +
   scale_color_manual(values = colors2use) +
-  ylab("Mean absolute percent error (MT)") +
+  ylab("Mean absolute percent error") +
   xlab("Estimation model") +
-  ggtitle("Catch advice error (catch @ F40%)")
+  ggtitle("Catch advice error (recommended catch @ F40%)")
 
 # histogram
-ggplot(df_errCatchAdvice,
-       aes(x = error_pc, color = model, fill = model)) +
+ggplot(df_errCatchAdvice %>% dplyr::filter(abs(error) < quantile(abs(error), 0.60)),
+       aes(x = error, color = model, fill = model)) +
   geom_histogram(alpha=.5, position="identity") +
   facet_wrap(~scenario, scales = "free_y") +
   theme_bw() +
@@ -384,8 +384,8 @@ ggplot(df_errCatchAdvice,
   scale_color_manual(values = colors2use) +
   scale_fill_manual(values = colors2use) +
   ylab("Frequency") +
-  xlab("Percent error") +
-  ggtitle("Catch advice error (catch @ F40%)")
+  xlab("Estimated catch - True catch (MT) ") +
+  ggtitle("Catch advice error (recommended catch @ F40%)")
   
 # Calculate fit error
 containerAccept$err_random <- vector("list", length = nrow(containerAccept))
