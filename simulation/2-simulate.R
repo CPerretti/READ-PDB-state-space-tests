@@ -196,9 +196,9 @@ containerAccept <- # Also exclude non-covergences
 i2include <- vector()
 for (i in 1:nrow(containerAccept)) {
   if (mean(exp(containerAccept$fitSim_random[[i]]$pl$logN) / 
-       exp(containerAccept$simOut[[i]]$trueParams$pl$logN)) < 1000 |
+       exp(containerAccept$simOut[[i]]$trueParams$pl$logN)) < 1000 &
       mean(exp(containerAccept$fitSim_fixed[[i]]$pl$logN) / 
-           exp(containerAccept$simOut[[i]]$trueParams$pl$logN)) < 1000 |
+           exp(containerAccept$simOut[[i]]$trueParams$pl$logN)) < 1000 &
       mean(exp(containerAccept$fitSim_none[[i]]$pl$logN) / 
            exp(containerAccept$simOut[[i]]$trueParams$pl$logN)) < 1000) {
     i2include <- c(i2include, i)
@@ -298,10 +298,10 @@ df_mohn <-
                 abs_mohn = abs(mohn_rho)) %>%
   dplyr::group_by(model, scenario, variable) %>%
   dplyr::summarise(abs_mohn_mean = mean(abs_mohn, na.rm = T),
-                   abs_mohn_se   = sd(abs_mohn, na.rm = T)/sum(!is.na(abs_mohn)))
+                   abs_mohn_se   = sd(abs_mohn, na.rm = T)/sqrt(sum(!is.na(abs_mohn))))
+
 
 # Plot Mohn's rho results
-#plotMohn(df_mohn)
 colors2use <- RColorBrewer::brewer.pal(3, "Dark2")
 ggplot(df_mohn,
        aes(x = model, y = abs_mohn_mean, color = model)) +
@@ -358,9 +358,9 @@ colors2use <- RColorBrewer::brewer.pal(3, "Dark2")
 ggplot(df_errCatchAdvice %>%
         dplyr::group_by(model, variable, scenario) %>%
         dplyr::summarise(mape    = mean(abs_error_pc),
-                         mape_se = sd(abs_error_pc)/length(abs_error_pc)),
+                         mape_se = sd(abs_error_pc)/sqrt(length(abs_error_pc))),
        aes(x = model, y = mape, color = model)) +
-  geom_point() +
+  geom_point(size = 2) +
   geom_errorbar(aes(ymin = mape - 1.96 * mape_se,
                     ymax = mape + 1.96 * mape_se),
                 width = 0.2) +
@@ -369,13 +369,18 @@ ggplot(df_errCatchAdvice %>%
   theme_bw() +
   guides(color=guide_legend(title="Estimation model")) +
   scale_color_manual(values = colors2use) +
-  ylab("Mean absolute percent error") +
+  ylab("Catch advice error (MAPE)") +
   xlab("Estimation model") +
-  ggtitle("Catch advice error (recommended catch @ F40%)")
+  #ggtitle("Catch advice error (recommended catch @ F40%)") +
+  theme(axis.title = element_text(size = 16),
+        axis.text = element_text(size = 13),
+        strip.text = element_text(size = 14),
+        legend.text = element_text(size = 12))
 
 # histogram
-ggplot(df_errCatchAdvice %>% dplyr::filter(abs(error) < quantile(abs(error), 0.80)),
-       aes(x = error, color = model, fill = model)) +
+ggplot(df_errCatchAdvice %>%
+         dplyr::filter(error_pc <100000),
+       aes(x = error_pc, color = model, fill = model)) +
   geom_histogram(alpha=.5, position="identity") +
   facet_wrap(~scenario, scales = "free_y") +
   theme_bw() +
@@ -384,8 +389,11 @@ ggplot(df_errCatchAdvice %>% dplyr::filter(abs(error) < quantile(abs(error), 0.8
   scale_color_manual(values = colors2use) +
   scale_fill_manual(values = colors2use) +
   ylab("Frequency") +
-  xlab("Estimated catch - True catch (MT) ") +
-  ggtitle("Catch advice error (recommended catch @ F40%)")
+  xlab("Percent error of catch advice (fit - true)") +
+  theme(axis.title = element_text(size = 16),
+        axis.text = element_text(size = 13),
+        strip.text = element_text(size = 14),
+        legend.text = element_text(size = 12))
   
 # Calculate fit error
 containerAccept$err_random <- vector("list", length = nrow(containerAccept))

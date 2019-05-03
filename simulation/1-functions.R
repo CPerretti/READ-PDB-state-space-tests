@@ -1,5 +1,8 @@
 # Functions for simulations
 
+#### Adjust plot properties ###############################
+
+
 ## Simulation model #######################################
 sim <- function(fit, keyLogScale, noScaledYears, container_i) {
   nA <- ncol(fit$data$propF) # number of age-classes
@@ -1152,18 +1155,25 @@ plotTsError <- function(container) {
                      mape_hi   = mape + 1.96 * sd(abs_error_pc, na.rm = T)/sqrt(nObs),
                      mape_lo   = mape - 1.96 * sd(abs_error_pc, na.rm = T)/sqrt(nObs))
   p <-
-    ggplot(err2plot_CSSB %>% dplyr::filter(model != "no misreporting"),
+    ggplot(err2plot_CSSB %>% 
+             dplyr::filter(model %in% c("fixed", "random walk")),#,
+                           #scenario %in% c("no misreporting scenario", "fixed scenario"),
+                           #variable == "catch"
+            #               ),
            aes(x = year, color = model, fill = model)) +
-    geom_line(aes(y = mape)) +
-    geom_ribbon(aes(ymin = mape_lo, ymax = mape_hi), color = NA, alpha = 0.3) +
+    geom_line(aes(y = error_pc_mean)) +
+    geom_ribbon(aes(ymin = error_pc_lo, ymax = error_pc_hi), color = NA, alpha = 0.3) +
     geom_hline(yintercept = 0) +
     facet_grid(scenario~variable, scales = "free_y") +
     theme_bw() +
     xlab("Year") +
-    ylab("Mean absolute percent error") +
+    ylab("Mean percent error") +
     scale_color_manual(values = colors2use[2:3]) +
     scale_fill_manual(values = colors2use[2:3]) +
-    ggtitle("Estimation error")
+    ggtitle("Estimation error")  +
+    theme(axis.title   = element_text(size = 14),
+          plot.title   = element_text(size = 16),
+          strip.text   = element_text(size = 9))
   
   print(p)
   
@@ -1200,7 +1210,7 @@ plotTsError <- function(container) {
       ylab("Mean absolute percent error") +
       scale_color_manual(values = colors2use[2:3]) +
       scale_fill_manual(values = colors2use[2:3]) +
-      ggtitle("Scale estimation error")
+      ggtitle("Scale estimation error") 
     
     print(p)
     
@@ -1210,7 +1220,8 @@ plotTsError <- function(container) {
       err %>%
       dplyr::mutate(fit_975 = exp(log(fit) + 1.96 * sdLog),
                     fit_025 = exp(log(fit) - 1.96 * sdLog),
-                    replicate = paste("replicate", replicate)) %>%
+                    replicate = paste("replicate", replicate),
+                    age = paste("age-", age)) %>%
       dplyr::filter(variable %in% c("Scale"))
     scenarios2plot <- unique(err2plot_Scale$scenario)
     for (i in 1:length(scenarios2plot)) {
@@ -1233,6 +1244,30 @@ plotTsError <- function(container) {
                        scenarios2plot[i], ")"))
       print(p)
     }
+    
+    # Example scale time series
+      p <-
+        ggplot(err2plot_Scale %>%
+                 dplyr::filter(replicate %in% unique(replicate)[1]), 
+               aes(x = year)) +
+        geom_line(aes(y = fit, color = model)) +
+        geom_hline(yintercept = 1, color = "dark grey") +
+        geom_line(aes(y = tru), color = "black") +
+        geom_ribbon(aes(ymin = fit_975, ymax = fit_025, fill = model), 
+                    alpha = 0.3, color = NA) +
+        facet_grid(scenario~age, scales = "free_y") +
+        theme_bw() +
+        xlab("Year") +
+        ylab("Scale parameter value") +
+        #scale_y_continuous(breaks=seq(1,11,2)) +
+        scale_x_continuous(breaks = seq(2005, 2014, 4)) +
+        scale_color_manual(values = colors2use[2:3]) +
+        scale_fill_manual(values = colors2use[2:3]) +
+        ggtitle("An example of each misreporting scenario") +
+        theme(axis.title   = element_text(size = 14),
+              plot.title   = element_text(size = 16),
+              strip.text   = element_text(size = 12))
+      print(p)
 
   }
   
@@ -1278,16 +1313,24 @@ plotTsError <- function(container) {
   errPairs <- 
     err %>%
     dplyr::filter(year %in% container$setupMod_fixed[[1]]$conf$keyScaledYears) %>%
-    dplyr::group_by(model, scenario, replicate, age, variable) %>%
-    dplyr::summarise(mean_abs_error_pc = mean(abs_error_pc)) %>%
-    tidyr::spread(variable, mean_abs_error_pc)
+    dplyr::group_by(model, scenario, variable) %>%
+    dplyr::summarise(mape = mean(abs_error_pc, na.rm = T),
+                     mape_se = sd(abs_error_pc, na.rm = T)/
+                               sqrt(length(!is.na(abs_error_pc)))) 
   
-  ggplot(errPairs %>% dplyr::filter(scenario == "uniform random scenario",
-                                    model %in% c("fixed", "random walk"),
-                                    age != "total"), 
-         aes(x = Scale, y = `F`, color = model)) +
-    geom_point(alpha = 0.4) +
-    facet_wrap(~age, scales = "free")
+  ggplot(errPairs %>%
+           dplyr::select(-mape_se) %>%
+           tidyr::spread(variable, mape) %>%
+           tidyr::gather(variable, mape, -model, -scenario, -Scale) %>%
+           dplyr::filter(model != "no misreporting",
+                         scenario == "uniform random scenario"),
+         aes(x = Scale, y = mape, color = model, group = variable, shape = variable)) +
+    geom_point(size = 4) +
+    geom_line(color = "black") +
+    scale_color_manual(values = colors2use[2:3]) +
+    xlab("Estimation error of Scale parameter (MAPE)") +
+    ylab("Estimation error of variable (MAPE)") +
+    ggtitle("Uniform random scenario")
   
 }
 
@@ -1599,8 +1642,8 @@ calcCatchAdviceError <- function(fit, simOut, confLogScale){
   naa_tru <- vector("numeric", length(fitReal$conf$minAge:fitReal$conf$maxAge))
   naa_tru[1] <- 1
   full_f <- seq(0, 10, 0.01)
-  maxFage_est <- which.max(ave.sel)
-  maxFage_tru <- which.max(ave.sel)
+  maxFage_est <- which.max(ave.sel_est)
+  maxFage_tru <- which.max(ave.sel_tru)
   ssbr_est <- vector("numeric", length = length(full_f))
   ssbr_tru <- vector("numeric", length = length(full_f))
   for (h in 1:length(full_f)) {
@@ -1608,16 +1651,19 @@ calcCatchAdviceError <- function(fit, simOut, confLogScale){
       naa_est[i] <- naa_est[i-1] * exp(-(full_f[h] * ave.sel_est[i-1] + ave.nm[i-1]))
       naa_tru[i] <- naa_tru[i-1] * exp(-(full_f[h] * ave.sel_tru[i-1] + ave.nm[i-1]))
       if (i == fit$conf$maxAge & fit$conf$maxAgePlusGroup) { # if plus group
-        naa_est[i] <- naa_est[i] * 1/(1-exp(-(full_f[h] * ave.sel[maxFage_est] + ave.nm[maxFage_est])))
-        naa_tru[i] <- naa_tru[i] * 1/(1-exp(-(full_f[h] * ave.sel[maxFage_tru] + ave.nm[maxFage_tru])))
+        naa_est[i] <- naa_est[i] * 1/(1-exp(-(full_f[h] * ave.sel_est[maxFage_est] + ave.nm[maxFage_est])))
+        naa_tru[i] <- naa_tru[i] * 1/(1-exp(-(full_f[h] * ave.sel_tru[maxFage_tru] + ave.nm[maxFage_tru])))
       }
     }
     ssbr_est[h] <- sum(naa_est * ave.sw * ave.pm)
     ssbr_tru[h] <- sum(naa_tru * ave.sw * ave.pm)
   }
   
-  # plot(full_f, abs(ssbr_tru/ssbr_tru[1] - .4), type = "l", col ="black")
-  # lines(full_f, abs(ssbr_est/ssbr_est[1] - .4), type = "l", col ="blue")
+  # plot(full_f[1:400], ssbr_tru[1:400]/ssbr_tru[1], type = "l", col ="black", 
+  #      xlab = "F", ylab = expression(SSB[F] / SSB[F == 0]), cex.lab = 1.1)
+  # lines(full_f[1:400], ssbr_est[1:400]/ssbr_est[1], type = "l", col ="blue")
+  # legend(2.7, 0.8, legend=c("True", "Estimated"),
+  #        col=c("black", "blue"), lty = 1, cex = 1.2)
   f40ind_tru <- which.min(abs(ssbr_tru/ssbr_tru[1] - .4))
   f40ind_est <- which.min(abs(ssbr_est/ssbr_est[1] - .4))
   f40_tru <- full_f[f40ind_tru] * ave.sel_tru
