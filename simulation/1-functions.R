@@ -408,14 +408,16 @@ plotF <- function(simOut, fit) {
     dplyr::mutate(age = paste0("age-", age))
   
   # Plot N-at-age (all ages should match exactly when using errPro_exact)
-  ggplot(data = df2plotF,
+  ggplot(data = df2plotF %>% dplyr::filter(source == "fit"),
          aes(x = year, y = f, color = source)) +
     geom_line() +
     facet_wrap(~age, scales = "free") +
     ylab("F") +
-    ggtitle("F-at-age") +
+    xlab("Year") +
+    ggtitle("North Sea Cod F-at-age") +
     theme_bw() +
     theme(legend.title = element_blank(),
+          legend.position = "none",
           legend.text = element_text(size = 12))
 }
 

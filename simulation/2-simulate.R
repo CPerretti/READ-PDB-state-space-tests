@@ -295,27 +295,36 @@ df_mohn <-
                                                         "fixed",
                                                         "random walk",
                                                         "uniform random")),
-                abs_mohn = abs(mohn_rho)) %>%
-  dplyr::group_by(model, scenario, variable) %>%
-  dplyr::summarise(abs_mohn_mean = mean(abs_mohn, na.rm = T),
-                   abs_mohn_se   = sd(abs_mohn, na.rm = T)/sqrt(sum(!is.na(abs_mohn))))
+                abs_mohn = abs(mohn_rho)
+                ) #%>%
+  #dplyr::group_by(model, scenario, variable) %>%
+  #dplyr::summarise(abs_mohn_mean = mean(abs_mohn, na.rm = T),
+  #                 abs_mohn_se   = sd(abs_mohn, na.rm = T)/sqrt(sum(!is.na(abs_mohn))))
 
 
 # Plot Mohn's rho results
 colors2use <- RColorBrewer::brewer.pal(3, "Dark2")
-ggplot(df_mohn,
-       aes(x = model, y = abs_mohn_mean, color = model)) +
-  geom_point() +
-  geom_errorbar(aes(ymin = abs_mohn_mean - 1.96 * abs_mohn_se,
-                    ymax = abs_mohn_mean + 1.96 * abs_mohn_se),
-                width = 0.2) +
-  geom_hline(aes(yintercept = 0), size = 0.2) +
-  facet_grid(scenario~variable, scales = "free_y") +
+ggplot(df_mohn %>% 
+         dplyr::filter(variable == "SSB"),
+       aes(x = abs_mohn, color = model, fill = model)) +
+  geom_histogram(alpha=.5, position="identity") +
+  geom_rug(data = df_mohn %>% 
+             dplyr::group_by(model, scenario) %>%
+             dplyr::summarise(median_abs_mohn = median(abs_mohn, na.rm = T)),
+           aes(x = median_abs_mohn, color = model),
+           size = 3) +
+  facet_wrap(~scenario, scales = "free_y") +
   theme_bw() +
   guides(color=guide_legend(title="Estimation model")) +
+  guides(fill=guide_legend(title="Estimation model")) +
   scale_color_manual(values = colors2use) +
-  ylab("Mean absolute mohn's rho") +
-  xlab("Estimation model")
+  scale_fill_manual(values = colors2use) +
+  ylab("Frequency") +
+  xlab("Mohn's rho of SSB") +
+  theme(axis.title = element_text(size = 16),
+        axis.text = element_text(size = 13),
+        strip.text = element_text(size = 14),
+        legend.text = element_text(size = 12))
   
 # Calculate F40% for fitted models and true models
 # F40% is the F that results in the SSB/R being 40% of the
@@ -378,8 +387,8 @@ ggplot(df_errCatchAdvice %>%
         legend.text = element_text(size = 12))
 
 # histogram
-ggplot(df_errCatchAdvice %>%
-         dplyr::filter(error_pc <100000),
+ggplot(df_errCatchAdvice, #%>%
+         #dplyr::filter(error_pc <100000),
        aes(x = error_pc, color = model, fill = model)) +
   geom_histogram(alpha=.5, position="identity") +
   facet_wrap(~scenario, scales = "free_y") +
