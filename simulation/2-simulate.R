@@ -291,10 +291,11 @@ df_mohn <-
   dplyr::mutate(model  = factor(model, levels = c("no misreporting", 
                                                   "fixed",
                                                   "random walk")),
-                scenario  = factor(scenario, levels = c("no misreporting", 
-                                                        "fixed",
-                                                        "random walk",
-                                                        "uniform random")),
+                scenario = paste(scenario, "scenario"),
+                scenario  = factor(scenario, levels = c("no misreporting scenario", 
+                                                        "fixed scenario",
+                                                        "random walk scenario",
+                                                        "uniform random scenario")),
                 abs_mohn = abs(mohn_rho)
                 ) #%>%
   #dplyr::group_by(model, scenario, variable) %>%
@@ -305,25 +306,27 @@ df_mohn <-
 # Plot Mohn's rho results
 colors2use <- RColorBrewer::brewer.pal(3, "Dark2")
 ggplot(df_mohn %>% 
-         dplyr::filter(variable == "SSB"),
-       aes(x = abs_mohn, color = model, fill = model)) +
+         dplyr::mutate(abs_mohn_plusgroup = ifelse(abs_mohn >= 1, 1, abs_mohn)),
+       aes(x = abs_mohn_plusgroup, color = model, fill = model)) +
   geom_histogram(alpha=.5, position="identity") +
   geom_rug(data = df_mohn %>% 
              dplyr::group_by(model, scenario) %>%
              dplyr::summarise(median_abs_mohn = median(abs_mohn, na.rm = T)),
            aes(x = median_abs_mohn, color = model),
            size = 3) +
-  facet_wrap(~scenario, scales = "free_y") +
+  facet_grid(scenario~variable, scales = "free_y") +
   theme_bw() +
   guides(color=guide_legend(title="Estimation model")) +
   guides(fill=guide_legend(title="Estimation model")) +
   scale_color_manual(values = colors2use) +
   scale_fill_manual(values = colors2use) +
+  scale_x_continuous(breaks = seq(0,1,0.25),
+                     labels = c(0, 0.25, 0.5, 0.75, "1+")) +
   ylab("Frequency") +
-  xlab("Mohn's rho of SSB") +
+  xlab("Mohn's rho") +
   theme(axis.title = element_text(size = 16),
         axis.text = element_text(size = 13),
-        strip.text = element_text(size = 14),
+        strip.text = element_text(size = 10),
         legend.text = element_text(size = 12))
   
 # Calculate F40% for fitted models and true models
@@ -386,20 +389,57 @@ ggplot(df_errCatchAdvice %>%
         strip.text = element_text(size = 14),
         legend.text = element_text(size = 12))
 
-# histogram
-ggplot(df_errCatchAdvice, #%>%
-         #dplyr::filter(error_pc <100000),
-       aes(x = error_pc, color = model, fill = model)) +
+# Catch advice error table
+df_errCatchAdvice %>% 
+  dplyr::group_by(model, scenario) %>%
+  dplyr::summarise(median_error = median(error, na.rm = T),
+                   se_error = sd(error, na.rm = T) / sqrt(sum(!is.na(error))))
+
+# histogram of catch error
+ggplot(df_errCatchAdvice %>% 
+         dplyr::mutate(error_plusgroup = ifelse(error >= 10000, 10000, error),
+                       error_plusgroup = ifelse(error <= -10000, -10000, error_plusgroup)),
+       aes(x = error_plusgroup, color = model, fill = model)) +
   geom_histogram(alpha=.5, position="identity") +
+  geom_rug(data = df_errCatchAdvice %>% 
+             dplyr::group_by(model, scenario) %>%
+             dplyr::summarise(median_error = median(error, na.rm = T)),
+           aes(x = median_error, color = model), size = 3) +
   facet_wrap(~scenario, scales = "free_y") +
   theme_bw() +
   guides(color=guide_legend(title="Estimation model")) +
   guides(fill=guide_legend(title="Estimation model")) +
   scale_color_manual(values = colors2use) +
   scale_fill_manual(values = colors2use) +
+  scale_x_continuous(breaks = c(-10000, -5000, 0, 5000, 10000),
+                     labels = c("-10000+", -5000, 0, 5000, "10000+")) +    
   ylab("Frequency") +
-  xlab("Percent error of catch advice (fit - true)") +
-  theme(axis.title = element_text(size = 16),
+  xlab("Catch advice error (fit - true) (metric tons)") +
+  theme(axis.title = element_text(size = 14),
+        axis.text = element_text(size = 13),
+        strip.text = element_text(size = 14),
+        legend.text = element_text(size = 12))
+
+# histogram of absolute catch error
+ggplot(df_errCatchAdvice %>% 
+         dplyr::mutate(abs_error_plusgroup = ifelse(abs_error >= 100000, 100000, abs_error)),
+       aes(x = abs_error_plusgroup, color = model, fill = model)) +
+  geom_histogram(alpha=.5, position="identity") +
+  geom_rug(data = df_errCatchAdvice %>% 
+             dplyr::group_by(model, scenario) %>%
+             dplyr::summarise(median_abs_error = median(abs_error, na.rm = T)),
+           aes(x = median_abs_error, color = model), size = 3) +
+  facet_wrap(~scenario, scales = "free_y") +
+  theme_bw() +
+  guides(color=guide_legend(title="Estimation model")) +
+  guides(fill=guide_legend(title="Estimation model")) +
+  scale_color_manual(values = colors2use) +
+  scale_fill_manual(values = colors2use) +
+  scale_x_continuous(breaks = c(0, 25000, 50000, 75000, 100000),
+                     labels = c(0, 25000, 50000, 75000, "100000+")) +    
+  ylab("Frequency") +
+  xlab("Catch advice absolute error, abs(fit - true), (metric tons)") +
+  theme(axis.title = element_text(size = 14),
         axis.text = element_text(size = 13),
         strip.text = element_text(size = 14),
         legend.text = element_text(size = 12))
