@@ -390,31 +390,32 @@ ggplot(df_errCatchAdvice %>%
         legend.text = element_text(size = 12))
 
 # Catch advice error table
-df_errCatchAdvice %>% 
-  dplyr::group_by(model, scenario) %>%
+catch_error_table <-
+  df_errCatchAdvice %>% 
+  dplyr::group_by(scenario, model) %>%
   dplyr::summarise(median_error = median(error, na.rm = T),
                    se_error = sd(error, na.rm = T) / sqrt(sum(!is.na(error))))
 
 # histogram of catch error
-ggplot(df_errCatchAdvice %>% 
-         dplyr::mutate(error_plusgroup = ifelse(error >= 10000, 10000, error),
-                       error_plusgroup = ifelse(error <= -10000, -10000, error_plusgroup)),
-       aes(x = error_plusgroup, color = model, fill = model)) +
+ggplot(df_errCatchAdvice, #%>% 
+         #dplyr::mutate(error_plusgroup = ifelse(error >= 10000, 10000, error),
+         #               error_plusgroup = ifelse(error <= -10000, -10000, error_plusgroup)),
+       aes(x = error_pc, color = model, fill = model)) +
   geom_histogram(alpha=.5, position="identity") +
   geom_rug(data = df_errCatchAdvice %>% 
              dplyr::group_by(model, scenario) %>%
-             dplyr::summarise(median_error = median(error, na.rm = T)),
-           aes(x = median_error, color = model), size = 3) +
+             dplyr::summarise(median_error_pc = median(error_pc, na.rm = T)),
+           aes(x = median_error_pc, color = model), size = 3) +
   facet_wrap(~scenario, scales = "free_y") +
   theme_bw() +
   guides(color=guide_legend(title="Estimation model")) +
   guides(fill=guide_legend(title="Estimation model")) +
   scale_color_manual(values = colors2use) +
   scale_fill_manual(values = colors2use) +
-  scale_x_continuous(breaks = c(-10000, -5000, 0, 5000, 10000),
-                     labels = c("-10000+", -5000, 0, 5000, "10000+")) +    
+  # scale_x_continuous(breaks = c(-10000, -5000, 0, 5000, 10000),
+  #                    labels = c("-10000+", -5000, 0, 5000, "10000+")) +    
   ylab("Frequency") +
-  xlab("Catch advice error (fit - true) (metric tons)") +
+  xlab("Catch advice percent error (fit - true)") +
   theme(axis.title = element_text(size = 14),
         axis.text = element_text(size = 13),
         strip.text = element_text(size = 14),

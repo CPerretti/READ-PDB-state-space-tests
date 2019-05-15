@@ -1147,18 +1147,18 @@ plotTsError <- function(container) {
   err2plot_CSSB <-
     err %>%  
     dplyr::filter(variable %in% c("catch", "ssb", "F", "N")) %>%
-    dplyr::select(model, scenario, year, variable, age, replicate, error_pc, abs_error_pc) %>%
+    dplyr::select(model, scenario, year, variable, age, replicate, error, error_pc, abs_error_pc) %>%
     dplyr::group_by(model, scenario, year, variable) %>%
-    dplyr::summarise(error_pc_mean = mean(error_pc, na.rm = T),
+    dplyr::summarise(error_pc_mean = mean(error, na.rm = T),
                      mape  = mean(abs_error_pc, na.rm = T),
                      nObs = length(abs_error_pc),
-                     error_pc_hi   = error_pc_mean + 1.96 * sd(error_pc, na.rm = T)/sqrt(nObs),
-                     error_pc_lo  = error_pc_mean - 1.96 * sd(error_pc, na.rm = T)/sqrt(nObs),
+                     error_pc_hi   = error_pc_mean + 1.96 * sd(error, na.rm = T)/sqrt(nObs),
+                     error_pc_lo  = error_pc_mean - 1.96 * sd(error, na.rm = T)/sqrt(nObs),
                      mape_hi   = mape + 1.96 * sd(abs_error_pc, na.rm = T)/sqrt(nObs),
                      mape_lo   = mape - 1.96 * sd(abs_error_pc, na.rm = T)/sqrt(nObs))
   p <-
-    ggplot(err2plot_CSSB %>% 
-             dplyr::filter(model %in% c("fixed", "random walk")),#,
+    ggplot(err2plot_CSSB,# %>% 
+             #dplyr::filter(model %in% c("fixed", "random walk")),#,
                            #scenario %in% c("no misreporting scenario", "fixed scenario"),
                            #variable == "catch"
             #               ),
@@ -1170,8 +1170,8 @@ plotTsError <- function(container) {
     theme_bw() +
     xlab("Year") +
     ylab("Mean percent error") +
-    scale_color_manual(values = colors2use[2:3]) +
-    scale_fill_manual(values = colors2use[2:3]) +
+    scale_color_manual(values = colors2use[1:3]) +
+    scale_fill_manual(values = colors2use[1:3]) +
     ggtitle("Estimation error")  +
     theme(axis.title   = element_text(size = 14),
           plot.title   = element_text(size = 16),
