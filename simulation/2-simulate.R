@@ -39,7 +39,7 @@ scenarios <- c("uniform random",
                "random walk",
                "fixed",
                "no misreporting")
-nRep <- 300#100 # Number of simulation replicates
+nRep <- 300 # Number of simulation replicates
 noScaledYears <- 10
 
 # Output container
