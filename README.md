@@ -1,3 +1,3 @@
 # state-space-tests
 
-Repository for ongoing work simulation testing state-space stock assessment models.
+Simulation code for testing a state-space stock assessment model (SAM) under various misreporting scenarios.
