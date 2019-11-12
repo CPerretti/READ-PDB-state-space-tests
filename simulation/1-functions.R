@@ -16,6 +16,8 @@ sim <- function(fit, keyLogScale, noScaledYears, container_i) {
          `uniform random` = {
            logScale <- matrix(data = log(runif(nAs * noScaledYears, 1.5, 10)),
                               nrow = nAs, ncol = noScaledYears)
+           # logScale <- matrix(data = log(rnorm(nAs * noScaledYears, 8, 2)),
+           #                    nrow = nAs, ncol = noScaledYears)
          },
          `random walk` = { # RW from 1 with reflecting boundary at 1
            logSdLogScale <- log(0.2)
@@ -408,17 +410,19 @@ plotF <- function(simOut, fit) {
     dplyr::mutate(age = paste0("age-", age))
   
   # Plot N-at-age (all ages should match exactly when using errPro_exact)
-  ggplot(data = df2plotF %>% dplyr::filter(source == "fit"),
+  ggplot(data = df2plotF %>% dplyr::filter(source == "tru"),
          aes(x = year, y = f, color = source)) +
     geom_line() +
     facet_wrap(~age, scales = "free") +
     ylab("F") +
     xlab("Year") +
-    ggtitle("North Sea Cod F-at-age") +
+    ggtitle("Simulated F-at-age") +
     theme_bw() +
     theme(legend.title = element_blank(),
           legend.position = "none",
           legend.text = element_text(size = 12))
+  
+  ggsave("./figures/simulated_f_at_age.png", width = 7, height = 5)
 }
 
 ## Plot N-at-age simulated vs fit #######################
@@ -441,7 +445,7 @@ plotN <- function(simOut, fit) {
     #dplyr::mutate(source = ifelse(source == "fit", "NS cod fit", "Simulated"))
   
   # Plot N-at-age (all ages should match exactly when using errPro_exact)
-  ggplot(data = df2plotN,
+  ggplot(data = df2plotN %>% filter(source == "tru"),
          aes(x = year, y = N, color = source)) +
     geom_line() +
     facet_wrap(~age, scales = "free") +
@@ -882,11 +886,23 @@ calcCSSBError <- function(fitSim, simOut) {
                        year = names(simOut$SSB),
                        age = "total",
                        variable = "ssb")) %>%
-      dplyr::mutate(year = as.integer(year))
-     
+      dplyr::mutate(year = as.integer(year)) %>%
+      rbind({simOut$Cobs_mt %>%
+             t() %>%
+             as.data.frame() %>%
+             dplyr::mutate(total = rowSums(.),
+                           year = fitSim$data$years) %>%
+             tidyr::gather(age, Catch_mt, -year) %>%
+             dplyr::rename(tru = Catch_mt) %>%
+             dplyr::filter(age == "total") %>%
+             dplyr::mutate(variable = "catch_observed")})
+
     
     errCSSB <-
             df_CSSBfit %>%
+            rbind({df_CSSBfit %>% 
+                   filter(variable == "catch") %>% 
+                   mutate(variable = "catch_observed")}) %>%
               dplyr::left_join(df_CSSBtru) %>%
               dplyr::mutate(error = fit - tru,
                             abs_error = abs(error),
@@ -902,7 +918,7 @@ calcCSSBError <- function(fitSim, simOut) {
 }
 
 ## Plot timeseries error ##################################
-plotTsError <- function(container) {
+plotTsError <- function(err, scaled_years) {
   
   colors2use <- RColorBrewer::brewer.pal(3, "Dark2")
     
@@ -914,7 +930,8 @@ plotTsError <- function(container) {
   
   # Plot median error for N and F in each year for each age
   # p <-
-  #   ggplot(errAnnual %>% 
+  #   ggplot(errAnnual %>%
+  
   #            dplyr::filter(variable == "N") %>%
   #            dplyr::mutate(as.numeric(year)),
   #          aes(x = year, y = median_error)) +
@@ -1017,23 +1034,6 @@ plotTsError <- function(container) {
   #     ggtitle("Percent error vs true value")
   # print(p)
     
-  err <- data.frame()
-  for (i in 1:nrow(container)) {
-    err <-
-      rbind(err, 
-            {rbind(data.frame(container$err_random[[i]], model = "random walk"),
-                   data.frame(container$err_fixed[[i]],  model = "fixed"),
-                   data.frame(container$err_none[[i]],   model = "no misreporting")) %>%
-                dplyr::mutate(replicate = container$replicate[i],
-                              scenario  = as.factor(paste(container$scenario[i], "scenario")),
-                              scenario  = factor(scenario, levels = c("no misreporting scenario",
-                                                                      "fixed scenario",
-                                                                      "random walk scenario",
-                                                                      "uniform random scenario")),
-                              model     = factor(model, levels = c("no misreporting", 
-                                                                   "fixed",
-                                                                   "random walk")))})
-  }
   
   # err2plot <-
   #   err %>%  
@@ -1163,13 +1163,13 @@ plotTsError <- function(container) {
                            #variable == "catch"
             #               ),
            aes(x = year, color = model, fill = model)) +
-    geom_line(aes(y = error_pc_mean)) +
-    geom_ribbon(aes(ymin = error_pc_lo, ymax = error_pc_hi), color = NA, alpha = 0.3) +
+    geom_line(aes(y = mape)) +
+    geom_ribbon(aes(ymin = mape_lo, ymax = mape_hi), color = NA, alpha = 0.3) +
     geom_hline(yintercept = 0) +
     facet_grid(scenario~variable, scales = "free_y") +
     theme_bw() +
     xlab("Year") +
-    ylab("Mean percent error") +
+    ylab("Mean absolute percent error") +
     scale_color_manual(values = colors2use[1:3]) +
     scale_fill_manual(values = colors2use[1:3]) +
     ggtitle("Estimation error")  +
@@ -1254,22 +1254,24 @@ plotTsError <- function(container) {
                aes(x = year)) +
         geom_line(aes(y = fit, color = model)) +
         geom_hline(yintercept = 1, color = "dark grey") +
-        geom_line(aes(y = tru), color = "black") +
+        geom_line(aes(y = tru, color = "true")) +
         geom_ribbon(aes(ymin = fit_975, ymax = fit_025, fill = model), 
-                    alpha = 0.3, color = NA) +
+                    alpha = 0.3) +
         facet_grid(scenario~age, scales = "free_y") +
         theme_bw() +
         xlab("Year") +
         ylab("Scale parameter value") +
         #scale_y_continuous(breaks=seq(1,11,2)) +
         scale_x_continuous(breaks = seq(2005, 2014, 4)) +
-        scale_color_manual(values = colors2use[2:3]) +
-        scale_fill_manual(values = colors2use[2:3]) +
-        ggtitle("An example of each misreporting scenario") +
+        scale_color_manual(values = c(colors2use[2:3], "black")) +
+        scale_fill_manual(values = colors2use[2:3], guide = "none") +
         theme(axis.title   = element_text(size = 14),
               plot.title   = element_text(size = 16),
-              strip.text   = element_text(size = 12))
+              strip.text   = element_text(size = 12),
+              legend.title = element_blank())
       print(p)
+      
+      ggsave(plot = p, "./figures/scale_examples.png", width = 9, height = 10)
 
   }
   
@@ -1310,29 +1312,119 @@ plotTsError <- function(container) {
   #   print(p)
   # }
   
-  
-  # Plot pairs of F error vs Scale error for uniform scenario
-  errPairs <- 
-    err %>%
-    dplyr::filter(year %in% container$setupMod_fixed[[1]]$conf$keyScaledYears) %>%
-    dplyr::group_by(model, scenario, variable) %>%
-    dplyr::summarise(mape = mean(abs_error_pc, na.rm = T),
-                     mape_se = sd(abs_error_pc, na.rm = T)/
-                               sqrt(length(!is.na(abs_error_pc)))) 
-  
-  ggplot(errPairs %>%
-           dplyr::select(-mape_se) %>%
-           tidyr::spread(variable, mape) %>%
-           tidyr::gather(variable, mape, -model, -scenario, -Scale) %>%
+  # Plot histogram of scale percent errors in uniform scenario
+  colors2use <- RColorBrewer::brewer.pal(3, "Dark2")
+  ggplot(err %>%
            dplyr::filter(model != "no misreporting",
-                         scenario == "uniform random scenario"),
-         aes(x = Scale, y = mape, color = model, group = variable, shape = variable)) +
-    geom_point(size = 4) +
-    geom_line(color = "black") +
+                         scenario == "uniform random scenario",
+                         variable == "F"),
+         aes(x = abs_error_pc, color = model, fill = model)) +
+    geom_histogram(alpha=.5, position="identity") +
+    geom_rug(data = err %>%
+               dplyr::filter(model != "no misreporting",
+                             scenario == "uniform random scenario") %>% 
+               dplyr::group_by(model, scenario) %>%
+               dplyr::summarise(mape = mean(abs_error_pc, na.rm = T)),
+             aes(x = mape, color = model),
+             size = 3) +
+    theme_bw() +
+    guides(color=guide_legend(title="Estimation model")) +
+    guides(fill=guide_legend(title="Estimation model")) +
+    scale_color_manual(values = colors2use[2:3]) +
+    scale_fill_manual(values = colors2use[2:3]) +
+    ylab("Frequency") +
+    xlab("MAPE") +
+    theme(axis.title = element_text(size = 16),
+          axis.text = element_text(size = 13),
+          strip.text = element_text(size = 10),
+          legend.text = element_text(size = 12))
+  
+  # Plot replicate pairs of scale error vs variable error average over years
+  # within a replicate and age.
+  ggplot(err %>%
+           dplyr::filter(model != "no misreporting",
+                         scenario == "uniform random scenario",
+                         year %in% scaled_years) %>%
+           group_by(replicate, 
+                    age, model, scenario, variable) %>%
+           dplyr::summarise(mape = mean(abs_error_pc, na.rm = T)) %>%
+           dplyr::select(replicate, 
+                         mape, variable, model, 
+                         age, scenario)  %>%
+           tidyr::spread(variable, mape) %>%
+           tidyr::gather(variable, mape, -model, -scenario, 
+                         -Scale, 
+                         -replicate, 
+                         -age),
+         aes(x = Scale, y = mape, color = model, 
+             group = variable, shape = variable)) +
+    geom_point() +
+    #geom_line(color = "black") +
+    facet_wrap(~age, scales = "free_y") +
     scale_color_manual(values = colors2use[2:3]) +
     xlab("Estimation error of Scale parameter (MAPE)") +
     ylab("Estimation error of variable (MAPE)") +
     ggtitle("Uniform random scenario")
+  
+  # Plot CDF of MAPEs
+  ggplot(err %>%
+           dplyr::filter(model != "no misreporting",
+                         scenario == "uniform random scenario",
+                         variable %in% c("Scale"),
+                         year %in% scaled_years) %>%
+           group_by(replicate, 
+                    age, 
+                    model, scenario, variable) %>%
+           dplyr::summarise(mape = mean(abs_error_pc, na.rm = T)) %>%
+           dplyr::select(replicate, 
+                         mape, variable, model, 
+                         age, scenario)  %>%
+           tidyr::spread(variable, mape) %>%
+           tidyr::gather(variable, mape, -model, -scenario, 
+                         -`Scale`, 
+                         -replicate, 
+                         -age),
+         aes(x = `Scale`, color = model)) +
+    stat_ecdf(geom = "line") +
+    #geom_line(color = "black") +
+    facet_wrap(~age, scales = "free") +
+    scale_color_manual(values = colors2use[2:3]) +
+    xlab("Estimation error of Scale (MAPE)") +
+    ylab("CDF(x)") +
+    ggtitle("Uniform random scenario")
+  
+  # Plot pairs of mean variable error vs Scale error for uniform scenario
+  errPairs <- 
+    err %>%
+    dplyr::filter(year %in% scaled_years) %>%
+    dplyr::group_by(model, scenario, variable) %>%
+    #dplyr::filter(abs_error_pc < quantile(abs_error_pc, 0.50, na.rm=T)) %>%
+    dplyr::summarise(mape = mean(abs_error_pc, na.rm = T),
+                     mape_se = sd(abs_error_pc, na.rm = T)/
+                               sqrt(length(!is.na(abs_error_pc)))) %>%
+    dplyr::rename(`Estimation model` = model,
+                  Variable = variable)
+  
+  ggplot(errPairs %>%
+           dplyr::select(-mape_se) %>%
+           tidyr::spread(Variable, mape) %>%
+           tidyr::gather(Variable, 
+                         mape, -`Estimation model`,
+                         -scenario, -Scale) %>%
+           dplyr::filter(`Estimation model` != "no misreporting",
+                         scenario == "uniform random scenario")) +
+    aes(x = Scale, y = mape, color = `Estimation model`, 
+        group = Variable, shape = Variable) +
+    geom_point(size = 4) +
+    #facet_wrap(~age) +
+    geom_line(color = "black") +
+    scale_color_manual(values = colors2use[2:3]) +
+    xlab("Estimation error of Scale parameter (MAPE)") +
+    ylab("Estimation error of variable (MAPE)") +
+    ggtitle("Uniform random scenario") +
+    theme_bw()
+  
+  ggsave("./figures/scale_err_vs_other_err.png", width = 6, height = 6)
   
 }
 
@@ -1678,16 +1770,132 @@ calcCatchAdviceError <- function(fit, simOut, confLogScale){
   catch40_mt_est <- exp(fit$pl$logN[,idxno]) * 
                       (1 - exp(-z40_est)) * (f40_est/z40_est) * ave.cw
   
-
+  #<< Change the return so you also return f40, possibly also ave.sel of f40ind_
   return(data.frame(model = confLogScale$logScaleType,
                     variable = "catch_at_F40_mt",
                     tru = sum(catch40_mt_tru),
-                    fit = sum(catch40_mt_est)) %>% #,
+                    fit = sum(catch40_mt_est),
+                    tru_f40 = f40_tru,
+                    fit_f40 = f40_est) %>% #,
                     #age = substr(names(catch40_mt_tru), 5,6), 
                     #row.names = NULL) %>%
            dplyr::mutate(error = (fit - tru),
+                         error_f40 = (fit_f40 - tru_f40),
                          abs_error = abs(error),
                          error_pc = 100 * (fit - tru) / tru,
+                         error_pc_f40 = 100 * (fit_f40 - tru_f40) / tru_f40,
                          abs_error_pc = abs(error_pc)))
 
+}
+
+## Plot all variables ####
+plotAll <- function(simOut) {
+  # Setup N-at-age to plot
+  N <- exp(simOut$logN)
+  rownames(N) <- paste0("True.", 1:nrow(N))
+  df2plotN <- 
+    N %>%
+    t() %>%
+    as.data.frame() %>%
+    #cbind(data.frame(fit = fit$pl$logN %>% exp %>% t)) %>%
+    dplyr::mutate(year = colnames(N) %>% as.numeric,
+                  variable = "N (1000's)")%>%
+    tidyr::gather(source.age, value, -year, -variable) %>%
+    tidyr::separate(source.age, c("source", "age")) %>%
+    dplyr::group_by(year, variable, source) %>%
+    dplyr::summarise(value = sum(value))
+  
+  # Set up Survey data to plot
+  Sobs_N <- simOut$Sobs_N
+  Stru_N <- simOut$Stru_N
+  df_Sobs <- # convert 3-d array to long data.frame
+    as.data.frame(Sobs_N) %>%
+    t() %>%
+    as.data.frame() %>%
+    dplyr::mutate(year_fleet = row.names(.)) %>%
+    tidyr::separate(col = year_fleet, 
+                    into = c("year", "fleetNames"), 
+                    extra = "merge") %>%
+    tidyr::gather(age, value, -year, -fleetNames) %>%
+    dplyr::mutate(year = as.numeric(year),
+                  age = as.numeric(age),
+                  source = "Observed")
+  
+  df_Stru <- # convert 3-d array to long data.frame
+    as.data.frame(Stru_N) %>%
+    t() %>%
+    as.data.frame() %>%
+    dplyr::mutate(year_fleet = row.names(.)) %>%
+    tidyr::separate(col = year_fleet, 
+                    into = c("year", "fleetNames"), 
+                    extra = "merge") %>%
+    tidyr::gather(age, value, -year, -fleetNames) %>%
+    dplyr::mutate(year = as.numeric(year),
+                  age = as.numeric(age),
+                  source = "True")
+  
+  
+  
+  # Setup Catch to plot
+  # Pull out simulated observations
+  Cobs_mt <- simOut$Cobs_mt
+  Ctru_mt <- simOut$Ctru_mt
+  df_Cobs_mt <- 
+    Cobs_mt %>%
+    t() %>%
+    as.data.frame() %>%
+    dplyr::mutate(total = rowSums(.),
+                  year = as.numeric(colnames(Cobs_mt))) %>%
+    tidyr::gather(age, value, -year) %>%
+    dplyr::mutate(source = "Observed",
+                  variable = "Catch (mt)") %>%
+    dplyr::filter(age == "total") %>%
+    dplyr::select(-age)
+  
+  # Pull out simulated truth
+  df_Ctru_mt <- 
+    Ctru_mt %>%
+    t() %>%
+    as.data.frame() %>%
+    dplyr::mutate(total = rowSums(.),
+                  year = as.numeric(colnames(Cobs_mt))) %>%
+    tidyr::gather(age, value, -year) %>%
+    dplyr::mutate(source = "True",
+                  variable = "Catch (mt)") %>%
+    dplyr::filter(age == "total") %>%
+    dplyr::select(-age)
+  
+  # Put them together
+  df2plot <- # combine true and observed survey
+    dplyr::bind_rows(df_Sobs, 
+                     df_Stru) %>%
+    dplyr::filter(fleetNames != "Residual catch") %>%
+    dplyr::group_by(source, year, fleetNames) %>%
+    dplyr::summarise(value = sum(value, na.rm = TRUE),
+                     value = ifelse(value == 0, NA, value)) %>%
+    dplyr::mutate(variable = paste("Survey", 
+                                   substr(fleetNames, 6,7),
+                                   "index (1000's)")) %>%
+    dplyr::select(-fleetNames) %>%
+    dplyr::bind_rows(df2plotN, 
+                     df_Cobs_mt,
+                     df_Ctru_mt) %>%
+    dplyr::mutate(variable = factor(variable, 
+                                    levels = c("N (1000's)",
+                                               "Survey Q1 index (1000's)",
+                                               "Survey Q3 index (1000's)",
+                                               "Catch (mt)")))
+  
+  # Plot example time series
+  p = ggplot(data = df2plot,
+         aes(x = year, y = value, color = source)) +
+    geom_line() +
+    facet_wrap(~variable, scales = "free", ncol=1) +
+    theme_bw() +
+    theme(legend.title = element_blank(),
+          legend.text = element_text(size = 12)) +
+    ylab("") + xlab("Year")
+  
+  print(p)
+  ggsave(p, filename = "./figures/example_all.png", height = 7, width = 5)
 }
