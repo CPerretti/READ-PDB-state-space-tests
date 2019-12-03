@@ -4,7 +4,7 @@
 
 
 ## Simulation model #######################################
-sim <- function(fit, keyLogScale, noScaledYears, container_i) {
+sim <- function(fit, keyLogScale, noScaledYears, scenario) {
   nA <- ncol(fit$data$propF) # number of age-classes
   nT <- fit$data$noYears # length of time series
   
@@ -12,7 +12,7 @@ sim <- function(fit, keyLogScale, noScaledYears, container_i) {
   # Setup keyLogScale to have unique logScale for each age that is fished
   nAs <- sum(keyLogScale[1,] > -1)
   
-  switch(container_i$scenario,
+  switch(scenario,
          `uniform random` = {
            logScale <- matrix(data = log(runif(nAs * noScaledYears, 1.5, 10)),
                               nrow = nAs, ncol = noScaledYears)
@@ -238,7 +238,7 @@ sim <- function(fit, keyLogScale, noScaledYears, container_i) {
   
   trueParams <- list(sdrep = fit$sdrep, pl = fit$pl)
   trueParams$pl$logScale <- logScale
-  if (container_i$scenario == "random walk") trueParams$pl$logSdLogScale <- logSdLogScale
+  if (scenario == "random walk") trueParams$pl$logSdLogScale <- logSdLogScale
   trueParams$pl$logN <- logN
   dimnames(f) <- list(paste0("tru.", c(1:nA)), fit$data$years)
   trueParams$pl$logF <- logF
@@ -677,27 +677,28 @@ plotSimSAM <- function(fit, nsim = 1, seed = NULL) {
 
 
 ## Plot parameters fit vs true ############################
-plotPars <- function(container, models2plot) {
+plotPars <- function(fitSim_random, fitSim_fixed, fitSim_none,
+                     simOut, sim_label, models2plot) {
 colors2use <- RColorBrewer::brewer.pal(3, "Dark2")
   
 df_parsOut <- data.frame()
   for (model in models2plot) {
     switch(model,
            `random walk` = {
-             fitSim <- container$fitSim_random
+             fitSim <- fitSim_random
            },
            fixed = {
-             fitSim <- container$fitSim_fixed
+             fitSim <- fitSim_fixed
            },
            `no misreporting` = {
-             fitSim <- container$fitSim_none
+             fitSim <- fitSim_none
            }
     )
     pars2plot <- which(names(fitSim[[1]]$pl) %in% names(fitSim[[1]]$obj$par))
     
     for (h in pars2plot) {
-      for (i in 1:nrow(container)) {
-        h_tru <- which(names(container$simOut[[i]]$trueParams$pl) == names(fitSim[[i]]$pl[h]))
+      for (i in 1:nrow(sim_label)) {
+        h_tru <- which(names(simOut[[i]]$trueParams$pl) == names(fitSim[[i]]$pl[h]))
         df_parsOut <-
           rbind(df_parsOut,
                 data.frame(variable = paste(names(fitSim[[1]]$pl)[h], 
@@ -705,14 +706,14 @@ df_parsOut <- data.frame()
                            # Don't plot tru if it isn't the same length as estimated
                            # becuase it means the values don't match up.
                            tru = (if ((length(h_tru) >0) && 
-                                      length(container$simOut[[i]]$trueParams$pl[[h_tru]]) == 
+                                      length(simOut[[i]]$trueParams$pl[[h_tru]]) == 
                                       length(fitSim[[i]]$pl[[h]])) {
-                             container$simOut[[i]]$trueParams$pl[[h_tru]] 
+                                      simOut[[i]]$trueParams$pl[[h_tru]] 
                            } else {NA}),
                            est = fitSim[[i]]$pl[[h]],
                            sd  = fitSim[[i]]$plsd[[h]],
-                           replicate = container$replicate[[i]],
-                           scenario  = paste(container$scenario[[i]], "scenario"),
+                           replicate = sim_label$replicate[[i]],
+                           scenario  = paste(sim_label$scenario[[i]], "scenario"),
                            model = model))
       }  
     }

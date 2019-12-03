@@ -39,15 +39,15 @@ scenarios <- c("uniform random",
                "random walk",
                "fixed",
                "no misreporting")
-nRep <- 300 # Number of simulation replicates
+nRep <- 30#0 # Number of simulation replicates
 noScaledYears <- 10
 
 # Output container
-container <- expand.grid(replicate = 1:nRep, scenario = scenarios, stringsAsFactors = F)
-container$simOut          <- vector("list", length = nrow(container))
-container$setupMod_random <- vector("list", length = nrow(container))
-container$setupMod_fixed  <- vector("list", length = nrow(container))
-container$setupMod_none   <- vector("list", length = nrow(container))
+sim_label <- expand.grid(replicate = 1:nRep, scenario = scenarios, stringsAsFactors = F)
+simOut          <- vector("list", length = nrow(sim_label))
+setupMod_random <- vector("list", length = nrow(sim_label))
+setupMod_fixed  <- vector("list", length = nrow(sim_label))
+setupMod_none   <- vector("list", length = nrow(sim_label))
 
 
 # Setup configurations for each model
@@ -77,34 +77,34 @@ confLogScale_none <- list(logScaleType = "no misreporting")
 
 
 # Generate simulation replicates
-for (i in 1:nrow(container)) {
-  container$simOut[[i]] <- sim(fit = fitReal,
-                               keyLogScale = keyLogScale,
-                               noScaledYears = noScaledYears,
-                               container_i = container[i,])
+for (i in 1:nrow(sim_label)) {
+  simOut[[i]] <- sim(fit = fitReal,
+                     keyLogScale = keyLogScale,
+                     noScaledYears = noScaledYears,
+                     scenario = sim_label$scenario[i])
 }
 
 ## Plot an example true vs observed vs fit ########
 
 # ## (1) N-at-age (1000s)
-plotN(simOut = container$simOut[[1]],
+plotN(simOut = simOut[[1]],
       fit = fitReal)
 
 ## (2) F-at-age
-plotF(simOut = container$simOut[[14]],
+plotF(simOut = simOut[[1]],
       fit = fitReal)
 
 ## (3) Catch (mt)
-plotC(simOut = container$simOut[[14]],
+plotC(simOut = simOut[[1]],
       fit = fitReal)
 
 ## (4) Survey (1000s)
-plotS(simOut = container$simOut[[14]],
+plotS(simOut = simOut[[1]],
       fit = fitReal)
 
 ## Plot variables in single plot
-ind_nomis <- which(container$scenario == "no misreporting")
-simOut2plot <- container$simOut[[ind_nomis[11]]] 
+ind_nomis <- which(sim_label$scenario == "no misreporting")
+simOut2plot <- simOut[[ind_nomis[1]]] 
 plotAll(simOut = simOut2plot)
 
 ## Plot some simulations from simulate.sam()
@@ -113,41 +113,32 @@ plotAll(simOut = simOut2plot)
 
 ## Fit sam to a simulation ################################
 
-for (i in 1:nrow(container)) {
+for (i in 1:nrow(sim_label)) {
   # Prep simulation data for read.ices()
-  prepSimData(Sobs_N = container$simOut[[i]]$Sobs_N, 
+  prepSimData(Sobs_N = simOut[[i]]$Sobs_N, 
               fit = fitReal, 
-              Cobs_N = container$simOut[[i]]$Cobs_N) 
+              Cobs_N = simOut[[i]]$Cobs_N) 
   
   # Read in data, set initial params and configuration
-  container$setupMod_random[[i]] <- setupModel(conf = fitReal$conf, 
-                                                    example_dir = example_dir, 
-                                                    noScaledYears = noScaledYears,
-                                                    confLogScale = confLogScale_random)
+  setupMod_random[[i]] <- setupModel(conf = fitReal$conf, 
+                                     example_dir = example_dir, 
+                                     noScaledYears = noScaledYears,
+                                     confLogScale = confLogScale_random)
   
-  container$setupMod_fixed[[i]] <- setupModel(conf = fitReal$conf,
-                                              example_dir = example_dir,
-                                              noScaledYears = noScaledYears,
-                                              confLogScale = confLogScale_fixed)
+  setupMod_fixed[[i]] <- setupModel(conf = fitReal$conf,
+                                    example_dir = example_dir,
+                                    noScaledYears = noScaledYears,
+                                    confLogScale = confLogScale_fixed)
   
-  container$setupMod_none[[i]] <- setupModel(conf = fitReal$conf,
-                                             example_dir = example_dir,
-                                             noScaledYears = noScaledYears,
-                                             confLogScale = confLogScale_none)
+  setupMod_none[[i]] <- setupModel(conf = fitReal$conf,
+                                   example_dir = example_dir,
+                                   noScaledYears = noScaledYears,
+                                   confLogScale = confLogScale_none)
   
   
-  #container$setupMod_fixed[[i]]$par$logFpar <- fitReal$pl$logFpar # For debugging
+  #setupMod_fixed[[i]]$par$logFpar <- fitReal$pl$logFpar # For debugging
   
 }
-
-# Fit model to replicates in parallel
-# fitSimTest1 <- sam.fit(container$setupMod_fixed[[1]]$dat,
-#                        container$setupMod_fixed[[1]]$conf,
-#                        container$setupMod_fixed[[1]]$par)
-
-# fitSimTest2 <- sam.fit_cp(container$setupMod_random[[1]]$dat,
-#                           container$setupMod_random[[1]]$conf,
-#                           container$setupMod_random[[1]]$par)
 
 
 cl <- makeCluster(detectCores() - 1) #setup nodes for parallel
@@ -155,101 +146,142 @@ cl <- makeCluster(detectCores() - 1) #setup nodes for parallel
 clusterEvalQ(cl, {library(stockassessment); source("1-functions.R")}) 
 
 # Estimate with misreporting as random effect
-container$fitSim_random <- parLapply(cl, 
-                                     container$setupMod_random, 
-                                     function(x){try(sam.fit_cp(x$dat, x$conf, x$par))})
+fitSim_random <- parLapply(cl, setupMod_random, 
+                           function(x){try(sam.fit_cp(x$dat, x$conf, x$par))})
 
 # Estimate with misreporting as fixed effect
-container$fitSim_fixed <- parLapply(cl, 
-                                    container$setupMod_fixed, 
-                                    function(x){try(sam.fit(x$dat, x$conf, x$par))})
-                                              #map = list("logScale" = factor(c(NA, 0)))))})
+fitSim_fixed <- parLapply(cl, setupMod_fixed, 
+                          function(x){try(sam.fit(x$dat, x$conf, x$par))})
+                              #map = list("logScale" = factor(c(NA, 0)))))})
 
 # Assume no misreporting
-container$fitSim_none <- parLapply(cl,
-                                   container$setupMod_none, 
-                                   function(x){try(sam.fit(x$dat, x$conf, x$par))})
+fitSim_none <- parLapply(cl, setupMod_none, 
+                          function(x){try(sam.fit(x$dat, x$conf, x$par))})
 
 stopCluster(cl) #shut down nodes
 
 
+#suffix <- paste0(Sys.Date(), ".Rdata")
+#save(list = "container", file = paste0("./output/container", suffix))
+
+
+
 ## Error handling #####
-# Only include replicates where all three models fit successfully
-containerAccept <- # Exclude TMB fails
-  container[sapply(container$fitSim_random, class) != "try-error" &
-            sapply(container$fitSim_fixed, class)  != "try-error" &
-            sapply(container$fitSim_none, class)   != "try-error", ]
-
-containerAccept <- # Also exclude non-covergences
-  containerAccept[unlist(sapply(containerAccept$fitSim_random,
-                                function (x) x[[6]][3])) != 1 &
-                   unlist(sapply(containerAccept$fitSim_fixed,
-                                function (x) x[[6]][3])) != 1 &
-                   unlist(sapply(containerAccept$fitSim_none,
-                                function (x) x[[6]][3])) != 1, ]
-# non_converged_random <- which(unlist(sapply(container$fitSim_random,
-#                             function (x) x[[6]][3])) == 1)
-# non_converged_fixed <- which(unlist(sapply(container$fitSim_fixed,
-#                   function (x) x[[6]][3])) == 1)
-# non_converged_none <- which(unlist(sapply(container$fitSim_none,
-#                   function (x) x[[6]][3])) == 1)
-
-# Also exclude runs with unrealistic N estimates 
+# Exclude runs with unrealistic N estimates 
 # (fit N 1000 times true N). This occurs because occasionaly high N,
 # low F, low Q, results in a decent fit, but this would be rejected
 # by an analyst given the large scale difference.
-i2include <- vector()
-for (i in 1:nrow(containerAccept)) {
-  if (mean(exp(containerAccept$fitSim_random[[i]]$pl$logN) / 
-       exp(containerAccept$simOut[[i]]$trueParams$pl$logN)) < 1000 &
-      mean(exp(containerAccept$fitSim_fixed[[i]]$pl$logN) / 
-           exp(containerAccept$simOut[[i]]$trueParams$pl$logN)) < 1000 &
-      mean(exp(containerAccept$fitSim_none[[i]]$pl$logN) / 
-           exp(containerAccept$simOut[[i]]$trueParams$pl$logN)) < 1000) {
-    i2include <- c(i2include, i)
+ind2keep0 <- vector()
+for (i in 1:nrow(sim_label)) {
+  if (mean(exp(fitSim_random[[i]]$pl$logN) / 
+           exp(simOut[[i]]$trueParams$pl$logN)) < 1000 &
+      mean(exp(fitSim_fixed[[i]]$pl$logN) / 
+           exp(simOut[[i]]$trueParams$pl$logN)) < 1000 &
+      mean(exp(fitSim_none[[i]]$pl$logN) / 
+           exp(simOut[[i]]$trueParams$pl$logN)) < 1000) {
+    ind2keep0 <- c(ind2keep0, i)
   }
 }
-containerAccept <- containerAccept[i2include,]
+#containerAccept <- containerAccept[i2include,]
+
+# Only include replicates where all three models fit successfully
+ind2keep1 <- which(sapply(fitSim_random, class) != "try-error" &
+                  sapply(fitSim_fixed, class)  != "try-error" &
+                  sapply(fitSim_none, class)   != "try-error" &
+                    # also exclude non-convergences
+                    unlist(sapply(fitSim_random,
+                                  function (x) x[[6]][3])) != 1 &
+                    unlist(sapply(fitSim_fixed,
+                                  function (x) x[[6]][3])) != 1 &
+                    unlist(sapply(fitSim_none,
+                                  function (x) x[[6]][3])) != 1)
+
+ind2keep <- intersect(ind2keep0, ind2keep1)
+
+sim_labelAccept <- sim_label[ind2keep,]
+simOutAccept          <- simOut[ind2keep]
+setupMod_randomAccept <- setupMod_random[ind2keep]
+setupMod_fixedAccept  <- setupMod_fixed[ind2keep]
+setupMod_noneAccept   <- setupMod_none[ind2keep]
+fitSim_randomAccept   <- fitSim_random[ind2keep]
+fitSim_fixedAccept    <- fitSim_fixed[ind2keep]
+fitSim_noneAccept     <- fitSim_none[ind2keep]
+
  
 
 ## Perform retro runs
 # For accepted runs only. This is already parallelized over peels ("year") so
 # it needs to be looped over simulations.
-containerAccept$retro_fixed  <- vector("list", length = nrow(containerAccept))
-containerAccept$retro_none   <- vector("list", length = nrow(containerAccept))
-containerAccept$retro_random <- vector("list", length = nrow(containerAccept))
-for (i in 1:nrow(containerAccept)) {
-  containerAccept$retro_random[[i]] <- tryCatch(retro_cp(containerAccept$fitSim_random[[i]], year = 7),
+retro_fixed  <- vector("list", length = nrow(sim_labelAccept))
+retro_none   <- vector("list", length = nrow(sim_labelAccept))
+retro_random <- vector("list", length = nrow(sim_labelAccept))
+for (i in 1:nrow(sim_labelAccept)) {
+  retro_random[[i]] <- tryCatch(retro_cp(fitSim_randomAccept[[i]], year = 7),
                                                 error = function(e) "error", 
                                                 warning=function(w) "non-converge")
-  if (is.character(containerAccept$retro_random[[i]])) next
-  containerAccept$retro_fixed[[i]]  <- tryCatch(retro(containerAccept$fitSim_fixed[[i]], year = 7), 
+  if (is.character(retro_random[[i]])) next
+  retro_fixed[[i]]  <- tryCatch(retro(fitSim_fixedAccept[[i]], year = 7), 
                                                 error = function(e) "error", 
                                                 warning=function(w) "non-converge")
-  if (is.character(containerAccept$retro_fixed[[i]])) next
-  containerAccept$retro_none[[i]]   <- tryCatch(retro(containerAccept$fitSim_none[[i]], year = 7), 
+  if (is.character(retro_fixed[[i]])) next
+  retro_none[[i]]   <- tryCatch(retro(fitSim_noneAccept[[i]], year = 7), 
                                                 error = function(e) "error", 
                                                 warning=function(w) "non-converge")
-  if (is.character(containerAccept$retro_none[[i]])) next
+  if (is.character(retro_none[[i]])) next
 }
+
+
+# Calculate fit error
+err_random <- vector("list", length = nrow(sim_labelAccept))
+err_fixed  <- vector("list", length = nrow(sim_labelAccept))
+err_none   <- vector("list", length = nrow(sim_labelAccept))
+for (i in 1:nrow(sim_labelAccept)) {
+  errRe_random <- calcReTsError(fitSim_randomAccept[[i]], 
+                                simOutAccept[[i]],
+                                confLogScale_random)
+  errRe_fixed <- calcReTsError(fitSim_fixedAccept[[i]],
+                               simOutAccept[[i]],
+                               confLogScale_fixed)
+  errRe_none <- calcReTsError(fitSim_noneAccept[[i]], 
+                              simOutAccept[[i]],
+                              confLogScale_none)
+  
+  errCSSB_random <- calcCSSBError(fitSim_randomAccept[[i]], 
+                                  simOutAccept[[i]])
+  errCSSB_fixed <- calcCSSBError(fitSim_fixedAccept[[i]], 
+                                 simOutAccept[[i]])
+  errCSSB_none <- calcCSSBError(fitSim_noneAccept[[i]], 
+                                simOutAccept[[i]])
+  
+  err_random[[i]] <- rbind(errRe_random, errCSSB_random)
+  err_fixed[[i]]  <- rbind(errRe_fixed, errCSSB_fixed)
+  err_none[[i]]   <- rbind(errRe_none, errCSSB_none)
+}
+
+
+# Save output
+suffix <- paste0(Sys.time(), ".Rdata")
+# save(list = "containerAccept", 
+#      file = paste0("./output/containerAccept", suffix))
+# load("./output/containerAccept2019-11-20.Rdata")
 
 
 ## Plot example true vs observed vs fit to observed ########
 # (1) N-at-age (1000s)
-plotN(simOut = containerAccept$simOut[[2]],
-      fit = containerAccept$fitSim_none[[2]])
+plotN(simOut = simOutAccept[[1]],
+      fit = fitSim_noneAccept[[1]])
 
 # (2) F-at-age
-plotF(simOut = containerAccept$simOut[[1]],
-      fit = containerAccept$fitSim_none[[1]])
+plotF(simOut = simOutAccept[[1]],
+      fit = fitSim_noneAccept[[1]])
 
 # (3) Catch (mt)
-plotC(simOut = containerAccept$simOut[[2]],
-      fit = containerAccept$fitSim_random[[2]])
+plotC(simOut = simOutAccept[[1]],
+      fit = fitSim_randomAccept[[1]])
 
 # (4) Survey (1000s)
-plotS(simOut = containerAccept$simOut[[1]],
-      fit = containerAccept$fitSim_random[[1]])
+plotS(simOut = simOutAccept[[1]],
+      fit = fitSim_randomAccept[[1]])
 
 
 ## Plot error statistics #######################
@@ -257,36 +289,36 @@ plotS(simOut = containerAccept$simOut[[1]],
 # Calculate Mohn's rho
 # Exclude replicates where any peel didn't converge
 # Dimensions are number of models * number of rows in containerAccept
-df_mohn_random <- data.frame(`R(age 1)` = numeric(length = nrow(containerAccept)), 
-                             `SSB` = numeric(length = nrow(containerAccept)), 
-                             `Fbar(4-6)` = numeric(length = nrow(containerAccept)))
-df_mohn_fixed <- data.frame(`R(age 1)` = numeric(length = nrow(containerAccept)), 
-                             `SSB` = numeric(length = nrow(containerAccept)), 
-                             `Fbar(4-6)` = numeric(length = nrow(containerAccept)))
-df_mohn_none <- data.frame(`R(age 1)` = numeric(length = nrow(containerAccept)), 
-                           `SSB` = numeric(length = nrow(containerAccept)), 
-                           `Fbar(4-6)` = numeric(length = nrow(containerAccept)))
+df_mohn_random <- data.frame(`R(age 1)` = numeric(length = nrow(sim_labelAccept)), 
+                             `SSB` = numeric(length = nrow(sim_labelAccept)), 
+                             `Fbar(4-6)` = numeric(length = nrow(sim_labelAccept)))
+df_mohn_fixed <- data.frame(`R(age 1)` = numeric(length = nrow(sim_labelAccept)), 
+                             `SSB` = numeric(length = nrow(sim_labelAccept)), 
+                             `Fbar(4-6)` = numeric(length = nrow(sim_labelAccept)))
+df_mohn_none <- data.frame(`R(age 1)` = numeric(length = nrow(sim_labelAccept)), 
+                           `SSB` = numeric(length = nrow(sim_labelAccept)), 
+                           `Fbar(4-6)` = numeric(length = nrow(sim_labelAccept)))
 df_mohn_random$model <- "random walk"
 df_mohn_fixed$model <- "fixed"
 df_mohn_none$model <- "no misreporting"
-df_mohn_random$scenario <- containerAccept$scenario
-df_mohn_fixed$scenario  <- containerAccept$scenario
-df_mohn_none$scenario   <- containerAccept$scenario
-df_mohn_random$replicate <- containerAccept$replicate
-df_mohn_fixed$replicate <- containerAccept$replicate
-df_mohn_none$replicate <- containerAccept$replicate
+df_mohn_random$scenario <- sim_labelAccept$scenario
+df_mohn_fixed$scenario  <- sim_labelAccept$scenario
+df_mohn_none$scenario   <- sim_labelAccept$scenario
+df_mohn_random$replicate <- sim_labelAccept$replicate
+df_mohn_fixed$replicate <- sim_labelAccept$replicate
+df_mohn_none$replicate <- sim_labelAccept$replicate
 
-for(i in 1:nrow(containerAccept)) {
-  if (is.character(containerAccept$retro_random[[i]]) ||
-      is.character(containerAccept$retro_fixed[[i]]) ||
-      is.character(containerAccept$retro_none[[i]])){
+for(i in 1:nrow(sim_labelAccept)) {
+  if (is.character(retro_random[[i]]) ||
+      is.character(retro_fixed[[i]]) ||
+      is.character(retro_none[[i]])){
     df_mohn_random[i,1:3] <- NA
     df_mohn_fixed[i,1:3]  <- NA
     df_mohn_none[i,1:3]   <- NA
   } else {
-    df_mohn_random[i,1:3] <- stockassessment::mohn(containerAccept$retro_random[[i]])
-    df_mohn_fixed[i,1:3] <- stockassessment::mohn(containerAccept$retro_fixed[[i]])
-    df_mohn_none[i,1:3] <- stockassessment::mohn(containerAccept$retro_none[[i]])
+    df_mohn_random[i,1:3] <- stockassessment::mohn(retro_random[[i]])
+    df_mohn_fixed[i,1:3] <- stockassessment::mohn(retro_fixed[[i]])
+    df_mohn_none[i,1:3] <- stockassessment::mohn(retro_none[[i]])
   }
 }
 
@@ -357,26 +389,26 @@ ggplot(df_mohn %>%
 # unfished SSB/R.
 
 df_errCatchAdvice <- data.frame()
-for (i in 1:nrow(containerAccept)) {
+for (i in 1:nrow(sim_labelAccept)) {
   errCatchAdvice_random <- 
-    calcCatchAdviceError(containerAccept$fitSim_random[[i]], 
-                         containerAccept$simOut[[i]],
+    calcCatchAdviceError(fitSim_randomAccept[[i]], 
+                         simOutAccept[[i]],
                          confLogScale_random)
   errCatchAdvice_fixed <- 
-    calcCatchAdviceError(containerAccept$fitSim_fixed[[i]], 
-                         containerAccept$simOut[[i]],
+    calcCatchAdviceError(fitSim_fixedAccept[[i]], 
+                         simOutAccept[[i]],
                          confLogScale_fixed)
   errCatchAdvice_none <- 
-    calcCatchAdviceError(containerAccept$fitSim_none[[i]], 
-                         containerAccept$simOut[[i]],
+    calcCatchAdviceError(fitSim_noneAccept[[i]], 
+                         simOutAccept[[i]],
                          confLogScale_none)
   df_errCatchAdvice <-
     rbind(df_errCatchAdvice,
           rbind(errCatchAdvice_random, 
                 errCatchAdvice_fixed, 
                 errCatchAdvice_none) %>%
-              dplyr::mutate(scenario = containerAccept$scenario[[i]],
-                            replicate = containerAccept$replicate[[i]]))
+              dplyr::mutate(scenario = sim_labelAccept$scenario[[i]],
+                            replicate = sim_labelAccept$replicate[[i]]))
 }
 df_errCatchAdvice$model <- factor(df_errCatchAdvice$model, 
                                   levels = c("no misreporting", 
@@ -467,51 +499,19 @@ ggplot(df_errCatchAdvice %>%
         strip.text = element_text(size = 14),
         legend.text = element_text(size = 12))
   
-# Calculate fit error
-containerAccept$err_random <- vector("list", length = nrow(containerAccept))
-containerAccept$err_fixed  <- vector("list", length = nrow(containerAccept))
-containerAccept$err_none   <- vector("list", length = nrow(containerAccept))
-for (i in 1:nrow(containerAccept)) {
-  errRe_random <- calcReTsError(containerAccept$fitSim_random[[i]], 
-                                containerAccept$simOut[[i]],
-                                confLogScale_random)
-  errRe_fixed <- calcReTsError(containerAccept$fitSim_fixed[[i]],
-                                containerAccept$simOut[[i]],
-                                confLogScale_fixed)
-  errRe_none <- calcReTsError(containerAccept$fitSim_none[[i]], 
-                                containerAccept$simOut[[i]],
-                                confLogScale_none)
-  
-  errCSSB_random <- calcCSSBError(containerAccept$fitSim_random[[i]], 
-                                  containerAccept$simOut[[i]])
-  errCSSB_fixed <- calcCSSBError(containerAccept$fitSim_fixed[[i]], 
-                                  containerAccept$simOut[[i]])
-  errCSSB_none <- calcCSSBError(containerAccept$fitSim_none[[i]], 
-                                  containerAccept$simOut[[i]])
-  
-  containerAccept$err_random[[i]] <- rbind(errRe_random, errCSSB_random)
-  containerAccept$err_fixed[[i]]  <- rbind(errRe_fixed, errCSSB_fixed)
-  containerAccept$err_none[[i]]   <- rbind(errRe_none, errCSSB_none)
-}
 
-
-# Save output
-suffix <- paste0(Sys.time(), ".Rdata")
-#save(list = "container", file = paste0("./output/container", suffix))
-save(list = "containerAccept", 
-     file = paste0("./output/containerAccept", suffix))
 
 #load("./output/containerAccept2019-10-07 22:12:57.Rdata")
 
 err <- data.frame()
-for (i in 1:nrow(containerAccept)) {
+for (i in 1:nrow(sim_labelAccept)) {
   err <-
     rbind(err, 
-          {rbind(data.frame(containerAccept$err_random[[i]], model = "random walk"),
-                 data.frame(containerAccept$err_fixed[[i]],  model = "fixed"),
-                 data.frame(containerAccept$err_none[[i]],   model = "no misreporting")) %>%
-              dplyr::mutate(replicate = containerAccept$replicate[i],
-                            scenario  = as.factor(paste(containerAccept$scenario[i], "scenario")),
+          {rbind(data.frame(err_random[[i]], model = "random walk"),
+                 data.frame(err_fixed[[i]],  model = "fixed"),
+                 data.frame(err_none[[i]],   model = "no misreporting")) %>%
+              dplyr::mutate(replicate = sim_labelAccept$replicate[i],
+                            scenario  = as.factor(paste(sim_labelAccept$scenario[i], "scenario")),
                             scenario  = factor(scenario, levels = c("no misreporting scenario",
                                                                     "fixed scenario",
                                                                     "random walk scenario",
@@ -525,32 +525,33 @@ save(list = "err",
      file = paste0("./output/err", suffix))
 
 # Plot time series error
-scaled_years <- container$setupMod_fixed[[1]]$conf$keyScaledYears
+scaled_years <- confLogScale_fixed$keyScaledYears
 plotTsError(err, scaled_years = scaled_years)
 
 # Plot parameters true vs fit
-plotPars(containerAccept,
+plotPars(fitSim_randomAccept, fitSim_fixedAccept, fitSim_noneAccept,
+         simOutAccept, sim_labelAccept,
          models2plot = c("random walk", "fixed", "no misreporting"))
 
 # Plot simulations
-dat2plot0 <- data.frame(scenario = containerAccept$scenario[1],
-                       replicate = containerAccept$replicate[1],
-                       year = colnames(containerAccept$simOut[[1]]$N),
-                       Cobs_total = colSums(containerAccept$simOut[[1]]$Cobs_mt),
-                       N_total = colSums(containerAccept$simOut[[1]]$N),
-                       IBTS_Q1_total = colSums(containerAccept$simOut[[1]]$logStru_N[1:5,,2]),
-                       IBTS_Q3_total = colSums(containerAccept$simOut[[1]]$logStru_N[1:4,,3]))
+dat2plot0 <- data.frame(scenario = sim_labelAccept$scenario[1],
+                       replicate = sim_labelAccept$replicate[1],
+                       year = colnames(simOutAccept[[1]]$N),
+                       Cobs_total = colSums(simOutAccept[[1]]$Cobs_mt),
+                       N_total = colSums(simOutAccept[[1]]$N),
+                       IBTS_Q1_total = colSums(simOutAccept[[1]]$logStru_N[1:5,,2]),
+                       IBTS_Q3_total = colSums(simOutAccept[[1]]$logStru_N[1:4,,3]))
 
-for (i in 1:nrow(containerAccept)) {
+for (i in 1:nrow(sim_labelAccept)) {
   dat2plot0 <-
     rbind(dat2plot0,
-      data.frame(scenario = containerAccept$scenario[i],
-                 replicate = containerAccept$replicate[i],
-                 year = colnames(containerAccept$simOut[[i]]$logN),
-                 Cobs_total = colSums(containerAccept$simOut[[i]]$Cobs_mt),
-                 N_total = colSums(containerAccept$simOut[[i]]$N),
-                 IBTS_Q1_total = colSums(containerAccept$simOut[[i]]$logStru_N[,,2], na.rm = T),
-                 IBTS_Q3_total = colSums(containerAccept$simOut[[i]]$logStru_N[,,3], na.rm = T)))
+      data.frame(scenario = sim_labelAccept$scenario[i],
+                 replicate = sim_labelAccept$replicate[i],
+                 year = colnames(simOutAccept[[i]]$logN),
+                 Cobs_total = colSums(simOutAccept[[i]]$Cobs_mt),
+                 N_total = colSums(simOutAccept[[i]]$N),
+                 IBTS_Q1_total = colSums(simOutAccept[[i]]$logStru_N[,,2], na.rm = T),
+                 IBTS_Q3_total = colSums(simOutAccept[[i]]$logStru_N[,,3], na.rm = T)))
 }
 
 dat2plot1 <-
@@ -749,43 +750,43 @@ ci_width <-
 
 # Pull out terminal year values and calculate 90% CI's
 terminal_fixed <- 
-  as.data.frame(matrix(nrow = 3 * nrow(containerAccept), ncol = 7)) %>%
+  as.data.frame(matrix(nrow = 3 * nrow(sim_labelAccept), ncol = 7)) %>%
   rename(variable = V1, log_value = V2, log_se = V3, model = V4, 
          scenario = V5, replicate = V6,  year = V7)
 terminal_none <- terminal_fixed
 terminal_random <- terminal_fixed
 
 c <- 1
-for (i in 1:nrow(containerAccept)) {
+for (i in 1:nrow(sim_labelAccept)) {
   terminal_fixed[c:(c+2),] <-
-    data.frame(variable = names(containerAccept$fitSim_fixed[[i]]$sdrep$value),
-               log_value = containerAccept$fitSim_fixed[[i]]$sdrep$value,
-               log_se = containerAccept$fitSim_fixed[[i]]$sdrep$sd,
+    data.frame(variable = names(fitSim_fixedAccept[[i]]$sdrep$value),
+               log_value = fitSim_fixedAccept[[i]]$sdrep$value,
+               log_se = fitSim_fixedAccept[[i]]$sdrep$sd,
                model = "fixed",
-               scenario = containerAccept$scenario[[i]],
-               replicate = containerAccept$replicate[[i]], stringsAsFactors = F) %>%
+               scenario = sim_labelAccept$scenario[[i]],
+               replicate = sim_labelAccept$replicate[[i]], stringsAsFactors = F) %>%
     filter(variable %in% c("logssb", "logfbar", "logR")) %>%
-    mutate(year = rep(containerAccept$fitSim_fixed[[i]]$data$years, 3)) %>%
+    mutate(year = rep(fitSim_fixedAccept[[i]]$data$years, 3)) %>%
     filter(year == max(year))
   terminal_none[c:(c+2),] <-
-    data.frame(variable = names(containerAccept$fitSim_none[[i]]$sdrep$value),
-               log_value = containerAccept$fitSim_none[[i]]$sdrep$value,
-               log_se = containerAccept$fitSim_none[[i]]$sdrep$sd,
+    data.frame(variable = names(fitSim_noneAccept[[i]]$sdrep$value),
+               log_value = fitSim_noneAccept[[i]]$sdrep$value,
+               log_se = fitSim_noneAccept[[i]]$sdrep$sd,
                model = "no misreporting",
-               scenario = containerAccept$scenario[[i]],
-               replicate = containerAccept$replicate[[i]], stringsAsFactors = F) %>%
+               scenario = sim_labelAccept$scenario[[i]],
+               replicate = sim_labelAccept$replicate[[i]], stringsAsFactors = F) %>%
     filter(variable %in% c("logssb", "logfbar", "logR")) %>%
-    mutate(year = rep(containerAccept$fitSim_none[[i]]$data$years, 3)) %>%
+    mutate(year = rep(fitSim_noneAccept[[i]]$data$years, 3)) %>%
     filter(year == max(year))
   terminal_random[c:(c+2),] <-
-    data.frame(variable = names(containerAccept$fitSim_fixed[[i]]$sdrep$value),
-               log_value = containerAccept$fitSim_fixed[[i]]$sdrep$value,
-               log_se = containerAccept$fitSim_fixed[[i]]$sdrep$sd,
+    data.frame(variable = names(fitSim_fixedAccept[[i]]$sdrep$value),
+               log_value = fitSim_fixedAccept[[i]]$sdrep$value,
+               log_se = fitSim_fixedAccept[[i]]$sdrep$sd,
                model = "random walk",
-               scenario = containerAccept$scenario[[i]],
-               replicate = containerAccept$replicate[[i]], stringsAsFactors = F) %>%
+               scenario = sim_labelAccept$scenario[[i]],
+               replicate = sim_labelAccept$replicate[[i]], stringsAsFactors = F) %>%
     filter(variable %in% c("logssb", "logfbar", "logR")) %>%
-    mutate(year = rep(containerAccept$fitSim_random[[i]]$data$years, 3)) %>%
+    mutate(year = rep(fitSim_randomAccept[[i]]$data$years, 3)) %>%
     filter(year == max(year))
   c <- c+3
 }
