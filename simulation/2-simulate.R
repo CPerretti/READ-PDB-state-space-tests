@@ -39,7 +39,7 @@ scenarios <- c("uniform random",
                "random walk",
                "fixed",
                "no misreporting")
-nRep <- 30#0 # Number of simulation replicates
+nRep <- 300 # Number of simulation replicates
 noScaledYears <- 10
 
 # Output container
@@ -171,41 +171,38 @@ stopCluster(cl) #shut down nodes
 # (fit N 1000 times true N). This occurs because occasionaly high N,
 # low F, low Q, results in a decent fit, but this would be rejected
 # by an analyst given the large scale difference.
-ind2keep0 <- vector()
-for (i in 1:nrow(sim_label)) {
+# Only include replicates where all three models fit successfully
+ind2keep0 <- which(sapply(fitSim_random, class) != "try-error" &
+                     sapply(fitSim_fixed, class)  != "try-error" &
+                     sapply(fitSim_none, class)   != "try-error")
+                     # also exclude non-convergences
+ind2keep1 <- ind2keep0[unlist(sapply(fitSim_random[ind2keep0],
+                                   function (x) x[[6]][3])) != 1 &
+                       unlist(sapply(fitSim_fixed[ind2keep0],
+                                   function (x) x[[6]][3])) != 1 &
+                       unlist(sapply(fitSim_none[ind2keep0],
+                                   function (x) x[[6]][3])) != 1]
+
+ind2keep2 <- vector()
+for (i in ind2keep1) {
   if (mean(exp(fitSim_random[[i]]$pl$logN) / 
            exp(simOut[[i]]$trueParams$pl$logN)) < 1000 &
       mean(exp(fitSim_fixed[[i]]$pl$logN) / 
            exp(simOut[[i]]$trueParams$pl$logN)) < 1000 &
       mean(exp(fitSim_none[[i]]$pl$logN) / 
            exp(simOut[[i]]$trueParams$pl$logN)) < 1000) {
-    ind2keep0 <- c(ind2keep0, i)
+    ind2keep2 <- c(ind2keep2, i)
   }
 }
-#containerAccept <- containerAccept[i2include,]
 
-# Only include replicates where all three models fit successfully
-ind2keep1 <- which(sapply(fitSim_random, class) != "try-error" &
-                  sapply(fitSim_fixed, class)  != "try-error" &
-                  sapply(fitSim_none, class)   != "try-error" &
-                    # also exclude non-convergences
-                    unlist(sapply(fitSim_random,
-                                  function (x) x[[6]][3])) != 1 &
-                    unlist(sapply(fitSim_fixed,
-                                  function (x) x[[6]][3])) != 1 &
-                    unlist(sapply(fitSim_none,
-                                  function (x) x[[6]][3])) != 1)
-
-ind2keep <- intersect(ind2keep0, ind2keep1)
-
-sim_labelAccept <- sim_label[ind2keep,]
-simOutAccept          <- simOut[ind2keep]
-setupMod_randomAccept <- setupMod_random[ind2keep]
-setupMod_fixedAccept  <- setupMod_fixed[ind2keep]
-setupMod_noneAccept   <- setupMod_none[ind2keep]
-fitSim_randomAccept   <- fitSim_random[ind2keep]
-fitSim_fixedAccept    <- fitSim_fixed[ind2keep]
-fitSim_noneAccept     <- fitSim_none[ind2keep]
+sim_labelAccept <- sim_label[ind2keep2,]
+simOutAccept          <- simOut[ind2keep2]
+setupMod_randomAccept <- setupMod_random[ind2keep2]
+setupMod_fixedAccept  <- setupMod_fixed[ind2keep2]
+setupMod_noneAccept   <- setupMod_none[ind2keep2]
+fitSim_randomAccept   <- fitSim_random[ind2keep2]
+fitSim_fixedAccept    <- fitSim_fixed[ind2keep2]
+fitSim_noneAccept     <- fitSim_none[ind2keep2]
 
  
 
