@@ -42,6 +42,7 @@ scenarios <- c("uniform random",
 nRep <- 300 # Number of simulation replicates
 noScaledYears <- 10
 
+
 # Output container
 sim_label <- expand.grid(replicate = 1:nRep, scenario = scenarios, stringsAsFactors = F)
 simOut          <- vector("list", length = nrow(sim_label))
@@ -75,6 +76,7 @@ confLogScale_fixed <-
 
 confLogScale_none <- list(logScaleType = "no misreporting")
 
+scaled_years <- confLogScale_fixed$keyScaledYears
 
 # Generate simulation replicates
 for (i in 1:nrow(sim_label)) {
@@ -161,10 +163,6 @@ fitSim_none <- parLapply(cl, setupMod_none,
 stopCluster(cl) #shut down nodes
 
 
-#suffix <- paste0(Sys.Date(), ".Rdata")
-#save(list = "container", file = paste0("./output/container", suffix))
-
-
 
 ## Error handling #####
 # Exclude runs with unrealistic N estimates 
@@ -204,94 +202,35 @@ fitSim_randomAccept   <- fitSim_random[ind2keep2]
 fitSim_fixedAccept    <- fitSim_fixed[ind2keep2]
 fitSim_noneAccept     <- fitSim_none[ind2keep2]
 
- 
+# Save fits and setups
+suffix <- paste0(Sys.Date(), ".Rdata")
+save(list = c("sim_labelAccept", 
+              "simOutAccept", 
+              "setupMod_randomAccept", 
+              "setupMod_fixedAccept", 
+              "setupMod_noneAccept",
+              "fitSim_randomAccept", 
+              "fitSim_fixedAccept", 
+              "fitSim_noneAccept",
+              "scaled_years",
+              "confLogScale_random",
+              "confLogScale_fixed",
+              "confLogScale_none"), 
+     file = paste0("./output/setupAndFits", suffix))
+
+#load("output/setupAndFits2019-12-05.Rdata")
+
 
 ## Perform retro runs
 # For accepted runs only. This is already parallelized over peels ("year") so
-# it needs to be looped over simulations.
-retro_fixed  <- vector("list", length = nrow(sim_labelAccept))
-retro_none   <- vector("list", length = nrow(sim_labelAccept))
-retro_random <- vector("list", length = nrow(sim_labelAccept))
-for (i in 1:nrow(sim_labelAccept)) {
-  retro_random[[i]] <- tryCatch(retro_cp(fitSim_randomAccept[[i]], year = 7),
-                                                error = function(e) "error", 
-                                                warning=function(w) "non-converge")
-  if (is.character(retro_random[[i]])) next
-  retro_fixed[[i]]  <- tryCatch(retro(fitSim_fixedAccept[[i]], year = 7), 
-                                                error = function(e) "error", 
-                                                warning=function(w) "non-converge")
-  if (is.character(retro_fixed[[i]])) next
-  retro_none[[i]]   <- tryCatch(retro(fitSim_noneAccept[[i]], year = 7), 
-                                                error = function(e) "error", 
-                                                warning=function(w) "non-converge")
-  if (is.character(retro_none[[i]])) next
-}
-
-
-# Calculate fit error
-err_random <- vector("list", length = nrow(sim_labelAccept))
-err_fixed  <- vector("list", length = nrow(sim_labelAccept))
-err_none   <- vector("list", length = nrow(sim_labelAccept))
-for (i in 1:nrow(sim_labelAccept)) {
-  errRe_random <- calcReTsError(fitSim_randomAccept[[i]], 
-                                simOutAccept[[i]],
-                                confLogScale_random)
-  errRe_fixed <- calcReTsError(fitSim_fixedAccept[[i]],
-                               simOutAccept[[i]],
-                               confLogScale_fixed)
-  errRe_none <- calcReTsError(fitSim_noneAccept[[i]], 
-                              simOutAccept[[i]],
-                              confLogScale_none)
-  
-  errCSSB_random <- calcCSSBError(fitSim_randomAccept[[i]], 
-                                  simOutAccept[[i]])
-  errCSSB_fixed <- calcCSSBError(fitSim_fixedAccept[[i]], 
-                                 simOutAccept[[i]])
-  errCSSB_none <- calcCSSBError(fitSim_noneAccept[[i]], 
-                                simOutAccept[[i]])
-  
-  err_random[[i]] <- rbind(errRe_random, errCSSB_random)
-  err_fixed[[i]]  <- rbind(errRe_fixed, errCSSB_fixed)
-  err_none[[i]]   <- rbind(errRe_none, errCSSB_none)
-}
-
-
-# Save output
-suffix <- paste0(Sys.time(), ".Rdata")
-# save(list = "containerAccept", 
-#      file = paste0("./output/containerAccept", suffix))
-# load("./output/containerAccept2019-11-20.Rdata")
-
-
-## Plot example true vs observed vs fit to observed ########
-# (1) N-at-age (1000s)
-plotN(simOut = simOutAccept[[1]],
-      fit = fitSim_noneAccept[[1]])
-
-# (2) F-at-age
-plotF(simOut = simOutAccept[[1]],
-      fit = fitSim_noneAccept[[1]])
-
-# (3) Catch (mt)
-plotC(simOut = simOutAccept[[1]],
-      fit = fitSim_randomAccept[[1]])
-
-# (4) Survey (1000s)
-plotS(simOut = simOutAccept[[1]],
-      fit = fitSim_randomAccept[[1]])
-
-
-## Plot error statistics #######################
-
-# Calculate Mohn's rho
-# Exclude replicates where any peel didn't converge
-# Dimensions are number of models * number of rows in containerAccept
+# it needs to be looped over simulations. Store only Mohn's rho to limit
+# memory usage.
 df_mohn_random <- data.frame(`R(age 1)` = numeric(length = nrow(sim_labelAccept)), 
                              `SSB` = numeric(length = nrow(sim_labelAccept)), 
                              `Fbar(4-6)` = numeric(length = nrow(sim_labelAccept)))
 df_mohn_fixed <- data.frame(`R(age 1)` = numeric(length = nrow(sim_labelAccept)), 
-                             `SSB` = numeric(length = nrow(sim_labelAccept)), 
-                             `Fbar(4-6)` = numeric(length = nrow(sim_labelAccept)))
+                            `SSB` = numeric(length = nrow(sim_labelAccept)), 
+                            `Fbar(4-6)` = numeric(length = nrow(sim_labelAccept)))
 df_mohn_none <- data.frame(`R(age 1)` = numeric(length = nrow(sim_labelAccept)), 
                            `SSB` = numeric(length = nrow(sim_labelAccept)), 
                            `Fbar(4-6)` = numeric(length = nrow(sim_labelAccept)))
@@ -306,9 +245,28 @@ df_mohn_fixed$replicate <- sim_labelAccept$replicate
 df_mohn_none$replicate <- sim_labelAccept$replicate
 
 for(i in 1:nrow(sim_labelAccept)) {
-  if (is.character(retro_random[[i]]) ||
-      is.character(retro_fixed[[i]]) ||
-      is.character(retro_none[[i]])){
+    retro_random <- tryCatch(retro_cp(fitSim_randomAccept[[i]], year = 7),
+                                  error = function(e) "error", 
+                                  warning=function(w) "non-converge")
+    if (is.character(retro_random)) {
+      retro_fixed <- "skip" 
+    } else {
+      retro_fixed  <- tryCatch(retro(fitSim_fixedAccept[[i]], year = 7), 
+                                  error = function(e) "error", 
+                                  warning=function(w) "non-converge")
+    }
+    if (is.character(retro_fixed)) {
+      retro_none <- "skip"
+    } else {
+      retro_none   <- tryCatch(retro(fitSim_noneAccept[[i]], year = 7), 
+                               error = function(e) "error", 
+                               warning=function(w) "non-converge")  
+    }
+    
+
+  if (is.character(retro_random) ||
+      is.character(retro_fixed) ||
+      is.character(retro_none)){
     df_mohn_random[i,1:3] <- NA
     df_mohn_fixed[i,1:3]  <- NA
     df_mohn_none[i,1:3]   <- NA
@@ -335,6 +293,78 @@ df_mohn <-
                 variable = ifelse(variable == "Fbar.4.6.", "F", variable),
                 variable = ifelse(variable == "R.age.1.", "Recruitment", variable))
 
+# Save mohn's rho calculations
+suffix <- paste0(Sys.Date(), ".Rdata")
+save(list = c("df_mohn"), 
+     file = paste0("./output/df_mohn", suffix))
+
+
+
+
+# Calculate fit error
+err <- data.frame()
+for (i in 1:nrow(sim_labelAccept)) {
+  errRe_random <- calcReTsError(fitSim_randomAccept[[i]], 
+                                simOutAccept[[i]],
+                                confLogScale_random)
+  errRe_fixed <- calcReTsError(fitSim_fixedAccept[[i]],
+                               simOutAccept[[i]],
+                               confLogScale_fixed)
+  errRe_none <- calcReTsError(fitSim_noneAccept[[i]], 
+                              simOutAccept[[i]],
+                              confLogScale_none)
+  
+  errCSSB_random <- calcCSSBError(fitSim_randomAccept[[i]], 
+                                  simOutAccept[[i]])
+  errCSSB_fixed <- calcCSSBError(fitSim_fixedAccept[[i]], 
+                                 simOutAccept[[i]])
+  errCSSB_none <- calcCSSBError(fitSim_noneAccept[[i]], 
+                                simOutAccept[[i]])
+  
+  err_random <- rbind(errRe_random, errCSSB_random)
+  err_fixed  <- rbind(errRe_fixed, errCSSB_fixed)
+  err_none   <- rbind(errRe_none, errCSSB_none)
+  
+  err <-
+    rbind(err, 
+          {rbind(data.frame(err_random, model = "random walk"),
+                 data.frame(err_fixed,  model = "fixed"),
+                 data.frame(err_none,   model = "no misreporting")) %>%
+              dplyr::mutate(replicate = sim_labelAccept$replicate[i],
+                            scenario  = as.factor(paste(sim_labelAccept$scenario[i], "scenario")),
+                            scenario  = factor(scenario, levels = c("no misreporting scenario",
+                                                                    "fixed scenario",
+                                                                    "random walk scenario",
+                                                                    "uniform random scenario")),
+                            model     = factor(model, levels = c("no misreporting", 
+                                                                 "fixed",
+                                                                 "random walk")))})
+}
+
+suffix <- paste0(Sys.Date(), ".Rdata")
+save(list = "err", 
+     file = paste0("./output/err", suffix))
+#load("./output/err")
+
+## Plot example true vs observed vs fit to observed ########
+# (1) N-at-age (1000s)
+plotN(simOut = simOutAccept[[1]],
+      fit = fitSim_noneAccept[[1]])
+
+# (2) F-at-age
+plotF(simOut = simOutAccept[[1]],
+      fit = fitSim_noneAccept[[1]])
+
+# (3) Catch (mt)
+plotC(simOut = simOutAccept[[1]],
+      fit = fitSim_randomAccept[[1]])
+
+# (4) Survey (1000s)
+plotS(simOut = simOutAccept[[1]],
+      fit = fitSim_randomAccept[[1]])
+
+
+## Plot error statistics #######################
 
 # Plot Mohn's rho results
 colors2use <- RColorBrewer::brewer.pal(3, "Dark2")
@@ -495,34 +525,9 @@ ggplot(df_errCatchAdvice %>%
         axis.text = element_text(size = 13),
         strip.text = element_text(size = 14),
         legend.text = element_text(size = 12))
-  
 
-
-#load("./output/containerAccept2019-10-07 22:12:57.Rdata")
-
-err <- data.frame()
-for (i in 1:nrow(sim_labelAccept)) {
-  err <-
-    rbind(err, 
-          {rbind(data.frame(err_random[[i]], model = "random walk"),
-                 data.frame(err_fixed[[i]],  model = "fixed"),
-                 data.frame(err_none[[i]],   model = "no misreporting")) %>%
-              dplyr::mutate(replicate = sim_labelAccept$replicate[i],
-                            scenario  = as.factor(paste(sim_labelAccept$scenario[i], "scenario")),
-                            scenario  = factor(scenario, levels = c("no misreporting scenario",
-                                                                    "fixed scenario",
-                                                                    "random walk scenario",
-                                                                    "uniform random scenario")),
-                            model     = factor(model, levels = c("no misreporting", 
-                                                                 "fixed",
-                                                                 "random walk")))})
-}
-
-save(list = "err", 
-     file = paste0("./output/err", suffix))
 
 # Plot time series error
-scaled_years <- confLogScale_fixed$keyScaledYears
 plotTsError(err, scaled_years = scaled_years)
 
 # Plot parameters true vs fit
@@ -728,14 +733,16 @@ ci_width <-
   err %>%
   mutate(fit_975 = exp(log(fit) + 1.96 * sdLog),
          fit_025 = exp(log(fit) - 1.96 * sdLog),
+         cv = fit/exp(sdLog),
          replicate = paste("replicate", replicate),
          age = paste("age-", age)) %>%
   filter(year %in% scaled_years,
          variable != "catch_observed") %>%
   group_by(scenario, model, variable) %>%
-  summarise(median_ci_width = (median(fit_975 - fit_025, na.rm = T) %>%
-              round(2))) %>%
-  spread(variable, median_ci_width) %>%
+  summarise(#median_ci_width = (median(fit_975 - fit_025, na.rm = T) %>%
+            #  round(2)),
+            median_cv = median(cv, na.rm = T) %>% round(2)) %>%
+  spread(variable, median_cv) %>%
   arrange(scenario)
 
 # Calculate whether a retro-adjustment would occur
