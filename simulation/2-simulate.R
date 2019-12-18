@@ -23,11 +23,6 @@ source("1-functions.R")
 
 
 ## Run simulation #########################################
-# Use atl herring fit to set up simulation
-# example_dir <- "atlherring_example"
-# load(paste0("../", example_dir, "/output/fitHer.Rdata"))
-# fitReal <- fitHer
-
 # Use North Sea cod fit to set up simulation
 example_dir <- "nscod_example"
 load(paste0("../", example_dir, "/fitNScod.Rdata"))
@@ -478,56 +473,6 @@ catch_error_table <-
   dplyr::select(-se_error) %>%
   spread(model, mean_error_pc)
 
-# histogram of catch error
-ggplot(df_errCatchAdvice, #%>% 
-         #dplyr::mutate(error_plusgroup = ifelse(error >= 10000, 10000, error),
-         #               error_plusgroup = ifelse(error <= -10000, -10000, error_plusgroup)),
-       aes(x = error_pc_f40, color = model, fill = model)) +
-  geom_histogram(alpha=.5, position="identity") +
-  geom_rug(data = df_errCatchAdvice %>% 
-             dplyr::group_by(model, scenario) %>%
-             dplyr::summarise(median_error_pc = median(error_pc_f40, na.rm = T)),
-           aes(x = median_error_pc, color = model), size = 3) +
-  facet_wrap(~scenario, scales = "free_y") +
-  theme_bw() +
-  guides(color=guide_legend(title="Estimation model")) +
-  guides(fill=guide_legend(title="Estimation model")) +
-  scale_color_manual(values = colors2use) +
-  scale_fill_manual(values = colors2use) +
-  # scale_x_continuous(breaks = c(-10000, -5000, 0, 5000, 10000),
-  #                    labels = c("-10000+", -5000, 0, 5000, "10000+")) +    
-  ylab("Frequency") +
-  xlab("Catch advice percent error (fit - true)") +
-  theme(axis.title = element_text(size = 14),
-        axis.text = element_text(size = 13),
-        strip.text = element_text(size = 14),
-        legend.text = element_text(size = 12))
-
-# histogram of absolute catch error
-ggplot(df_errCatchAdvice %>% 
-         dplyr::mutate(abs_error_plusgroup = ifelse(abs_error >= 100000, 100000, abs_error)),
-       aes(x = abs_error_plusgroup, color = model, fill = model)) +
-  geom_histogram(alpha=.5, position="identity") +
-  geom_rug(data = df_errCatchAdvice %>% 
-             dplyr::group_by(model, scenario) %>%
-             dplyr::summarise(median_abs_error = median(abs_error, na.rm = T)),
-           aes(x = median_abs_error, color = model), size = 3) +
-  facet_wrap(~scenario, scales = "free_y") +
-  theme_bw() +
-  guides(color=guide_legend(title="Estimation model")) +
-  guides(fill=guide_legend(title="Estimation model")) +
-  scale_color_manual(values = colors2use) +
-  scale_fill_manual(values = colors2use) +
-  scale_x_continuous(breaks = c(0, 25000, 50000, 75000, 100000),
-                     labels = c(0, 25000, 50000, 75000, "100000+")) +    
-  ylab("Frequency") +
-  xlab("Catch advice absolute error, abs(fit - true), (metric tons)") +
-  theme(axis.title = element_text(size = 14),
-        axis.text = element_text(size = 13),
-        strip.text = element_text(size = 14),
-        legend.text = element_text(size = 12))
-
-
 # Plot time series error
 plotTsError(err, scaled_years = scaled_years)
 
@@ -678,12 +623,6 @@ p <-
 print(p)
 
 ggsave(plot = p, "./figures/scale_error.png", height = 5, width = 8)
-
-# Calculate 95% interval of scale parameter in random walk scenario
-err %>%
-  filter(scenario == "random walk scenario",
-         variable == "Scale") %>%
-  summarize(mean_scale = mean(tru))
   
 
 # Calculate average estimation error of fixed and random walk model
@@ -731,24 +670,6 @@ p <-
         strip.text   = element_text(size = 12),
         legend.title = element_blank())
 print(p)
-
-# Calculate the average width of the confidence interval for
-# each variable in each estimation model
-ci_width <-
-  err %>%
-  mutate(fit_975 = exp(log(fit) + 1.96 * sdLog),
-         fit_025 = exp(log(fit) - 1.96 * sdLog),
-         cv = fit/exp(sdLog),
-         replicate = paste("replicate", replicate),
-         age = paste("age-", age)) %>%
-  filter(year %in% scaled_years,
-         variable != "catch_observed") %>%
-  group_by(scenario, model, variable) %>%
-  summarise(#median_ci_width = (median(fit_975 - fit_025, na.rm = T) %>%
-            #  round(2)),
-            median_cv = median(cv, na.rm = T) %>% round(2)) %>%
-  spread(variable, median_cv) %>%
-  arrange(scenario)
 
 # Calculate whether a retro-adjustment would occur
 # given the 90% CI rule
