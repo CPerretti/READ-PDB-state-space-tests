@@ -1406,14 +1406,15 @@ plotTsError <- function(err, scaled_years) {
     dplyr::rename(`Estimation model` = model,
                   Variable = variable)
   
-  ggplot(errPairs %>%
+  p <- ggplot(errPairs %>%
            dplyr::select(-mape_se) %>%
            tidyr::spread(Variable, mape) %>%
            tidyr::gather(Variable, 
                          mape, -`Estimation model`,
                          -scenario, -Scale) %>%
            dplyr::filter(`Estimation model` != "no misreporting",
-                         scenario == "uniform random scenario")) +
+                         scenario == "uniform random scenario",
+                         Variable != "catch_observed")) +
     aes(x = Scale, y = mape, color = `Estimation model`, 
         group = Variable, shape = Variable) +
     geom_point(size = 4) +
@@ -1422,8 +1423,10 @@ plotTsError <- function(err, scaled_years) {
     scale_color_manual(values = colors2use[2:3]) +
     xlab("Estimation error of Scale parameter (MAPE)") +
     ylab("Estimation error of variable (MAPE)") +
-    ggtitle("Uniform random scenario") +
+    ggtitle("Uniform random scenario parameter error") +
     theme_bw()
+  
+  print(p)
   
   ggsave("./figures/scale_err_vs_other_err.png", width = 6, height = 6)
   

@@ -106,7 +106,7 @@ plotS(simOut = simOut[[1]],
 
 ## Plot variables in single plot
 ind_nomis <- which(sim_label$scenario == "no misreporting")
-simOut2plot <- simOut[[ind_nomis[1]]] 
+simOut2plot <- simOut[[ind_nomis[3]]] 
 plotAll(simOut = simOut2plot)
 
 ## Plot some simulations from simulate.sam()
@@ -245,6 +245,7 @@ df_mohn_fixed$replicate <- sim_labelAccept$replicate
 df_mohn_none$replicate <- sim_labelAccept$replicate
 
 for(i in 1:nrow(sim_labelAccept)) {
+  print(paste0("retro run ", i, " of ", nrow(sim_labelAccept)))
     retro_random <- tryCatch(retro_cp(fitSim_randomAccept[[i]], year = 7),
                                   error = function(e) "error", 
                                   warning=function(w) "non-converge")
@@ -271,9 +272,9 @@ for(i in 1:nrow(sim_labelAccept)) {
     df_mohn_fixed[i,1:3]  <- NA
     df_mohn_none[i,1:3]   <- NA
   } else {
-    df_mohn_random[i,1:3] <- stockassessment::mohn(retro_random[[i]])
-    df_mohn_fixed[i,1:3] <- stockassessment::mohn(retro_fixed[[i]])
-    df_mohn_none[i,1:3] <- stockassessment::mohn(retro_none[[i]])
+    df_mohn_random[i,1:3] <- stockassessment::mohn(retro_random)
+    df_mohn_fixed[i,1:3] <- stockassessment::mohn(retro_fixed)
+    df_mohn_none[i,1:3] <- stockassessment::mohn(retro_none)
   }
 }
 
@@ -594,7 +595,9 @@ err2plot_CSSB <-
   dplyr::mutate(variable = ifelse(variable == "catch", "Catch", variable),
                 variable = ifelse(variable == "ssb", "SSB", variable))
 p <-
-  ggplot(err2plot_CSSB %>% dplyr::filter(`Estimation model` %in% c("fixed", "random walk"))) +
+  ggplot(err2plot_CSSB %>% 
+          dplyr::filter(`Estimation model` %in% c("fixed", "random walk"))
+         ) +
          aes(x = year, color = `Estimation model`, fill = `Estimation model`) +
   geom_line(aes(y = mape)) +
   geom_ribbon(aes(ymin = mape_lo, ymax = mape_hi), color = NA, alpha = 0.3) +
@@ -612,6 +615,7 @@ p <-
 
 print(p)
 
+#ggsave(plot = p, "./figures/est_error_all.png", height = 8, width = 7)
 ggsave(plot = p, "./figures/est_error_fixedrw.png", height = 8, width = 7)
 
 p <-
@@ -692,7 +696,8 @@ err %>%
                 year %in% confLogScale_random$keyScaledYears) %>%
   dplyr::select(model, scenario, year, variable, age, 
                 replicate, error, error_pc, abs_error_pc) %>%
-  dplyr::group_by(model, variable) %>%
+  dplyr::group_by(model, 
+                  variable) %>%
   dplyr::summarise(mape  = mean(abs_error_pc, na.rm = T))
 
 
