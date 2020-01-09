@@ -243,6 +243,7 @@ sim <- function(fit, keyLogScale, noScaledYears, scenario) {
   dimnames(f) <- list(paste0("tru.", c(1:nA)), fit$data$years)
   trueParams$pl$logF <- logF
   return(list(trueParams = trueParams,
+              scaled_yearsSim = (max(fit$data$years) - noScaledYears + 1):max(fit$data$years),
               N = N, 
               logN = logN,
               SSB = SSB,
@@ -763,10 +764,13 @@ calcReTsError <- function(fitSim, simOut, confLogScale) {
 
   for (h in indRe) {
     varName <- substr(names(fitSim$pl[h]), 4, 999)
-    year <- if (varName == "Scale") {
-      as.numeric(fitSim$conf$keyScaledYears)
+    yearFit <- if (varName == "Scale") {
+     confLogScale$keyScaledYears
     } else {as.numeric(fitSim$data$years)}
-
+    
+    yearSim <- if (varName == "Scale") {
+      simOut$scaled_yearsSim
+    } else {as.numeric(fitSim$data$years)}
     #for (i in 1:nRepAccept) {
     if (confLogScale$logScaleType == "fixed" & varName == "Scale") {
       fitSim$pl[[h]] <- matrix(fitSim$pl[[h]][confLogScale$keyParScaledYA + 1],
@@ -788,8 +792,10 @@ calcReTsError <- function(fitSim, simOut, confLogScale) {
               cbind(sdLog %>%
                       t() %>%
                       as.data.frame()) %>%
-              cbind(data.frame(simOut$trueParams$pl[[h_tru]] %>% t %>% exp)) %>%
-              dplyr::mutate(year = year) %>%
+              dplyr::mutate(year = yearFit) %>%  
+              left_join(data.frame(simOut$trueParams$pl[[h_tru]] %>% t %>% exp,
+                                   year = yearSim),
+                        by = "year") %>%
               tidyr::gather(variable, N, -year) %>%
               dplyr::mutate(variable = gsub(x = variable, 
                                             pattern = "X", 
@@ -919,7 +925,7 @@ calcCSSBError <- function(fitSim, simOut) {
 }
 
 ## Plot timeseries error ##################################
-plotTsError <- function(err, scaled_years) {
+plotTsError <- function(err, scaled_yearsFit) {
   
   colors2use <- RColorBrewer::brewer.pal(3, "Dark2")
     
@@ -1223,6 +1229,8 @@ plotTsError <- function(err, scaled_years) {
       err %>%
       dplyr::mutate(fit_975 = exp(log(fit) + 1.96 * sdLog),
                     fit_025 = exp(log(fit) - 1.96 * sdLog),
+                    fit_95 = exp(log(fit)  + 1.645 * sdLog),
+                    fit_05 = exp(log(fit)  - 1.645 * sdLog),
                     replicate = paste("replicate", replicate),
                     age = paste("age-", age)) %>%
       dplyr::filter(variable %in% c("Scale"))
@@ -1235,15 +1243,19 @@ plotTsError <- function(err, scaled_years) {
                aes(x = year)) +
         geom_line(aes(y = fit, color = model)) +
         geom_line(aes(y = tru), color = "black") +
+        geom_hline(yintercept = 1, color = "black",
+                   lty = 2) +
+        geom_line(aes(y = tru, color = "true")) +
         geom_ribbon(aes(ymin = fit_975, ymax = fit_025, fill = model), 
                     alpha = 0.3, color = NA) +
         facet_grid(replicate ~ age, scales = "free_y") +
         theme_bw() +
         xlab("Year") +
         ylab("Estimated and True scale parameter value") +
-        scale_color_manual(values = colors2use[2:3]) +
-        scale_fill_manual(values = colors2use[2:3]) +
-        ggtitle(paste0("Scale parameter error (", 
+        scale_color_manual(values = c(colors2use[2:3], "black")) +
+        scale_fill_manual(values = colors2use[2:3], guide = "none") +
+        theme(legend.title = element_blank()) +
+        ggtitle(paste0("Scale parameter estimates (", 
                        scenarios2plot[i], ")"))
       print(p)
     }
@@ -1263,7 +1275,7 @@ plotTsError <- function(err, scaled_years) {
         xlab("Year") +
         ylab("Scale parameter value") +
         #scale_y_continuous(breaks=seq(1,11,2)) +
-        scale_x_continuous(breaks = seq(2005, 2014, 4)) +
+        #scale_x_continuous(breaks = seq(2005, 2014, 4)) +
         scale_color_manual(values = c(colors2use[2:3], "black")) +
         scale_fill_manual(values = colors2use[2:3], guide = "none") +
         theme(axis.title   = element_text(size = 14),
@@ -1345,7 +1357,7 @@ plotTsError <- function(err, scaled_years) {
   ggplot(err %>%
            dplyr::filter(model != "no misreporting",
                          scenario == "uniform random scenario",
-                         year %in% scaled_years) %>%
+                         year %in% scaled_yearsFit) %>%
            group_by(replicate, 
                     age, model, scenario, variable) %>%
            dplyr::summarise(mape = mean(abs_error_pc, na.rm = T)) %>%
@@ -1372,7 +1384,7 @@ plotTsError <- function(err, scaled_years) {
            dplyr::filter(model != "no misreporting",
                          scenario == "uniform random scenario",
                          variable %in% c("Scale"),
-                         year %in% scaled_years) %>%
+                         year %in% scaled_yearsFit) %>%
            group_by(replicate, 
                     age, 
                     model, scenario, variable) %>%
@@ -1397,7 +1409,7 @@ plotTsError <- function(err, scaled_years) {
   # Plot pairs of mean variable error vs Scale error for uniform scenario
   errPairs <- 
     err %>%
-    dplyr::filter(year %in% scaled_years) %>%
+    dplyr::filter(year %in% scaled_yearsFit) %>%
     dplyr::group_by(model, scenario, variable) %>%
     #dplyr::filter(abs_error_pc < quantile(abs_error_pc, 0.50, na.rm=T)) %>%
     dplyr::summarise(mape = mean(abs_error_pc, na.rm = T),

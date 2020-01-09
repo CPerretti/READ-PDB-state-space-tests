@@ -34,9 +34,9 @@ scenarios <- c("uniform random",
                "random walk",
                "fixed",
                "no misreporting")
-nRep <- 300 # Number of simulation replicates
-noScaledYears <- 10
-
+nRep <- 300#00 # Number of simulation replicates
+noScaledYearsFit <- 20
+noScaledYearsSim <- 10
 
 # Output container
 sim_label <- expand.grid(replicate = 1:nRep, scenario = scenarios, stringsAsFactors = F)
@@ -55,29 +55,30 @@ confLogScale_random <-
   list(logScaleType = "random walk",
        keyLogScale = keyLogScale,
        keyVarLogScale = rep(0, nAs),
-       noScaledYears = noScaledYears,
-       keyScaledYears = (max(fitReal$data$years) - noScaledYears + 1) : 
+       noScaledYears = noScaledYearsFit,
+       keyScaledYears = (max(fitReal$data$years) - noScaledYearsFit + 1) : 
          max(fitReal$data$years))
 
 confLogScale_fixed <-
   list(logScaleType = "fixed",
        keyLogScale = keyLogScale,
-       noScaledYears = noScaledYears,
-       keyScaledYears = (max(fitReal$data$years) - noScaledYears + 1) : 
+       noScaledYears = noScaledYearsFit,
+       keyScaledYears = (max(fitReal$data$years) - noScaledYearsFit + 1) : 
          max(fitReal$data$years),
        keyParScaledYA =  matrix(data = rep(c(0), 
-                                           each = noScaledYears * ncol(fitReal$data$propF)),
-                                nrow = noScaledYears)) # one param all years
+                                           each = noScaledYearsFit * ncol(fitReal$data$propF)),
+                                nrow = noScaledYearsFit)) # one param all years
 
 confLogScale_none <- list(logScaleType = "no misreporting")
 
-scaled_years <- confLogScale_fixed$keyScaledYears
+scaled_yearsFit <- confLogScale_fixed$keyScaledYears
 
 # Generate simulation replicates
+
 for (i in 1:nrow(sim_label)) {
   simOut[[i]] <- sim(fit = fitReal,
                      keyLogScale = keyLogScale,
-                     noScaledYears = noScaledYears,
+                     noScaledYears = noScaledYearsSim,
                      scenario = sim_label$scenario[i])
 }
 
@@ -119,17 +120,17 @@ for (i in 1:nrow(sim_label)) {
   # Read in data, set initial params and configuration
   setupMod_random[[i]] <- setupModel(conf = fitReal$conf, 
                                      example_dir = example_dir, 
-                                     noScaledYears = noScaledYears,
+                                     noScaledYears = noScaledYearsFit,
                                      confLogScale = confLogScale_random)
   
   setupMod_fixed[[i]] <- setupModel(conf = fitReal$conf,
                                     example_dir = example_dir,
-                                    noScaledYears = noScaledYears,
+                                    noScaledYears = noScaledYearsFit,
                                     confLogScale = confLogScale_fixed)
   
   setupMod_none[[i]] <- setupModel(conf = fitReal$conf,
                                    example_dir = example_dir,
-                                   noScaledYears = noScaledYears,
+                                   noScaledYears = noScaledYearsFit,
                                    confLogScale = confLogScale_none)
   
   
@@ -207,13 +208,13 @@ save(list = c("sim_labelAccept",
               "fitSim_randomAccept", 
               "fitSim_fixedAccept", 
               "fitSim_noneAccept",
-              "scaled_years",
+              "scaled_yearsFit",
               "confLogScale_random",
               "confLogScale_fixed",
               "confLogScale_none"), 
      file = paste0("./output/setupAndFits", suffix))
 
-#load("output/setupAndFits2019-12-05.Rdata")
+#load("output/setupAndFits_toolong2020-01-02.Rdata")
 
 
 ## Perform retro runs
@@ -339,8 +340,8 @@ for (i in 1:nrow(sim_labelAccept)) {
 
 suffix <- paste0(Sys.Date(), ".Rdata")
 save(list = "err", 
-     file = paste0("./output/err", suffix))
-#load("./output/err")
+     file = paste0("./output/err_toolong", suffix))
+#load("./output/err_toolong2020-01-08.Rdata")
 
 ## Plot example true vs observed vs fit to observed ########
 # (1) N-at-age (1000s)
@@ -474,7 +475,7 @@ catch_error_table <-
   spread(model, mean_error_pc)
 
 # Plot time series error
-plotTsError(err, scaled_years = scaled_years)
+plotTsError(err, scaled_yearsFit = scaled_yearsFit)
 
 # Plot parameters true vs fit
 plotPars(fitSim_randomAccept, fitSim_fixedAccept, fitSim_noneAccept,
@@ -647,7 +648,7 @@ err2plot_examples <-
          fit_025 = exp(log(fit) - 1.96 * sdLog),
          replicate = paste("replicate", replicate),
          age = paste("age-", age)) %>%
-  filter(year %in% scaled_years)
+  filter(year %in% scaled_yearsFit)
 p <-
   ggplot(err2plot_examples %>%
            filter(variable == c("F")) %>%
