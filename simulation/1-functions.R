@@ -410,8 +410,8 @@ plotF <- function(simOut, fit) {
     tidyr::separate(variable, c("source", "age")) %>%
     dplyr::mutate(age = paste0("age-", age))
   
-  # Plot N-at-age (all ages should match exactly when using errPro_exact)
-  ggplot(data = df2plotF %>% dplyr::filter(source == "tru"),
+  # Plot F-at-age (all ages should match exactly when using errPro_exact)
+  p <- ggplot(data = df2plotF %>% dplyr::filter(source == "tru"),
          aes(x = year, y = f, color = source)) +
     geom_line() +
     facet_wrap(~age, scales = "free") +
@@ -422,6 +422,8 @@ plotF <- function(simOut, fit) {
     theme(legend.title = element_blank(),
           legend.position = "none",
           legend.text = element_text(size = 12))
+  
+  print(p)
   
   ggsave("./figures/simulated_f_at_age.png", width = 7, height = 5)
 }
@@ -646,34 +648,6 @@ plotS <- function(simOut, fit) {
     theme_bw() +
     theme(legend.title = element_blank(),
           legend.text = element_text(size = 12))
-}
-
-## Plot simulate.sam() replicates ##########################
-# SAM simulate feature
-plotSimSAM <- function(fit, nsim = 1, seed = NULL) {
-  set.seed(seed) # for reproduciblilty and to match with full.data = TRUE
-  simOut <- stockassessment:::simulate.sam(fit, nsim = nsim, full.data = FALSE)
-  
-  df_simOut <- data.frame() 
-  for (i in 1:length(simOut)) {
-    df_simOut <-
-      rbind(df_simOut, data.frame(replicate = as.factor(i),
-                                  year = fit$data$years,
-                                  N = t(exp(simOut[[i]]$logN)),
-                                  F = t(exp(simOut[[i]]$logF))))
-  }
-  df2plotSimOut <-
-    df_simOut %>%
-    cbind(data.frame(fit = fit$pl$logN %>% exp %>% t)) %>% # original fit
-    tidyr::gather(variable, value, -year, -replicate) %>%
-    tidyr::separate(variable, into = c("variable", "age"))
-  
-  # plot simulate.sam replicates
-  ggplot(df2plotSimOut %>% dplyr::filter(variable %in% c("N")),
-         aes(x = year, y = value, group = replicate)) +
-    geom_line() + 
-    facet_wrap(~age, scales = "free") +
-    ylab("Abundance (1000's)")
 }
 
 
@@ -928,226 +902,6 @@ calcCSSBError <- function(fitSim, simOut) {
 plotTsError <- function(err, scaled_yearsFit) {
   
   colors2use <- RColorBrewer::brewer.pal(3, "Dark2")
-    
-  # # Calculate median error
-  # errAnnual <-
-  #   err %>%
-  #   dplyr::group_by(variable, age, year) %>%
-  #   dplyr::summarise(median_error = median(error))
-  
-  # Plot median error for N and F in each year for each age
-  # p <-
-  #   ggplot(errAnnual %>%
-  
-  #            dplyr::filter(variable == "N") %>%
-  #            dplyr::mutate(as.numeric(year)),
-  #          aes(x = year, y = median_error)) +
-  #     geom_line() +
-  #     geom_hline(yintercept = 0) +
-  #     theme_bw() +
-  #     ylab("Median raw error (fit - true)") +
-  #     xlab("Year") +
-  #     theme(axis.title = element_text(size = 16),
-  #           axis.text = element_text(size = 14)) +
-  #     facet_wrap(~age) +
-  #     ggtitle("N estimation error-at-age")
-  # print(p)
-  
-  # p <-
-  #   ggplot(errAnnual %>% 
-  #            dplyr::filter(variable == "F") %>%
-  #            dplyr::mutate(as.numeric(year)),
-  #          aes(x = year, y = median_error)) +
-  #     geom_line() +
-  #     geom_hline(yintercept = 0) +
-  #     theme_bw() +
-  #     ylab("Median raw error (fit - true)") +
-  #     xlab("Year") +
-  #     theme(axis.title = element_text(size = 16),
-  #           axis.text = element_text(size = 14)) +
-  #     facet_wrap(~age) +
-  #     ggtitle("F estimation error-at-age")
-  # print(p)
-  
-  # if(any(errAnnual$variable == "catch")) {
-  #   p <-
-  #     ggplot(errAnnual %>% 
-  #              dplyr::filter(variable == "catch") %>%
-  #              dplyr::mutate(as.numeric(year)),
-  #            aes(x = year, y = median_error)) +
-  #     geom_line() +
-  #     geom_hline(yintercept = 0) +
-  #     theme_bw() +
-  #     ylab("Median raw error (fit - true)") +
-  #     xlab("Year") +
-  #     theme(axis.title = element_text(size = 16),
-  #           axis.text = element_text(size = 14)) +
-  #     facet_wrap(~age) +
-  #     ggtitle("Catch estimation error")
-  #   print(p)
-  # }
-  
-  
-  # Plot a few example fit vs tru time series
-  # p <-
-  #   ggplot(err %>%
-  #            dplyr::select(-sdLog, -decile, -error_pc) %>%
-  #            dplyr::filter(variable == "F",
-  #                          age == 2,
-  #                          replicate %in% 1:10) %>%
-  #            tidyr::gather(source, value, 
-  #                          -year, -age, -replicate, -variable),
-  #          aes(x = year, y = value, color = source)) +
-  #   geom_line() +
-  #   facet_wrap(~replicate) + 
-  #   ggtitle("Age-2 F estimation error examples")
-  # print(p)
-  
-  # Plot decile coverage for N and F
-  # p <- 
-  #   ggplot(err %>% dplyr::filter(variable %in% c("N", "F")),
-  #          aes(x = decile)) +
-  #   geom_histogram(binwidth=1, colour="white") +
-  #   geom_hline(yintercept = noYears * nRepAccept / 10, 
-  #              color = "dark grey") +
-  #   theme_bw() +
-  #   facet_grid(variable~age) +
-  #   ggtitle("Confidence interval coverage for each age")
-  # print(p)
-  
-  # Plot decile coverage for Catch
-  # if(any(err$variable == "catch")) {
-  #   p <- 
-  #     ggplot(err %>% dplyr::filter(variable == "catch"),
-  #            aes(x = decile)) +
-  #     geom_histogram(binwidth=1, colour="white") +
-  #     geom_hline(yintercept = noYears * nRepAccept / 10, 
-  #                color = "dark grey") +
-  #     theme_bw() +
-  #     facet_wrap(~age) +
-  #     ggtitle("Confidence interval coverage for catch")
-  #   print(p)
-  # }
-  
-  # Plot relationship between percent error and true value for N and F
-  # p <-
-  #   ggplot(err  %>% dplyr::filter(variable %in% c("N", "F")),
-  #          aes(x = tru, y = error_pc)) +
-  #     geom_point(alpha = 0.2) +
-  #     theme_bw() +
-  #     facet_wrap(variable~age, scales = "free", nrow = 2) +
-  #     xlab("True value") +
-  #     ylab("Percent error") +
-  #     ggtitle("Percent error vs true value")
-  # print(p)
-    
-  
-  # err2plot <-
-  #   err %>%  
-  #   dplyr::filter(variable %in% c("N")) %>%
-  #   dplyr::select(model, scenario, year, age, replicate, tru, fit) %>%
-  #   dplyr::rename(N_tru = tru,
-  #                 N_fit = fit) %>%
-  #   dplyr::left_join({err %>%  
-  #       dplyr::filter(variable %in% c("F")) %>%
-  #       dplyr::select(model, scenario, year, age, replicate, error_pc, abs_error) %>%
-  #       dplyr::rename(F_error_pc = error_pc,
-  #                     F_abs_error = abs_error)}) %>%
-  #   dplyr::left_join({err %>%  
-  #       dplyr::filter(variable %in% c("N")) %>%
-  #       dplyr::select(model, scenario, year, age, replicate, error_pc, abs_error) %>%
-  #       dplyr::rename(N_error_pc = error_pc,
-  #                     N_abs_error = abs_error)}) %>%
-  #   dplyr::left_join({err %>%  
-  #       dplyr::filter(variable %in% c("Scale")) %>%
-  #       dplyr::select(model, scenario, year, age, replicate, error_pc, abs_error) %>%
-  #       dplyr::rename(Scale_error_pc = error_pc,
-  #                     Scale_abs_error = abs_error)})
-  
-  
-  # N
-  # p <-
-  #   ggplot(err2plot %>% dplyr::filter(N_tru < quantile(N_tru, .9)),
-  #          aes(x = N_tru)) +
-  #   geom_point(aes(y = N_error_pc), alpha = 0.2) +
-  #   geom_hline(yintercept = 0) +
-  #   facet_wrap(~age) +
-  #   theme_bw() +
-  #   xlab("N (1000's)") +
-  #   ylab("Percent error of N estimate") +
-  #   ggtitle("Percent error in N vs N value (<90th percentile)")
-  # print(p)
-  
-  # F
-  # p <-
-  #   ggplot(err2plot %>% dplyr::filter(N_tru < quantile(N_tru, .9)),
-  #          aes(x = N_tru)) +
-  #     geom_point(aes(y = F_error_pc), alpha = 0.2) +
-  #     geom_hline(yintercept = 0) +
-  #     facet_wrap(~age) +
-  #     theme_bw() +
-  #     xlab("N (1000's)") +
-  #     ylab("Percent error of F estimate") +
-  #   ggtitle("Percent error in F vs N value (<90th percentile)")
-  # print(p)
-  
-  
-  # Plot mean percent error vs percentile of N_tru
-  # err2plot_percentile <-
-  #   err2plot %>%
-  #   dplyr::group_by(model, scenario, age) %>%
-  #   dplyr::mutate(N_percentile = ntile(N_tru, 100)) %>%
-  #   dplyr::group_by(model, scenario, age, N_percentile) %>%
-  #   dplyr::summarise(F_error_pc_mean = mean(F_error_pc),
-  #                    N_error_pc_mean = mean(N_error_pc),
-  #                    nObsF = length(F_error_pc),
-  #                    nObsN = length(N_error_pc),
-  #                    F_error_pc_hi   = F_error_pc_mean + 1.96 * sd(F_error_pc)/sqrt(nObsF),
-  #                    F_error_pc_lo  = F_error_pc_mean - 1.96 * sd(F_error_pc)/sqrt(nObsF),
-  #                    N_error_pc_hi  = N_error_pc_mean + 1.96 * sd(N_error_pc)/sqrt(nObsN),
-  #                    N_error_pc_lo  = N_error_pc_mean - 1.96 * sd(N_error_pc)/sqrt(nObsN),
-  #                    N_tru_value     = mean(N_tru),
-  #                    N_fit_max       = quantile(N_fit, .95),
-  #                    N_fit_min       = quantile(N_fit, .05))
-  
-  
-  # N
-  # p <-
-  #   ggplot(err2plot_percentile,
-  #          aes(x = N_percentile)) +
-  #   geom_line(aes(y = N_error_pc_mean)) +
-  #   geom_ribbon(aes(ymin = N_error_pc_lo, ymax = N_error_pc_hi), alpha = 0.3) +
-  #   geom_hline(yintercept = 0) +
-  #   facet_wrap(~age) +
-  #   theme_bw() +
-  #   xlab("Percentile of N") +
-  #   ylab("Percent error of N estimate") +
-  #   ggtitle("Mean percent error of N vs Percentile of N")
-  # print(p)
-  
-  # F
-  # p <-
-  #   ggplot(err2plot_percentile,
-  #          aes(x = N_percentile)) +
-  #   geom_line(aes(y = F_error_pc_mean)) +
-  #   geom_ribbon(aes(ymin = F_error_pc_lo, ymax = F_error_pc_hi), alpha = 0.3) +
-  #   geom_hline(yintercept = 0) +
-  #   facet_wrap(~age) +
-  #   theme_bw() +
-  #   xlab("Percentile of N") +
-  #   ylab("Percent error of F estimate") +
-  #   ggtitle("Mean percent error of F vs Percentile of N")
-  # print(p)
-  
-  # Plot percentile of N vs value of N
-  # p <-
-  #   ggplot(err2plot_percentile %>% dplyr::filter(N_percentile < 10),
-  #          aes(x = N_percentile)) +
-  #   geom_ribbon(aes(ymin = N_fit_min, ymax = N_fit_max), fill = "blue", alpha = 0.3) +
-  #   facet_wrap(~age, scales = "free_y") +
-  #   xlab("N percentile") +
-  #   ylab("Range of N fit (1000's)")
-  # print(p)
   
   
   # Plot mean error in catch and ssb vs year
@@ -1164,11 +918,7 @@ plotTsError <- function(err, scaled_yearsFit) {
                      mape_hi   = mape + 1.96 * sd(abs_error_pc, na.rm = T)/sqrt(nObs),
                      mape_lo   = mape - 1.96 * sd(abs_error_pc, na.rm = T)/sqrt(nObs))
   p <-
-    ggplot(err2plot_CSSB,# %>% 
-             #dplyr::filter(model %in% c("fixed", "random walk")),#,
-                           #scenario %in% c("no misreporting scenario", "fixed scenario"),
-                           #variable == "catch"
-            #               ),
+    ggplot(err2plot_CSSB,
            aes(x = year, color = model, fill = model)) +
     geom_line(aes(y = mape)) +
     geom_ribbon(aes(ymin = mape_lo, ymax = mape_hi), color = NA, alpha = 0.3) +
@@ -1288,42 +1038,6 @@ plotTsError <- function(err, scaled_yearsFit) {
 
   }
   
-  
-
-  
-  
-  # Plot average true catch vs average estimated catch
-  # err2plot_C_Av <-
-  #   err %>%  
-  #   dplyr::filter(variable %in% c("catch")) %>%
-  #   dplyr::select(year, age, replicate, tru, fit) %>%
-  #   dplyr::group_by(year) %>%
-  #   dplyr::summarise(mean_tru = mean(tru),
-  #                    mean_fit = mean(fit))
-  
-  # p <-
-  #   ggplot(err2plot_C_Av, aes(x = year)) +
-  #   geom_line(aes(y = mean_tru), col = "black") +
-  #   geom_line(aes(y = mean_fit), col = "red") +
-  #   #geom_ribbon(aes(ymin = error_pc_lo, ymax = error_pc_hi), alpha = 0.3) +
-  #   theme_bw() +
-  #   xlab("Year") +
-  #   ylab("Mean catch (MT)")
-  # print(p)
-  
-  # Plot relationship between percent error and true value for N and F
-  # if(any(errAnnual$variable == "catch")) {
-  #   p <-
-  #     ggplot(err  %>% dplyr::filter(variable == "catch"),
-  #            aes(x = tru, y = error_pc)) +
-  #     geom_point(alpha = 0.2) +
-  #     theme_bw() +
-  #     facet_wrap(~age, scales = "free", nrow = 2) +
-  #     xlab("True value") +
-  #     ylab("Percent error") +
-  #     ggtitle("Percent error vs true value for Catch")
-  #   print(p)
-  # }
   
   # Plot histogram of scale percent errors in uniform scenario
   colors2use <- RColorBrewer::brewer.pal(3, "Dark2")

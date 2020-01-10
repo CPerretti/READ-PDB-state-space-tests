@@ -1,10 +1,12 @@
 ## Perform SAM simulation tests
  
 
-# Install github version of package to use default package
+# Install default version of stockassessment from github
 #devtools::install_github("fishfollower/SAM/stockassessment")
-# Install local version of package with changes
+# Install local forked version of package with changes
 #devtools::install_local("../../SAM/stockassessment/", force = TRUE)
+# Install forked version from github
+#devtools::install_github("perretti/SAM/stockassessment/", force = TRUE)
 
 set.seed(321) # for reproducibility
 
@@ -34,7 +36,7 @@ scenarios <- c("uniform random",
                "random walk",
                "fixed",
                "no misreporting")
-nRep <- 300#00 # Number of simulation replicates
+nRep <- 3#300 # Number of simulation replicates
 noScaledYearsFit <- 20
 noScaledYearsSim <- 10
 
@@ -105,8 +107,6 @@ ind_nomis <- which(sim_label$scenario == "no misreporting")
 simOut2plot <- simOut[[ind_nomis[3]]] 
 plotAll(simOut = simOut2plot)
 
-## Plot some simulations from simulate.sam()
-#plotSimSAM(fitReal, nsim = 10, seed = NULL)
 
 
 ## Fit sam to a simulation ################################
@@ -213,6 +213,7 @@ save(list = c("sim_labelAccept",
               "confLogScale_fixed",
               "confLogScale_none"), 
      file = paste0("./output/setupAndFits", suffix))
+
 
 #load("output/setupAndFits_toolong2020-01-02.Rdata")
 
