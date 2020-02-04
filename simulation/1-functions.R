@@ -725,6 +725,11 @@ df_parsOut <- data.frame()
         scale_color_manual(values = colors2use) +
         ggtitle(scenarios2plot[i])
     print(p)
+    
+    ggsave(plot = p, filename = paste0("./figures/param_ests_",
+                                       scenarios2plot[i], ".png"), 
+           width = 8, height = 6)
+
   }
 }
 
@@ -1629,3 +1634,6 @@ plotAll <- function(simOut) {
   print(p)
   ggsave(p, filename = "./figures/example_all.png", height = 7, width = 5)
 }
+
+source("./functions/compareAIC.R")
+source("./functions/plotCor.R")

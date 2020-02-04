@@ -36,8 +36,8 @@ scenarios <- c("uniform random",
                "random walk",
                "fixed",
                "no misreporting")
-nRep <- 3#300 # Number of simulation replicates
-noScaledYearsFit <- 20
+nRep <- 300 # Number of simulation replicates
+noScaledYearsFit <- 10
 noScaledYearsSim <- 10
 
 # Output container
@@ -85,9 +85,9 @@ for (i in 1:nrow(sim_label)) {
 }
 
 ## Plot an example true vs observed vs fit ########
-
+which(sim_labelAccept$scenario == "random walk" & sim_labelAccept$replicate==17)
 # ## (1) N-at-age (1000s)
-plotN(simOut = simOut[[1]],
+plotN(simOut = simOutAccept[[315]],
       fit = fitReal)
 
 ## (2) F-at-age
@@ -215,7 +215,52 @@ save(list = c("sim_labelAccept",
      file = paste0("./output/setupAndFits", suffix))
 
 
-#load("output/setupAndFits_toolong2020-01-02.Rdata")
+#load("output/setupAndFits2020-01-13.Rdata")
+
+# Calculate fit error
+err <- data.frame()
+for (i in 1:nrow(sim_labelAccept)) {
+  errRe_random <- calcReTsError(fitSim_randomAccept[[i]], 
+                                simOutAccept[[i]],
+                                confLogScale_random)
+  errRe_fixed <- calcReTsError(fitSim_fixedAccept[[i]],
+                               simOutAccept[[i]],
+                               confLogScale_fixed)
+  errRe_none <- calcReTsError(fitSim_noneAccept[[i]], 
+                              simOutAccept[[i]],
+                              confLogScale_none)
+  
+  errCSSB_random <- calcCSSBError(fitSim_randomAccept[[i]], 
+                                  simOutAccept[[i]])
+  errCSSB_fixed <- calcCSSBError(fitSim_fixedAccept[[i]], 
+                                 simOutAccept[[i]])
+  errCSSB_none <- calcCSSBError(fitSim_noneAccept[[i]], 
+                                simOutAccept[[i]])
+  
+  err_random <- rbind(errRe_random, errCSSB_random)
+  err_fixed  <- rbind(errRe_fixed, errCSSB_fixed)
+  err_none   <- rbind(errRe_none, errCSSB_none)
+  
+  err <-
+    rbind(err, 
+          {rbind(data.frame(err_random, model = "random walk"),
+                 data.frame(err_fixed,  model = "fixed"),
+                 data.frame(err_none,   model = "no misreporting")) %>%
+              dplyr::mutate(replicate = sim_labelAccept$replicate[i],
+                            scenario  = as.factor(paste(sim_labelAccept$scenario[i], "scenario")),
+                            scenario  = factor(scenario, levels = c("no misreporting scenario",
+                                                                    "fixed scenario",
+                                                                    "random walk scenario",
+                                                                    "uniform random scenario")),
+                            model     = factor(model, levels = c("no misreporting", 
+                                                                 "fixed",
+                                                                 "random walk")))})
+}
+
+suffix <- paste0(Sys.Date(), ".Rdata")
+save(list = "err", 
+     file = paste0("./output/err", suffix))
+#load("./output/err2020-01-13.Rdata")
 
 
 ## Perform retro runs
@@ -297,52 +342,6 @@ save(list = c("df_mohn"),
      file = paste0("./output/df_mohn", suffix))
 
 
-
-
-# Calculate fit error
-err <- data.frame()
-for (i in 1:nrow(sim_labelAccept)) {
-  errRe_random <- calcReTsError(fitSim_randomAccept[[i]], 
-                                simOutAccept[[i]],
-                                confLogScale_random)
-  errRe_fixed <- calcReTsError(fitSim_fixedAccept[[i]],
-                               simOutAccept[[i]],
-                               confLogScale_fixed)
-  errRe_none <- calcReTsError(fitSim_noneAccept[[i]], 
-                              simOutAccept[[i]],
-                              confLogScale_none)
-  
-  errCSSB_random <- calcCSSBError(fitSim_randomAccept[[i]], 
-                                  simOutAccept[[i]])
-  errCSSB_fixed <- calcCSSBError(fitSim_fixedAccept[[i]], 
-                                 simOutAccept[[i]])
-  errCSSB_none <- calcCSSBError(fitSim_noneAccept[[i]], 
-                                simOutAccept[[i]])
-  
-  err_random <- rbind(errRe_random, errCSSB_random)
-  err_fixed  <- rbind(errRe_fixed, errCSSB_fixed)
-  err_none   <- rbind(errRe_none, errCSSB_none)
-  
-  err <-
-    rbind(err, 
-          {rbind(data.frame(err_random, model = "random walk"),
-                 data.frame(err_fixed,  model = "fixed"),
-                 data.frame(err_none,   model = "no misreporting")) %>%
-              dplyr::mutate(replicate = sim_labelAccept$replicate[i],
-                            scenario  = as.factor(paste(sim_labelAccept$scenario[i], "scenario")),
-                            scenario  = factor(scenario, levels = c("no misreporting scenario",
-                                                                    "fixed scenario",
-                                                                    "random walk scenario",
-                                                                    "uniform random scenario")),
-                            model     = factor(model, levels = c("no misreporting", 
-                                                                 "fixed",
-                                                                 "random walk")))})
-}
-
-suffix <- paste0(Sys.Date(), ".Rdata")
-save(list = "err", 
-     file = paste0("./output/err_toolong", suffix))
-#load("./output/err_toolong2020-01-08.Rdata")
 
 ## Plot example true vs observed vs fit to observed ########
 # (1) N-at-age (1000s)
@@ -752,8 +751,23 @@ for (i in 1:nrow(sim_labelAccept)) {
     select(scenario, `no misreporting`, fixed, `random walk`)
   
   
+  # Compare AIC values
+  compareAIC(sim_labelAccept, 
+             fitSim_noneAccept, 
+             fitSim_fixedAccept, 
+             fitSim_randomAccept, 
+             err)
   
-  
-  
-  
+# Plot mean correlation matrices
+plotCor(fitSim_noneAccept, 
+        sim_labelAccept = sim_labelAccept, 
+        model = "No misreporting model")
+
+plotCor(fitSim_fixedAccept, 
+        sim_labelAccept = sim_labelAccept, 
+        model = "Fixed misreporting model")
+
+plotCor(fitSim_randomAccept, 
+        sim_labelAccept = sim_labelAccept, 
+        model = "Random walk misreporting model")
 
