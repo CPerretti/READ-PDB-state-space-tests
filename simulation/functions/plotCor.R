@@ -25,7 +25,7 @@ plotCor <- function(fit, sim_labelAccept, model) {
                                         "random walk scenario",
                                         "uniform random scenario"))) %>%
     group_by(scenario, param1, param2) %>%
-    summarise(correlation = mean(correlation))
+    summarise(correlation = mean(correlation, na.rm = T))
   
   p <-
     ggplot(corDf, aes(x = param1, y = param2)) +
@@ -40,8 +40,8 @@ plotCor <- function(fit, sim_labelAccept, model) {
     theme(axis.text.x = element_text(angle=45, hjust=1)) +
     ggtitle(model)
   
-  ggsave(p, file = paste0("./figures/corrMat", model, ".png"),
-         height = 7, width = 8)
+  ggsave(p, file = paste0("./figures/corrMat", model, ".jpg"),
+         height = 7, width = 8, dpi = 500)
   
   print(p)
   

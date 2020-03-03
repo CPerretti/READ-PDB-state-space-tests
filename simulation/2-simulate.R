@@ -85,9 +85,9 @@ for (i in 1:nrow(sim_label)) {
 }
 
 ## Plot an example true vs observed vs fit ########
-which(sim_labelAccept$scenario == "random walk" & sim_labelAccept$replicate==17)
+
 # ## (1) N-at-age (1000s)
-plotN(simOut = simOutAccept[[315]],
+plotN(simOut = simOut[[1]],
       fit = fitReal)
 
 ## (2) F-at-age
@@ -104,7 +104,7 @@ plotS(simOut = simOut[[1]],
 
 ## Plot variables in single plot
 ind_nomis <- which(sim_label$scenario == "no misreporting")
-simOut2plot <- simOut[[ind_nomis[3]]] 
+simOut2plot <- simOut[[ind_nomis[1]]] 
 plotAll(simOut = simOut2plot)
 
 
@@ -340,7 +340,7 @@ df_mohn <-
 suffix <- paste0(Sys.Date(), ".Rdata")
 save(list = c("df_mohn"), 
      file = paste0("./output/df_mohn", suffix))
-
+#load("./output/df_mohn2020-02-11.Rdata")
 
 
 ## Plot example true vs observed vs fit to observed ########
@@ -382,7 +382,8 @@ ggplot(df_mohn %>%
   xlab("Estimation model") +
   ylab("Mean absolute Mohn's rho")
   
-ggsave("./figures/mean_mohn.png", width = 8.5, height = 7)
+ggsave("./figures/mean_mohn.jpg", width = 8.5, height = 7,
+       dpi = 500)
 
 ggplot(df_mohn %>% 
          dplyr::mutate(abs_mohn_plusgroup = ifelse(abs_mohn >= 1, 1, abs_mohn)),
@@ -463,7 +464,8 @@ ggplot(df_errCatchAdvice %>%
   ylab("Catch advice error (MAPE)") +
   xlab("Estimation model")
 
-ggsave("./figures/catch_advice_err_mean.png", width = 7, height = 6)
+ggsave("./figures/catch_advice_err_mean.jpg", width = 7, height = 6,
+       dpi = 500)
 
 # Catch advice error table
 catch_error_table <-
@@ -519,7 +521,8 @@ ggplot(dat2plot1, aes(x = year)) +
   facet_grid(variable~scenario, scales = "free_y") +
   theme_bw()
 
-ggsave("./figures/median_sims.png", height = 7, width = 5)
+ggsave("./figures/median_sims.jpg", height = 7, width = 5,
+       dpi = 500)
            
            
 # Plot mean error in catch and ssb vs year
@@ -541,8 +544,8 @@ err2plot_CSSB <-
   dplyr::mutate(variable = ifelse(variable == "catch", "Catch", variable),
                 variable = ifelse(variable == "ssb", "SSB", variable))
 p <-
-  ggplot(err2plot_CSSB %>% 
-          dplyr::filter(`Estimation model` %in% c("fixed", "random walk"))
+  ggplot(err2plot_CSSB #%>% 
+          #dplyr::filter(`Estimation model` %in% c("fixed", "random walk"))
          ) +
          aes(x = year, color = `Estimation model`, fill = `Estimation model`) +
   geom_line(aes(y = mape)) +
@@ -552,8 +555,8 @@ p <-
   theme_bw() +
   xlab("Year") +
   ylab("Estimation error (MAPE)") +
-  scale_color_manual(values = colors2use[2:3]) +
-  scale_fill_manual(values = colors2use[2:3]) +
+  scale_color_manual(values = colors2use[1:3]) +
+  scale_fill_manual(values = colors2use[1:3]) +
   theme(axis.title   = element_text(size = 14),
         plot.title   = element_text(size = 16),
         strip.text   = element_text(size = 9)) +
@@ -561,8 +564,10 @@ p <-
 
 print(p)
 
-#ggsave(plot = p, "./figures/est_error_all.png", height = 8, width = 7)
-ggsave(plot = p, "./figures/est_error_fixedrw.png", height = 8, width = 7)
+ggsave(plot = p, "./figures/est_error_all.jpg", height = 8, width = 7,
+       dpi = 500)
+#ggsave(plot = p, "./figures/est_error_fixedrw.jpg", height = 8, width = 7,
+#       dpi = 500)
 
 p <-
   ggplot(err2plot_CSSB) +
@@ -584,7 +589,8 @@ p <-
 
 print(p)
 
-ggsave(plot = p, "./figures/mpe_all.png", height = 8, width = 7)
+ggsave(plot = p, "./figures/mpe_all.jpg", height = 8, width = 7,
+       dpi = 500)
 
 
 # Plot average error for each scenario
@@ -623,7 +629,8 @@ p <-
 
 print(p)
 
-ggsave(plot = p, "./figures/scale_error.png", height = 5, width = 8)
+ggsave(plot = p, "./figures/scale_error.jpg", height = 5, width = 8,
+       dpi = 500)
   
 
 # Calculate average estimation error of fixed and random walk model

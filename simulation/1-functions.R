@@ -425,7 +425,7 @@ plotF <- function(simOut, fit) {
   
   print(p)
   
-  ggsave("./figures/simulated_f_at_age.png", width = 7, height = 5)
+  ggsave("./figures/simulated_f_at_age.jpg", width = 7, height = 5, dpi = 500)
 }
 
 ## Plot N-at-age simulated vs fit #######################
@@ -727,8 +727,8 @@ df_parsOut <- data.frame()
     print(p)
     
     ggsave(plot = p, filename = paste0("./figures/param_ests_",
-                                       scenarios2plot[i], ".png"), 
-           width = 8, height = 6)
+                                       scenarios2plot[i], ".jpg"), 
+           width = 8, height = 6, dpi = 500)
 
   }
 }
@@ -1039,7 +1039,8 @@ plotTsError <- function(err, scaled_yearsFit) {
               legend.title = element_blank())
       print(p)
       
-      ggsave(plot = p, "./figures/scale_examples.png", width = 9, height = 10)
+      ggsave(plot = p, "./figures/scale_examples.jpg", 
+             width = 9, height = 10, dpi = 500)
 
   }
   
@@ -1159,7 +1160,8 @@ plotTsError <- function(err, scaled_yearsFit) {
   
   print(p)
   
-  ggsave("./figures/scale_err_vs_other_err.png", width = 6, height = 6)
+  ggsave("./figures/scale_err_vs_other_err.jpg", width = 6, height = 6,
+         dpi = 500)
   
 }
 
@@ -1632,7 +1634,8 @@ plotAll <- function(simOut) {
     ylab("") + xlab("Year")
   
   print(p)
-  ggsave(p, filename = "./figures/example_all.png", height = 7, width = 5)
+  ggsave(p, filename = "./figures/example_all.jpg", 
+         height = 7, width = 5, dpi = 500)
 }
 
 source("./functions/compareAIC.R")
